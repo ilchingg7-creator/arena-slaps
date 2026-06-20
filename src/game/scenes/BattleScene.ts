@@ -28,6 +28,8 @@ import {
   tryCollectPowerUp,
   type PowerUpState,
 } from "../systems/PowerUpSystem";
+import { createAudioService } from "../audio/createAudioService";
+import type { AudioService } from "../audio/AudioService";
 import {
   computeBotDirection,
   createBotAI,
@@ -41,6 +43,7 @@ type Opponent =
 
 type BattleRuntime = {
   arena: Phaser.Geom.Rectangle;
+  audio: AudioService;
   botAI: BotAIState | null;
   cursors: Phaser.Types.Input.Keyboard.CursorKeys;
   opponent: Opponent;
@@ -65,6 +68,7 @@ type BattleRuntime = {
   scoreText: Phaser.GameObjects.Text;
   timerText: Phaser.GameObjects.Text;
   winnerText: Phaser.GameObjects.Text;
+  lastTickInt: number;
 };
 
 function getDirection(runtime: BattleRuntime): Phaser.Math.Vector2 {
@@ -228,6 +232,7 @@ export class BattleScene extends Phaser.Scene {
 
     this.runtime = {
       arena,
+      audio: createAudioService(this, settings),
       botAI: opponent.kind === "bot" ? opponent.ai : null,
       cursors,
       opponent,
@@ -268,6 +273,7 @@ export class BattleScene extends Phaser.Scene {
           fontSize: "28px",
         })
         .setOrigin(0.5),
+      lastTickInt: Math.ceil(settings.roundLengthSeconds),
     };
 
     const controlsHint =
@@ -287,7 +293,7 @@ export class BattleScene extends Phaser.Scene {
       if (!rt || rt.round.isComplete) {
         return;
       }
-      applySlap(
+      const hit = applySlap(
         rt.player,
         this.opponentActor(),
         rt.round,
@@ -295,6 +301,11 @@ export class BattleScene extends Phaser.Scene {
         rt.settings.winningScore,
         this.time.now,
       );
+      if (hit) {
+        rt.audio.playSlapHit();
+      } else {
+        rt.audio.playSlapMiss();
+      }
     };
 
     const slapP2 = () => {
@@ -305,7 +316,7 @@ export class BattleScene extends Phaser.Scene {
       if (rt.opponent.kind !== "player2") {
         return;
       }
-      applySlap(
+      const hit = applySlap(
         rt.opponent.player,
         rt.player,
         rt.round,
@@ -313,6 +324,11 @@ export class BattleScene extends Phaser.Scene {
         rt.settings.winningScore,
         this.time.now,
       );
+      if (hit) {
+        rt.audio.playSlapHit();
+      } else {
+        rt.audio.playSlapMiss();
+      }
     };
 
     const createTouchButton = (
@@ -464,6 +480,23 @@ export class BattleScene extends Phaser.Scene {
           saveBattleResults(storage, results);
         }
 
+        // End-of-round sting. In 2P-local mode we always use round-win
+        // because the game logic doesn't know which human is "the player";
+        // in 1P-vs-bot we play win/lose/draw depending on outcome.
+        if (runtime.settings.mode === "2p-local") {
+          if (runtime.round.winner === "draw") {
+            runtime.audio.playRoundDraw();
+          } else {
+            runtime.audio.playRoundWin();
+          }
+        } else if (runtime.round.winner === "player") {
+          runtime.audio.playRoundWin();
+        } else if (runtime.round.winner === "bots") {
+          runtime.audio.playRoundLose();
+        } else {
+          runtime.audio.playRoundDraw();
+        }
+
         this.scene.start("ResultsScene");
       }
 
@@ -493,7 +526,7 @@ export class BattleScene extends Phaser.Scene {
           this.time.now,
         )
       ) {
-        applySlap(
+        const hit = applySlap(
           runtime.opponent.bot,
           runtime.player,
           runtime.round,
@@ -501,12 +534,15 @@ export class BattleScene extends Phaser.Scene {
           runtime.settings.winningScore,
           this.time.now,
         );
+        if (hit) {
+          runtime.audio.playSlapHit();
+        }
       }
     } else {
       moveActor(runtime.opponent.player, getP2Direction(runtime));
 
       if (Phaser.Input.Keyboard.JustDown(runtime.slapKeyP2)) {
-        applySlap(
+        const hit = applySlap(
           runtime.opponent.player,
           runtime.player,
           runtime.round,
@@ -514,12 +550,17 @@ export class BattleScene extends Phaser.Scene {
           runtime.settings.winningScore,
           this.time.now,
         );
+        if (hit) {
+          runtime.audio.playSlapHit();
+        } else {
+          runtime.audio.playSlapMiss();
+        }
       }
     }
 
     // --- Player 1 slap ---
     if (Phaser.Input.Keyboard.JustDown(runtime.slapKeyP1)) {
-      applySlap(
+      const hit = applySlap(
         runtime.player,
         opponentActor,
         runtime.round,
@@ -527,6 +568,11 @@ export class BattleScene extends Phaser.Scene {
         runtime.settings.winningScore,
         this.time.now,
       );
+      if (hit) {
+        runtime.audio.playSlapHit();
+      } else {
+        runtime.audio.playSlapMiss();
+      }
     }
 
     // --- Power-up spawn + collect ---
@@ -536,17 +582,21 @@ export class BattleScene extends Phaser.Scene {
 
     if (tryCollectPowerUp(runtime.player, runtime.powerUp, this.time.now)) {
       runtime.powerUpsCollected.player += 1;
+      runtime.audio.playPowerUpCollect();
     }
 
     if (tryCollectPowerUp(opponentActor, runtime.powerUp, this.time.now)) {
       runtime.powerUpsCollected.bots += 1;
+      runtime.audio.playPowerUpCollect();
     }
 
     // --- Ring out ---
     if (isRingOut(runtime.player, runtime.arena, battleConfig.arena.ringOutMargin)) {
+      runtime.audio.playRingOut();
       resetActors(runtime);
     }
     if (isRingOut(opponentActor, runtime.arena, battleConfig.arena.ringOutMargin)) {
+      runtime.audio.playRingOut();
       resetActors(runtime);
     }
 
@@ -555,6 +605,19 @@ export class BattleScene extends Phaser.Scene {
       delta / 1000,
       runtime.settings.winningScore,
     );
+
+    // --- Countdown ticks during the last 3 seconds ---
+    const tickInt = Math.ceil(runtime.round.timeLeft);
+    if (
+      !runtime.round.isComplete &&
+      tickInt !== runtime.lastTickInt &&
+      tickInt <= 3 &&
+      tickInt > 0
+    ) {
+      runtime.audio.playCountdownTick();
+    }
+    runtime.lastTickInt = tickInt;
+
     updateHud(runtime);
   }
 }

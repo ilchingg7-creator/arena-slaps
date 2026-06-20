@@ -6,6 +6,8 @@ export type GameSettings = {
   botDifficulty: BotDifficulty;
   roundLengthSeconds: number;
   winningScore: number;
+  muted: boolean;
+  masterVolume: number;
 };
 
 export const DEFAULT_SETTINGS: GameSettings = {
@@ -13,6 +15,8 @@ export const DEFAULT_SETTINGS: GameSettings = {
   botDifficulty: "medium",
   roundLengthSeconds: 60,
   winningScore: 5,
+  muted: false,
+  masterVolume: 0.7,
 };
 
 type StorageLike = {
@@ -61,6 +65,7 @@ export const BOT_DIFFICULTY_OPTIONS: readonly BotDifficulty[] = [
   "hard",
 ];
 export const MODE_OPTIONS: readonly GameMode[] = ["1p-vs-bot", "2p-local"];
+export const MASTER_VOLUME_OPTIONS = [0, 0.25, 0.5, 0.7, 1] as const;
 
 export function cycleOption<T extends string | number>(
   options: readonly T[],
@@ -81,4 +86,8 @@ export function describeMode(mode: GameMode): string {
 
 export function describeDifficulty(difficulty: BotDifficulty): string {
   return difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
+}
+
+export function describeVolume(volume: number): string {
+  return `${Math.round(volume * 100)}%`;
 }

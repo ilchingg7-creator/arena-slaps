@@ -1,5 +1,6 @@
 import { assetManifest } from "../assets/assetManifest";
 import { loadAssets } from "../assets/loader";
+import { SOUND_MANIFEST } from "../assets/soundManifest";
 
 type TextStyle = {
   color?: string;
@@ -22,6 +23,7 @@ type DisplayList = {
 
 type SceneLoader = {
   image: (key: string, uri: string) => void;
+  audio: (key: string, urls: string | string[]) => void;
 };
 
 type SceneController = {
@@ -54,6 +56,12 @@ export const PreloadScene = {
       .setOrigin(0.5);
 
     loadAssets(this, assetManifest);
+
+    // Load every sound from the manifest. Sound paths all end in .ogg
+    // and live under /public/sounds/ (see soundManifest.ts).
+    for (const def of SOUND_MANIFEST) {
+      this.load.audio(def.key, def.path);
+    }
   },
   create(this: PreloadSceneContext) {
     this.scene.start("MenuScene");

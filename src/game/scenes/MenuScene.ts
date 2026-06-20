@@ -4,7 +4,9 @@ import {
   DEFAULT_SETTINGS,
   describeDifficulty,
   describeMode,
+  describeVolume,
   loadSettings,
+  MASTER_VOLUME_OPTIONS,
   MODE_OPTIONS,
   ROUND_LENGTH_OPTIONS,
   saveSettings,
@@ -13,6 +15,8 @@ import {
   type GameMode,
   type GameSettings,
 } from "../config/gameSettings";
+import { AudioService } from "../audio/AudioService";
+import { NoopAudioBackend } from "../audio/AudioBackend";
 
 type TextStyle = {
   align?: string;
@@ -57,6 +61,7 @@ type MenuSceneContext = {
     width?: number;
     height?: number;
   };
+  sound?: unknown;
 };
 
 type StorageLike = {
@@ -100,6 +105,16 @@ export const MenuScene = {
     const storage = getStorage();
     let settings: GameSettings = loadSettings(storage);
 
+    // AudioService for menu click/start sounds. We use the NoopAudioBackend
+    // during SSR; in the browser the MenuScene is constructed by Phaser so
+    // `this.sound` is the real SoundManager and we could construct a
+    // PhaserAudioBackend. To keep the scene file test-friendly and free of
+    // Phaser imports, we use NoopAudioBackend when there is no window.
+    const audio = new AudioService(new NoopAudioBackend(), {
+      muted: settings.muted,
+      masterVolume: settings.masterVolume,
+    });
+
     let battleSceneReady = false;
     let scenesReady = false;
     let queuedStart = false;
@@ -122,8 +137,8 @@ export const MenuScene = {
     // --- Settings rows ---
     const labelX = width * 0.32;
     const valueX = width * 0.58;
-    const rowStartY = height * 0.42;
-    const rowStep = 48;
+    const rowStartY = height * 0.40;
+    const rowStep = 44;
 
     const modeRow = this.add
       .text(labelX, rowStartY, "Mode", rowStyle())
@@ -172,6 +187,32 @@ export const MenuScene = {
       .setOrigin(0.5)
       .setInteractive();
 
+    const volumeRow = this.add
+      .text(labelX, rowStartY + rowStep * 4, "Volume", rowStyle())
+      .setOrigin(0, 0.5);
+    const volumeValue = this.add
+      .text(
+        valueX,
+        rowStartY + rowStep * 4,
+        describeVolume(settings.masterVolume),
+        valueStyle(),
+      )
+      .setOrigin(0.5)
+      .setInteractive();
+
+    const muteRow = this.add
+      .text(labelX, rowStartY + rowStep * 5, "Mute", rowStyle())
+      .setOrigin(0, 0.5);
+    const muteValue = this.add
+      .text(
+        valueX,
+        rowStartY + rowStep * 5,
+        settings.muted ? "Yes" : "No",
+        valueStyle(),
+      )
+      .setOrigin(0.5)
+      .setInteractive();
+
     const refreshDifficultyVisibility = () => {
       const visible = settings.mode === "1p-vs-bot";
       difficultyRow.setText(visible ? "Bot Difficulty" : "");
@@ -187,7 +228,10 @@ export const MenuScene = {
       }
     };
 
+    const clickPlay = () => audio.playMenuClick();
+
     modeValue.on?.("pointerup", () => {
+      clickPlay();
       const nextMode = cycleOption(
         MODE_OPTIONS as readonly GameMode[],
         settings.mode,
@@ -202,6 +246,7 @@ export const MenuScene = {
       if (settings.mode !== "1p-vs-bot") {
         return;
       }
+      clickPlay();
       const next: BotDifficulty = cycleOption(
         BOT_DIFFICULTY_OPTIONS as readonly BotDifficulty[],
         settings.botDifficulty,
@@ -212,6 +257,7 @@ export const MenuScene = {
     });
 
     roundValue.on?.("pointerup", () => {
+      clickPlay();
       const next = cycleOption(
         ROUND_LENGTH_OPTIONS,
         settings.roundLengthSeconds,
@@ -222,15 +268,51 @@ export const MenuScene = {
     });
 
     scoreValue.on?.("pointerup", () => {
+      clickPlay();
       const next = cycleOption(WINNING_SCORE_OPTIONS, settings.winningScore);
       settings = { ...settings, winningScore: next };
       scoreValue.setText(String(next));
       persist();
     });
 
+    volumeValue.on?.("pointerup", () => {
+      const next = cycleOption(
+        MASTER_VOLUME_OPTIONS,
+        settings.masterVolume,
+      );
+      settings = { ...settings, masterVolume: next };
+      volumeValue.setText(describeVolume(next));
+      // If user nudges volume above 0, implicitly unmute so they hear it.
+      if (next > 0 && settings.muted) {
+        settings = { ...settings, muted: false };
+        muteValue.setText("No");
+      }
+      audio.updateSettings({
+        muted: settings.muted,
+        masterVolume: settings.masterVolume,
+      });
+      // Play a click so the user can hear the new volume level.
+      audio.playMenuClick();
+      persist();
+    });
+
+    muteValue.on?.("pointerup", () => {
+      const next = !settings.muted;
+      settings = { ...settings, muted: next };
+      muteValue.setText(next ? "Yes" : "No");
+      audio.updateSettings({
+        muted: settings.muted,
+        masterVolume: settings.masterVolume,
+      });
+      if (!next) {
+        audio.playMenuClick();
+      }
+      persist();
+    });
+
     // --- Title + tagline ---
     this.add
-      .text(width / 2, height * 0.18, "Arena Slaps", {
+      .text(width / 2, height * 0.16, "Arena Slaps", {
         color: "#f4f1de",
         fontFamily: "Arial",
         fontSize: "56px",
@@ -238,7 +320,7 @@ export const MenuScene = {
       .setOrigin(0.5);
 
     this.add
-      .text(width / 2, height * 0.27, "Load-in, slap in, repeat.", {
+      .text(width / 2, height * 0.25, "Load-in, slap in, repeat.", {
         color: "#f4f1de",
         fontFamily: "Arial",
         fontSize: "18px",
@@ -248,7 +330,7 @@ export const MenuScene = {
     this.add
       .text(
         width / 2,
-        height * 0.34,
+        height * 0.31,
         "Click any setting to cycle. Press Enter to start.",
         {
           color: "#81b29a",
@@ -265,6 +347,7 @@ export const MenuScene = {
         startButton.setText("Loading...");
         return;
       }
+      audio.playMenuStart();
       this.scene.start("BattleScene", settings);
     };
 
