@@ -1,8 +1,10 @@
+import type { GameMode } from "../config/gameSettings";
 import type { RoundWinner } from "./ScoringSystem";
 
 export type BattleResults = {
   botScore: number;
   finishedAt: number;
+  mode: GameMode;
   playerScore: number;
   powerUpsCollected: {
     bot: number;
@@ -24,6 +26,7 @@ const storageKey = "arena-slaps:last-results";
 export function createBattleResults(input: {
   botScore: number;
   finishedAt?: number;
+  mode?: GameMode;
   playerScore: number;
   powerUpsCollected: BattleResults["powerUpsCollected"];
   roundsPlayed: number;
@@ -32,6 +35,7 @@ export function createBattleResults(input: {
   return {
     botScore: input.botScore,
     finishedAt: input.finishedAt ?? Date.now(),
+    mode: input.mode ?? "1p-vs-bot",
     playerScore: input.playerScore,
     powerUpsCollected: input.powerUpsCollected,
     roundsPlayed: input.roundsPlayed,
@@ -39,13 +43,27 @@ export function createBattleResults(input: {
   };
 }
 
+function opponentLabel(mode: GameMode): string {
+  return mode === "2p-local" ? "P2" : "Bot";
+}
+
+function playerLabel(mode: GameMode): string {
+  return mode === "2p-local" ? "P1" : "Player";
+}
+
 export function createBattleResultsSummary(results: BattleResults): string[] {
-  return [
+  const p1 = playerLabel(results.mode);
+  const p2 = opponentLabel(results.mode);
+
+  const winnerLine =
     results.winner === "draw"
       ? "Draw"
       : results.winner === "player"
-        ? "Player wins"
-        : "Bot wins",
+        ? `${p1} wins`
+        : `${p2} wins`;
+
+  return [
+    winnerLine,
     `Score ${results.playerScore} - ${results.botScore}`,
     `Rounds ${results.roundsPlayed}`,
     `Power-ups ${results.powerUpsCollected.player} / ${results.powerUpsCollected.bot}`,

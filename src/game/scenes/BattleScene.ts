@@ -1,6 +1,10 @@
 import Phaser from "phaser";
 import { battleConfig } from "../config/battleConfig";
-import { createBot, moveBotToward, type Bot } from "../entities/Bot";
+import {
+  DEFAULT_SETTINGS,
+  type GameSettings,
+} from "../config/gameSettings";
+import { createBot, type Bot } from "../entities/Bot";
 import {
   createPlayer,
   moveActor,
@@ -8,7 +12,10 @@ import {
   type Player,
 } from "../entities/Player";
 import { applySlap, isRingOut } from "../systems/CombatSystem";
-import { createBattleResults, saveBattleResults } from "../systems/BattleResults";
+import {
+  createBattleResults,
+  saveBattleResults,
+} from "../systems/BattleResults";
 import { combineMovementInput, type DirectionInput } from "../systems/InputDirection";
 import {
   advanceRoundState,
@@ -21,29 +28,42 @@ import {
   tryCollectPowerUp,
   type PowerUpState,
 } from "../systems/PowerUpSystem";
+import {
+  computeBotDirection,
+  createBotAI,
+  shouldBotSlap,
+  type BotAIState,
+} from "../systems/BotAI";
+
+type Opponent =
+  | { kind: "bot"; bot: Bot; ai: BotAIState }
+  | { kind: "player2"; player: Player };
 
 type BattleRuntime = {
   arena: Phaser.Geom.Rectangle;
-  bot: Bot;
+  botAI: BotAIState | null;
   cursors: Phaser.Types.Input.Keyboard.CursorKeys;
-  touchMovement: DirectionInput;
+  opponent: Opponent;
   player: Player;
   powerUp: PowerUpState;
   powerUpsCollected: {
-    bot: number;
+    bots: number;
     player: number;
   };
   resultsShown: boolean;
   round: RoundState;
-  slapKey: Phaser.Input.Keyboard.Key;
-  scoreText: Phaser.GameObjects.Text;
-  timerText: Phaser.GameObjects.Text;
+  settings: GameSettings;
+  slapKeyP1: Phaser.Input.Keyboard.Key;
+  slapKeyP2: Phaser.Input.Keyboard.Key;
+  touchMovement: DirectionInput;
   wasd: {
     down: Phaser.Input.Keyboard.Key;
     left: Phaser.Input.Keyboard.Key;
     right: Phaser.Input.Keyboard.Key;
     up: Phaser.Input.Keyboard.Key;
   };
+  scoreText: Phaser.GameObjects.Text;
+  timerText: Phaser.GameObjects.Text;
   winnerText: Phaser.GameObjects.Text;
 };
 
@@ -67,23 +87,42 @@ function getDirection(runtime: BattleRuntime): Phaser.Math.Vector2 {
   return new Phaser.Math.Vector2(movement.x, movement.y);
 }
 
+function getP2Direction(runtime: BattleRuntime): Phaser.Math.Vector2 {
+  // P2 uses the same cursor keys as P1 in single-player mode would have.
+  // In 2P mode, P1 is restricted to WASD and P2 gets the arrow keys.
+  const movement = combineMovementInput({
+    down: runtime.cursors.down.isDown,
+    left: runtime.cursors.left.isDown,
+    right: runtime.cursors.right.isDown,
+    up: runtime.cursors.up.isDown,
+  });
+  return new Phaser.Math.Vector2(movement.x, movement.y);
+}
+
 function updateHud(runtime: BattleRuntime): void {
   runtime.timerText.setText(`Time: ${Math.ceil(runtime.round.timeLeft)}`);
+  const opponentLabel =
+    runtime.settings.mode === "2p-local" ? "P2" : "Bot";
+  const playerLabel =
+    runtime.settings.mode === "2p-local" ? "P1" : "Player";
   runtime.scoreText.setText(
-    `Player ${runtime.round.score.player} - ${runtime.round.score.bots} Bot`,
+    `${playerLabel} ${runtime.round.score.player} - ${runtime.round.score.bots} ${opponentLabel}`,
   );
 }
 
 function resetActors(runtime: BattleRuntime): void {
   resetActor(runtime.player);
-  resetActor(runtime.bot);
+  if (runtime.opponent.kind === "bot") {
+    resetActor(runtime.opponent.bot);
+  } else {
+    resetActor(runtime.opponent.player);
+  }
 }
 
 function getStorage(): Storage | null {
   if (typeof window === "undefined") {
     return null;
   }
-
   return window.localStorage;
 }
 
@@ -100,7 +139,18 @@ export class BattleScene extends Phaser.Scene {
     super("BattleScene");
   }
 
+  init(data: Partial<GameSettings> | undefined): void {
+    const settings: GameSettings = {
+      ...DEFAULT_SETTINGS,
+      ...(data ?? {}),
+    };
+    this.registry.set("settings", settings);
+  }
+
   create(): void {
+    const settings: GameSettings =
+      this.registry.get("settings") ?? DEFAULT_SETTINGS;
+
     const width = this.scale.width || 1280;
     const height = this.scale.height || 720;
     const arena = new Phaser.Geom.Rectangle(
@@ -122,17 +172,46 @@ export class BattleScene extends Phaser.Scene {
       arena.centerY,
       battleConfig.player,
     );
-    const bot = createBot(this, arena.right - 160, arena.centerY, battleConfig.bot);
 
-    this.physics.add.collider(player.sprite, bot.sprite);
+    const opponent: Opponent =
+      settings.mode === "2p-local"
+        ? {
+            kind: "player2",
+            player: createPlayer(
+              this,
+              arena.right - 160,
+              arena.centerY,
+              {
+                ...battleConfig.player,
+                color: battleConfig.bot.color,
+              },
+            ),
+          }
+        : {
+            kind: "bot",
+            bot: createBot(
+              this,
+              arena.right - 160,
+              arena.centerY,
+              battleConfig.bot,
+            ),
+            ai: createBotAI(settings.botDifficulty),
+          };
+
+    const opponentSprite =
+      opponent.kind === "bot" ? opponent.bot.sprite : opponent.player.sprite;
+    this.physics.add.collider(player.sprite, opponentSprite);
 
     const keyboard = this.input.keyboard;
-    const cursors = keyboard?.createCursorKeys() ?? {
-      down: createDisabledKey(),
-      left: createDisabledKey(),
-      right: createDisabledKey(),
-      up: createDisabledKey(),
-    };
+    const cursors: Phaser.Types.Input.Keyboard.CursorKeys =
+      keyboard?.createCursorKeys() ?? {
+        down: createDisabledKey(),
+        left: createDisabledKey(),
+        right: createDisabledKey(),
+        up: createDisabledKey(),
+        space: createDisabledKey(),
+        shift: createDisabledKey(),
+      };
     const touchMovement: DirectionInput = {
       down: false,
       left: false,
@@ -140,25 +219,41 @@ export class BattleScene extends Phaser.Scene {
       up: false,
     };
 
+    const slapKeyP1 =
+      keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE) ??
+      createDisabledKey();
+    const slapKeyP2 =
+      keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER) ??
+      createDisabledKey();
+
     this.runtime = {
       arena,
-      bot,
+      botAI: opponent.kind === "bot" ? opponent.ai : null,
       cursors,
-      touchMovement,
+      opponent,
       player,
       powerUp: createPowerUpState(),
       powerUpsCollected: {
-        bot: 0,
+        bots: 0,
         player: 0,
       },
       resultsShown: false,
-      round: createRoundState(battleConfig.round.lengthSeconds),
+      round: createRoundState(settings.roundLengthSeconds),
+      settings,
+      slapKeyP1,
+      slapKeyP2,
+      touchMovement,
+      wasd: {
+        down: keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.S) ?? createDisabledKey(),
+        left: keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.A) ?? createDisabledKey(),
+        right: keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.D) ?? createDisabledKey(),
+        up: keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.W) ?? createDisabledKey(),
+      },
       scoreText: this.add.text(arena.left, 24, "", {
         color: "#f4f1de",
         fontFamily: "Arial",
         fontSize: "24px",
       }),
-      slapKey: keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE) ?? createDisabledKey(),
       timerText: this.add
         .text(arena.right, 24, "", {
           color: "#f4f1de",
@@ -166,12 +261,6 @@ export class BattleScene extends Phaser.Scene {
           fontSize: "24px",
         })
         .setOrigin(1, 0),
-      wasd: {
-        down: keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.S) ?? createDisabledKey(),
-        left: keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.A) ?? createDisabledKey(),
-        right: keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.D) ?? createDisabledKey(),
-        up: keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.W) ?? createDisabledKey(),
-      },
       winnerText: this.add
         .text(width / 2, arena.top - 36, "", {
           color: "#f4f1de",
@@ -181,25 +270,47 @@ export class BattleScene extends Phaser.Scene {
         .setOrigin(0.5),
     };
 
+    const controlsHint =
+      settings.mode === "2p-local"
+        ? "P1: WASD + Space   |   P2: Arrows + Enter   |   Slap or tap SLAP"
+        : "Move: WASD / Arrows   Slap: Space, click arena, or tap SLAP";
     this.add
-      .text(width / 2, arena.bottom + 24, "Move: WASD / Arrows   Slap: Space, click arena, or tap SLAP", {
+      .text(width / 2, arena.bottom + 24, controlsHint, {
         color: "#f4f1de",
         fontFamily: "Arial",
         fontSize: "18px",
       })
       .setOrigin(0.5, 0);
 
-    const slap = () => {
-      if (!this.runtime || this.runtime.round.isComplete) {
+    const slapP1 = () => {
+      const rt = this.runtime;
+      if (!rt || rt.round.isComplete) {
         return;
       }
-
       applySlap(
-        this.runtime.player,
-        this.runtime.bot,
-        this.runtime.round,
+        rt.player,
+        this.opponentActor(),
+        rt.round,
         "player",
-        battleConfig.round.winningScore,
+        rt.settings.winningScore,
+        this.time.now,
+      );
+    };
+
+    const slapP2 = () => {
+      const rt = this.runtime;
+      if (!rt || rt.round.isComplete) {
+        return;
+      }
+      if (rt.opponent.kind !== "player2") {
+        return;
+      }
+      applySlap(
+        rt.opponent.player,
+        rt.player,
+        rt.round,
+        "bots",
+        rt.settings.winningScore,
         this.time.now,
       );
     };
@@ -232,29 +343,53 @@ export class BattleScene extends Phaser.Scene {
     const touchState = this.runtime.touchMovement;
     const controlsY = arena.bottom + 82;
 
-    createTouchButton(arena.left + 78, controlsY, "LEFT", () => {
-      touchState.left = true;
-    }, () => {
-      touchState.left = false;
-    });
-    createTouchButton(arena.left + 158, controlsY - 48, "UP", () => {
-      touchState.up = true;
-    }, () => {
-      touchState.up = false;
-    });
-    createTouchButton(arena.left + 158, controlsY + 48, "DOWN", () => {
-      touchState.down = true;
-    }, () => {
-      touchState.down = false;
-    });
-    createTouchButton(arena.left + 238, controlsY, "RIGHT", () => {
-      touchState.right = true;
-    }, () => {
-      touchState.right = false;
-    });
-    createTouchButton(arena.right - 92, controlsY, "SLAP", slap);
+    createTouchButton(
+      arena.left + 78,
+      controlsY,
+      "LEFT",
+      () => {
+        touchState.left = true;
+      },
+      () => {
+        touchState.left = false;
+      },
+    );
+    createTouchButton(
+      arena.left + 158,
+      controlsY - 48,
+      "UP",
+      () => {
+        touchState.up = true;
+      },
+      () => {
+        touchState.up = false;
+      },
+    );
+    createTouchButton(
+      arena.left + 158,
+      controlsY + 48,
+      "DOWN",
+      () => {
+        touchState.down = true;
+      },
+      () => {
+        touchState.down = false;
+      },
+    );
+    createTouchButton(
+      arena.left + 238,
+      controlsY,
+      "RIGHT",
+      () => {
+        touchState.right = true;
+      },
+      () => {
+        touchState.right = false;
+      },
+    );
+    createTouchButton(arena.right - 92, controlsY, "SLAP", slapP1);
 
-    this.input.on("pointerdown", (pointer) => {
+    this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       if (
         !this.runtime ||
         this.runtime.round.isComplete ||
@@ -265,12 +400,25 @@ export class BattleScene extends Phaser.Scene {
       ) {
         return;
       }
-
-      slap();
+      slapP1();
     });
 
-    spawnPowerUp(this, this.runtime.powerUp, this.runtime.arena, battleConfig.powerUp.size);
+    spawnPowerUp(
+      this,
+      this.runtime.powerUp,
+      this.runtime.arena,
+      battleConfig.powerUp.size,
+    );
     updateHud(this.runtime);
+  }
+
+  private opponentActor() {
+    if (!this.runtime) {
+      throw new Error("BattleScene not initialized");
+    }
+    return this.runtime.opponent.kind === "bot"
+      ? this.runtime.opponent.bot
+      : this.runtime.opponent.player;
   }
 
   update(_time: number, delta: number): void {
@@ -282,13 +430,18 @@ export class BattleScene extends Phaser.Scene {
 
     if (runtime.round.isComplete) {
       runtime.player.body.setVelocity(0, 0);
-      runtime.bot.body.setVelocity(0, 0);
+      const opp = this.opponentActor();
+      opp.body.setVelocity(0, 0);
       runtime.winnerText.setText(
         runtime.round.winner === "draw"
           ? "Draw"
           : runtime.round.winner === "player"
-            ? "Player wins"
-            : "Bot wins",
+            ? runtime.settings.mode === "2p-local"
+              ? "P1 wins"
+              : "Player wins"
+            : runtime.settings.mode === "2p-local"
+              ? "P2 wins"
+              : "Bot wins",
       );
       updateHud(runtime);
 
@@ -297,8 +450,12 @@ export class BattleScene extends Phaser.Scene {
         const storage = getStorage();
         const results = createBattleResults({
           botScore: runtime.round.score.bots,
+          mode: runtime.settings.mode,
           playerScore: runtime.round.score.player,
-          powerUpsCollected: runtime.powerUpsCollected,
+          powerUpsCollected: {
+            bot: runtime.powerUpsCollected.bots,
+            player: runtime.powerUpsCollected.player,
+          },
           roundsPlayed: 1,
           winner: runtime.round.winner ?? "draw",
         });
@@ -313,57 +470,90 @@ export class BattleScene extends Phaser.Scene {
       return;
     }
 
+    // --- Player 1 movement ---
     moveActor(runtime.player, getDirection(runtime));
-    moveBotToward(runtime.bot, runtime.player);
 
-    if (Phaser.Input.Keyboard.JustDown(runtime.slapKey)) {
+    // --- Opponent logic ---
+    const opponentActor = this.opponentActor();
+    if (runtime.opponent.kind === "bot") {
+      const dir = computeBotDirection(
+        runtime.opponent.bot,
+        runtime.player,
+        runtime.powerUp,
+        runtime.opponent.ai,
+        this.time.now,
+      );
+      moveActor(runtime.opponent.bot, new Phaser.Math.Vector2(dir.x, dir.y));
+
+      if (
+        shouldBotSlap(
+          runtime.opponent.bot,
+          runtime.player,
+          runtime.opponent.ai,
+          this.time.now,
+        )
+      ) {
+        applySlap(
+          runtime.opponent.bot,
+          runtime.player,
+          runtime.round,
+          "bots",
+          runtime.settings.winningScore,
+          this.time.now,
+        );
+      }
+    } else {
+      moveActor(runtime.opponent.player, getP2Direction(runtime));
+
+      if (Phaser.Input.Keyboard.JustDown(runtime.slapKeyP2)) {
+        applySlap(
+          runtime.opponent.player,
+          runtime.player,
+          runtime.round,
+          "bots",
+          runtime.settings.winningScore,
+          this.time.now,
+        );
+      }
+    }
+
+    // --- Player 1 slap ---
+    if (Phaser.Input.Keyboard.JustDown(runtime.slapKeyP1)) {
       applySlap(
         runtime.player,
-        runtime.bot,
+        opponentActor,
         runtime.round,
         "player",
-        battleConfig.round.winningScore,
+        runtime.settings.winningScore,
         this.time.now,
       );
     }
 
-    applySlap(
-      runtime.bot,
-      runtime.player,
-      runtime.round,
-      "bots",
-      battleConfig.round.winningScore,
-      this.time.now,
-    );
-
+    // --- Power-up spawn + collect ---
     if (!runtime.powerUp.active) {
       spawnPowerUp(this, runtime.powerUp, runtime.arena, battleConfig.powerUp.size);
     }
 
-    if (
-      tryCollectPowerUp(runtime.player, runtime.powerUp, this.time.now)
-    ) {
+    if (tryCollectPowerUp(runtime.player, runtime.powerUp, this.time.now)) {
       runtime.powerUpsCollected.player += 1;
     }
 
-    if (
-      tryCollectPowerUp(runtime.bot, runtime.powerUp, this.time.now)
-    ) {
-      runtime.powerUpsCollected.bot += 1;
+    if (tryCollectPowerUp(opponentActor, runtime.powerUp, this.time.now)) {
+      runtime.powerUpsCollected.bots += 1;
     }
 
+    // --- Ring out ---
     if (isRingOut(runtime.player, runtime.arena, battleConfig.arena.ringOutMargin)) {
       resetActors(runtime);
     }
-
-    if (isRingOut(runtime.bot, runtime.arena, battleConfig.arena.ringOutMargin)) {
+    if (isRingOut(opponentActor, runtime.arena, battleConfig.arena.ringOutMargin)) {
       resetActors(runtime);
     }
 
     advanceRoundState(
       runtime.round,
       delta / 1000,
-      battleConfig.round.winningScore,
+      runtime.settings.winningScore,
     );
     updateHud(runtime);
   }
