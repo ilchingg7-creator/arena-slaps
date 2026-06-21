@@ -348,7 +348,7 @@ export class BattleScene extends Phaser.Scene {
     // Rendered at depth -100 so all gameplay objects sit on top.
     // Uses createBackground for consistency with the other scenes — the
     // component handles the missing-texture fallback automatically.
-    createBackground(this, { key: "arena-bg" });
+    createBackground(this as unknown as Phaser.Scene, { key: "arena-bg" });
 
     // --- Levitating arena platform (arena-platform.png) ---
     // Drawn behind the arena boundary stroke so the neon platform edge is

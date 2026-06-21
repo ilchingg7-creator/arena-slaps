@@ -5,7 +5,15 @@ import { describe, expect, it, vi } from "vitest";
 // `Phaser.Scale` enum, so we stub the module with just those constants.
 // The values mirror Phaser 3.90's src/scale/const/SCALE_MODE_CONST.js
 // (NONE=0, FIT=3, RESIZE=5) and CENTER_CONST.js (NO_CENTER=0, CENTER_BOTH=1).
+// We also stub a minimal `Scene` class because the scene files now use
+// `class FooScene extends Phaser.Scene` (converted from plain objects).
 vi.mock("phaser", () => {
+  class Scene {
+    name: string;
+    constructor(key: string) {
+      this.name = key;
+    }
+  }
   const Scale = {
     NONE: 0,
     WIDTH_CONTROLS_HEIGHT: 1,
@@ -19,7 +27,7 @@ vi.mock("phaser", () => {
     CENTER_VERTICALLY: 4,
     CENTER_BOTH: 1,
   };
-  return { default: { Scale }, Scale };
+  return { default: { Scale, Scene }, Scale, Scene };
 });
 
 import Phaser from "phaser";

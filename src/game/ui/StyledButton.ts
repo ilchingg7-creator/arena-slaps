@@ -206,6 +206,10 @@ function colorToHex(color: number): string {
  * which becomes the center of the rounded rectangle. The Graphics object
  * is positioned at that point and the gradient geometry is drawn around
  * the local origin (0,0) so scale tweens stay centered.
+ *
+ * The `scene` parameter accepts any object with `add.graphics` + `add.text`.
+ * Cast via `as unknown as ButtonSceneLike` if your scene type doesn't match
+ * structurally (e.g. when the caller is a plain object with duck-typed add).
  */
 export function createStyledButton(
   scene: ButtonSceneLike,

@@ -1,4 +1,4 @@
-import type Phaser from "phaser";
+import Phaser from "phaser";
 import {
   BOT_DIFFICULTY_OPTIONS,
   cycleOption,
@@ -28,84 +28,6 @@ type TextStyle = {
   padding?: { x?: number; y?: number };
 };
 
-type TextObject = {
-  on?: (event: string, handler: () => void) => TextObject;
-  setInteractive: (config?: { useHandCursor?: boolean }) => TextObject;
-  setOrigin: (x?: number, y?: number) => TextObject;
-  setText: (value: string) => TextObject;
-};
-
-type GraphicsObject = {
-  clear: () => GraphicsObject;
-  fillStyle: (color: number, alpha?: number) => GraphicsObject;
-  fillGradientRoundedRect: (
-    x: number,
-    y: number,
-    w: number,
-    h: number,
-    radius: number,
-    topLeft: number,
-    topRight: number,
-    bottomLeft: number,
-    bottomRight: number,
-    alpha?: number,
-  ) => GraphicsObject;
-  fillRoundedRect: (
-    x: number,
-    y: number,
-    w: number,
-    h: number,
-    radius?: number,
-  ) => GraphicsObject;
-  lineStyle: (width: number, color: number, alpha?: number) => GraphicsObject;
-  strokeRoundedRect: (
-    x: number,
-    y: number,
-    w: number,
-    h: number,
-    radius?: number,
-  ) => GraphicsObject;
-  setPosition: (x: number, y: number) => GraphicsObject;
-  setScale: (x: number, y?: number) => GraphicsObject;
-  setVisible: (visible: boolean) => GraphicsObject;
-  setAlpha: (alpha: number) => GraphicsObject;
-  setDepth: (depth: number) => GraphicsObject;
-  setInteractive: (config?: { useHandCursor?: boolean }) => GraphicsObject;
-  on: (event: string, handler: (pointer?: unknown) => void) => GraphicsObject;
-  removeAllListeners: () => GraphicsObject;
-  destroy: () => void;
-};
-
-type DisplayList = {
-  text: (x: number, y: number, value: string, style?: TextStyle) => TextObject;
-  graphics: (config?: unknown) => GraphicsObject;
-};
-
-type BattleSetupContext = {
-  add: DisplayList;
-  input: {
-    keyboard?: { on: (event: string, handler: () => void) => void };
-    on?: (event: string, handler: (pointer: unknown) => void) => void;
-  };
-  scene: {
-    add: (key: string, scene: unknown, autoStart?: boolean) => void;
-    get: (key: string) => unknown;
-    start: (key: string, data?: unknown) => void;
-  };
-  scale?: { width?: number; height?: number };
-  sound?: unknown;
-};
-
-type StorageLike = {
-  getItem?: (key: string) => string | null;
-  setItem?: (key: string, value: string) => void;
-};
-
-function getStorage(): StorageLike | null {
-  if (typeof window === "undefined") return null;
-  return window.localStorage;
-}
-
 function rowStyle(): TextStyle {
   return {
     color: "#f4f1de",
@@ -115,47 +37,47 @@ function rowStyle(): TextStyle {
   };
 }
 
-export const BattleSetupScene = {
-  name: "BattleSetupScene",
-  key: "BattleSetupScene",
-  create(this: BattleSetupContext) {
-    const width = this.scale?.width ?? 1280;
-    const height = this.scale?.height ?? 720;
-    const storage = getStorage();
+/**
+ * Battle setup scene — choose game mode, bot difficulty, round length, and
+ * winning score. The "Start Battle" button dynamically imports BattleScene
+ * + ResultsScene (code-splitting) and transitions to the battle.
+ */
+export class BattleSetupScene extends Phaser.Scene {
+  constructor() {
+    super("BattleSetupScene");
+  }
+
+  create(): void {
+    const width = this.scale.width;
+    const height = this.scale.height;
+    const storage = typeof window !== "undefined" ? window.localStorage : null;
     let settings: GameSettings = loadSettings(storage);
 
-    const audio: AudioService = getAudioService(
-      this as unknown as Phaser.Scene,
-      settings,
-    );
+    const audio: AudioService = getAudioService(this, settings);
     audio.playMenuTheme();
 
     // --- Top-right mute button ---
-    createTopRightMuteButton(
-      this as unknown as Parameters<typeof createTopRightMuteButton>[0],
-      { sfxMuted: settings.sfxMuted, musicMuted: settings.musicMuted },
-      (next) => {
-        settings = {
-          ...settings,
-          sfxMuted: next.sfxMuted,
-          musicMuted: next.musicMuted,
-        };
-        audio.updateSettings({
-          sfxMuted: settings.sfxMuted,
-          musicMuted: settings.musicMuted,
-          sfxVolume: settings.sfxVolume,
-          musicVolume: settings.musicVolume,
-        });
-        if (storage) saveSettings(storage, settings);
-        if (!next.musicMuted) audio.playMenuTheme();
-      },
-    );
+    createTopRightMuteButton(this as unknown as Parameters<typeof createTopRightMuteButton>[0], {
+      sfxMuted: settings.sfxMuted,
+      musicMuted: settings.musicMuted,
+    }, (next) => {
+      settings = {
+        ...settings,
+        sfxMuted: next.sfxMuted,
+        musicMuted: next.musicMuted,
+      };
+      audio.updateSettings({
+        sfxMuted: settings.sfxMuted,
+        musicMuted: settings.musicMuted,
+        sfxVolume: settings.sfxVolume,
+        musicVolume: settings.musicVolume,
+      });
+      if (storage) saveSettings(storage, settings);
+      if (!next.musicMuted) audio.playMenuTheme();
+    });
 
-    // --- Background (menu-bg.png with dark navy fallback) ---
-    createBackground(
-      this as unknown as Phaser.Scene,
-      { key: "menu-bg" },
-    );
+    // --- Background ---
+    createBackground(this as unknown as Phaser.Scene, { key: "menu-bg" });
 
     // --- Title ---
     this.add
@@ -172,8 +94,6 @@ export const BattleSetupScene = {
     const rowStartY = height * 0.28;
     const rowStep = 50;
 
-    // Small "secondary" StyledButtons for the 4 setting value labels.
-    // width=180, height=40, fontSize=18 per task spec.
     const valueButtonConfig = {
       variant: "secondary" as const,
       width: 180,
@@ -181,14 +101,11 @@ export const BattleSetupScene = {
       fontSize: 18,
     };
 
-    const sceneLike = this as unknown as Parameters<typeof createStyledButton>[0];
-
-    // Row labels (plain text, left-aligned).
     this.add
       .text(labelX, rowStartY, "Mode", rowStyle())
       .setOrigin(0, 0.5);
 
-    const modeButton = createStyledButton(sceneLike, {
+    const modeButton = createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
       x: valueX,
       y: rowStartY,
       text: describeMode(settings.mode),
@@ -210,13 +127,12 @@ export const BattleSetupScene = {
       .text(labelX, rowStartY + rowStep, "Bot Difficulty", rowStyle())
       .setOrigin(0, 0.5);
 
-    const difficultyButton = createStyledButton(sceneLike, {
+    const difficultyButton = createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
       x: valueX,
       y: rowStartY + rowStep,
       text: describeDifficulty(settings.botDifficulty),
       ...valueButtonConfig,
       onClick: () => {
-        // onClick is only reachable when enabled (mode === "1p-vs-bot").
         clickPlay();
         const next: BotDifficulty = cycleOption(
           BOT_DIFFICULTY_OPTIONS as readonly BotDifficulty[],
@@ -232,7 +148,7 @@ export const BattleSetupScene = {
       .text(labelX, rowStartY + rowStep * 2, "Round Length", rowStyle())
       .setOrigin(0, 0.5);
 
-    const roundButton = createStyledButton(sceneLike, {
+    const roundButton = createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
       x: valueX,
       y: rowStartY + rowStep * 2,
       text: `${settings.roundLengthSeconds}s`,
@@ -253,7 +169,7 @@ export const BattleSetupScene = {
       .text(labelX, rowStartY + rowStep * 3, "Win Score", rowStyle())
       .setOrigin(0, 0.5);
 
-    const scoreButton = createStyledButton(sceneLike, {
+    const scoreButton = createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
       x: valueX,
       y: rowStartY + rowStep * 3,
       text: String(settings.winningScore),
@@ -273,7 +189,6 @@ export const BattleSetupScene = {
       difficultyButton.setText(
         visible ? describeDifficulty(settings.botDifficulty) : "—",
       );
-      // Dim + disable the difficulty control when it doesn't apply.
       difficultyButton.setEnabled(visible);
     };
     refreshDifficultyVisibility();
@@ -284,7 +199,7 @@ export const BattleSetupScene = {
 
     const clickPlay = () => audio.playMenuClick();
 
-    // --- Start + Back buttons (modern StyledButton) ---
+    // --- Start + Back buttons ---
     let startButton: StyledButton;
     let battleSceneReady = false;
     let queuedStart = false;
@@ -296,12 +211,11 @@ export const BattleSetupScene = {
         return;
       }
       audio.playMenuStart();
-      // Stop menu music before entering battle (battle scene plays its own).
       audio.stopMusic();
       this.scene.start("BattleScene", settings);
     };
 
-    startButton = createStyledButton(sceneLike, {
+    startButton = createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
       x: width / 2,
       y: height * 0.78,
       text: "Start Battle",
@@ -309,7 +223,7 @@ export const BattleSetupScene = {
       onClick: startBattle,
     });
 
-    const backButton = createStyledButton(sceneLike, {
+    createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
       x: width / 2,
       y: height * 0.90,
       text: "Back",
@@ -341,5 +255,5 @@ export const BattleSetupScene = {
       audio.playMenuClick();
       this.scene.start("MainMenuScene");
     });
-  },
-};
+  }
+}
