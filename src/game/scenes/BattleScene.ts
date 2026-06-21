@@ -34,6 +34,7 @@ import {
 } from "../systems/PowerUpSystem";
 import { getAudioService } from "../audio/getAudioService";
 import type { AudioService } from "../audio/AudioService";
+import { createBackground } from "../ui/Background";
 import {
   computeBotDirection,
   createBotAI,
@@ -342,6 +343,30 @@ export class BattleScene extends Phaser.Scene {
     );
 
     this.cameras.main.setBackgroundColor("#101820");
+
+    // --- Cosmic sky background (arena-bg.png) ---
+    // Rendered at depth -100 so all gameplay objects sit on top.
+    // Uses createBackground for consistency with the other scenes — the
+    // component handles the missing-texture fallback automatically.
+    createBackground(this, { key: "arena-bg" });
+
+    // --- Levitating arena platform (arena-platform.png) ---
+    // Drawn behind the arena boundary stroke so the neon platform edge is
+    // visible underneath the white boundary line. Falls back to a
+    // rectangle with the manifest's fallbackColor when the texture is missing.
+    if (this.textures.exists("arena-platform")) {
+      this.add.image(arena.centerX, arena.centerY, "arena-platform")
+        .setDisplaySize(battleConfig.arena.width, battleConfig.arena.height)
+        .setDepth(-50);
+    } else {
+      this.add.rectangle(
+        arena.centerX,
+        arena.centerY,
+        battleConfig.arena.width,
+        battleConfig.arena.height,
+        0x2a2d44,
+      ).setDepth(-50);
+    }
 
     const graphics = this.add.graphics();
     graphics.lineStyle(4, 0xf4f1de, 1);

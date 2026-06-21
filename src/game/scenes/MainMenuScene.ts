@@ -7,6 +7,8 @@ import {
 import { getAudioService } from "../audio/getAudioService";
 import type { AudioService } from "../audio/AudioService";
 import { createTopRightMuteButton } from "../ui/TopRightMuteButton";
+import { createStyledButton } from "../ui/StyledButton";
+import { createBackground } from "../ui/Background";
 
 type TextStyle = {
   align?: string;
@@ -24,8 +26,50 @@ type TextObject = {
   setText: (value: string) => TextObject;
 };
 
+type GraphicsObject = {
+  clear: () => GraphicsObject;
+  fillStyle: (color: number, alpha?: number) => GraphicsObject;
+  fillGradientRoundedRect: (
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    radius: number,
+    topLeft: number,
+    topRight: number,
+    bottomLeft: number,
+    bottomRight: number,
+    alpha?: number,
+  ) => GraphicsObject;
+  fillRoundedRect: (
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    radius?: number,
+  ) => GraphicsObject;
+  lineStyle: (width: number, color: number, alpha?: number) => GraphicsObject;
+  strokeRoundedRect: (
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    radius?: number,
+  ) => GraphicsObject;
+  setPosition: (x: number, y: number) => GraphicsObject;
+  setScale: (x: number, y?: number) => GraphicsObject;
+  setVisible: (visible: boolean) => GraphicsObject;
+  setAlpha: (alpha: number) => GraphicsObject;
+  setDepth: (depth: number) => GraphicsObject;
+  setInteractive: (config?: { useHandCursor?: boolean }) => GraphicsObject;
+  on: (event: string, handler: (pointer?: unknown) => void) => GraphicsObject;
+  removeAllListeners: () => GraphicsObject;
+  destroy: () => void;
+};
+
 type DisplayList = {
   text: (x: number, y: number, value: string, style?: TextStyle) => TextObject;
+  graphics: (config?: unknown) => GraphicsObject;
 };
 
 type MainMenuContext = {
@@ -90,6 +134,12 @@ export const MainMenuScene = {
       },
     );
 
+    // --- Background (menu-bg.png with dark navy fallback) ---
+    createBackground(
+      this as unknown as Phaser.Scene,
+      { key: "menu-bg" },
+    );
+
     // --- Title ---
     this.add
       .text(width / 2, height * 0.25, "Arena Slaps", {
@@ -107,26 +157,7 @@ export const MainMenuScene = {
       })
       .setOrigin(0.5);
 
-    // --- Navigation buttons ---
-    const buttonStyle: TextStyle = {
-      align: "center",
-      backgroundColor: "#3d405b",
-      color: "#f4f1de",
-      fontFamily: "Arial",
-      fontSize: "32px",
-      padding: { x: 40, y: 18 },
-    };
-
-    const startButton = this.add
-      .text(width / 2, height * 0.52, "Начать", buttonStyle)
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true });
-
-    const audioButton = this.add
-      .text(width / 2, height * 0.66, "Audio Settings", buttonStyle)
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true });
-
+    // --- Navigation buttons (modern StyledButton) ---
     const goStart = () => {
       audio.playMenuClick();
       this.scene.start("BattleSetupScene");
@@ -136,8 +167,28 @@ export const MainMenuScene = {
       this.scene.start("AudioSettingsScene");
     };
 
-    startButton.on?.("pointerup", goStart);
-    audioButton.on?.("pointerup", goAudio);
+    createStyledButton(
+      this as unknown as Parameters<typeof createStyledButton>[0],
+      {
+        x: width / 2,
+        y: height * 0.52,
+        text: "Начать",
+        variant: "primary",
+        onClick: goStart,
+      },
+    );
+
+    createStyledButton(
+      this as unknown as Parameters<typeof createStyledButton>[0],
+      {
+        x: width / 2,
+        y: height * 0.66,
+        text: "Audio Settings",
+        variant: "secondary",
+        onClick: goAudio,
+      },
+    );
+
     this.input.keyboard?.on("keydown-ENTER", goStart);
   },
 };

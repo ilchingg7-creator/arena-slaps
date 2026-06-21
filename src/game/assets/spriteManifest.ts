@@ -101,6 +101,33 @@ export const SPRITE_DEFINITIONS: readonly SpriteDefinition[] = [
     fallback: "circle",
     fallbackColor: 0x3d405b,
   },
+  {
+    key: "menu-bg",
+    path: png("menu-bg"),
+    category: "background",
+    width: 1280,
+    height: 720,
+    fallback: "rectangle",
+    fallbackColor: 0x101820, // dark navy
+  },
+  {
+    key: "arena-bg",
+    path: png("arena-bg"),
+    category: "background",
+    width: 1280,
+    height: 720,
+    fallback: "rectangle",
+    fallbackColor: 0x1a1a2e, // dark blue-purple
+  },
+  {
+    key: "arena-platform",
+    path: png("arena-platform"),
+    category: "background",
+    width: 920,
+    height: 520,
+    fallback: "rectangle",
+    fallbackColor: 0x2a2d44,
+  },
 ];
 
 export const SPRITE_ATLASES: readonly AtlasDefinition[] = [

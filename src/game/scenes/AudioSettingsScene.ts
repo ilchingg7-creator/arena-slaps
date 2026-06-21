@@ -9,6 +9,8 @@ import { getAudioService } from "../audio/getAudioService";
 import type { AudioService } from "../audio/AudioService";
 import { createTopRightMuteButton } from "../ui/TopRightMuteButton";
 import { createVolumeSlider } from "../ui/VolumeSlider";
+import { createStyledButton, type StyledButton } from "../ui/StyledButton";
+import { createBackground } from "../ui/Background";
 
 type TextStyle = {
   align?: string;
@@ -26,8 +28,50 @@ type TextObject = {
   setText: (value: string) => TextObject;
 };
 
+type GraphicsObject = {
+  clear: () => GraphicsObject;
+  fillStyle: (color: number, alpha?: number) => GraphicsObject;
+  fillGradientRoundedRect: (
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    radius: number,
+    topLeft: number,
+    topRight: number,
+    bottomLeft: number,
+    bottomRight: number,
+    alpha?: number,
+  ) => GraphicsObject;
+  fillRoundedRect: (
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    radius?: number,
+  ) => GraphicsObject;
+  lineStyle: (width: number, color: number, alpha?: number) => GraphicsObject;
+  strokeRoundedRect: (
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    radius?: number,
+  ) => GraphicsObject;
+  setPosition: (x: number, y: number) => GraphicsObject;
+  setScale: (x: number, y?: number) => GraphicsObject;
+  setVisible: (visible: boolean) => GraphicsObject;
+  setAlpha: (alpha: number) => GraphicsObject;
+  setDepth: (depth: number) => GraphicsObject;
+  setInteractive: (config?: { useHandCursor?: boolean }) => GraphicsObject;
+  on: (event: string, handler: (pointer?: unknown) => void) => GraphicsObject;
+  removeAllListeners: () => GraphicsObject;
+  destroy: () => void;
+};
+
 type DisplayList = {
   text: (x: number, y: number, value: string, style?: TextStyle) => TextObject;
+  graphics: (config?: unknown) => GraphicsObject;
 };
 
 type AudioSettingsContext = {
@@ -62,17 +106,6 @@ function rowStyle(): TextStyle {
   };
 }
 
-function toggleStyle(isOn: boolean): TextStyle {
-  return {
-    align: "center",
-    backgroundColor: isOn ? "#e07a5f" : "#3d405b",
-    color: "#f4f1de",
-    fontFamily: "Arial",
-    fontSize: "22px",
-    padding: { x: 18, y: 8 },
-  };
-}
-
 export const AudioSettingsScene = {
   name: "AudioSettingsScene",
   key: "AudioSettingsScene",
@@ -87,6 +120,14 @@ export const AudioSettingsScene = {
       settings,
     );
     audio.playMenuTheme();
+
+    const sceneLike = this as unknown as Parameters<typeof createStyledButton>[0];
+
+    // The SFX / Music mute toggle buttons are created below; we declare them
+    // up-front so the top-right master mute button's onChange can update
+    // their labels when it toggles both at once.
+    let sfxMuteButton: StyledButton;
+    let musicMuteButton: StyledButton;
 
     // --- Top-right mute button (toggles both) ---
     createTopRightMuteButton(
@@ -106,10 +147,16 @@ export const AudioSettingsScene = {
         });
         if (storage) saveSettings(storage, settings);
         if (!next.musicMuted) audio.playMenuTheme();
-        // Update individual mute labels.
-        sfxMuteValue.setText(settings.sfxMuted ? "Muted" : "On");
-        musicMuteValue.setText(settings.musicMuted ? "Muted" : "On");
+        // Sync the individual mute toggle labels.
+        sfxMuteButton.setText(settings.sfxMuted ? "Muted" : "On");
+        musicMuteButton.setText(settings.musicMuted ? "Muted" : "On");
       },
+    );
+
+    // --- Background (menu-bg.png with dark navy fallback) ---
+    createBackground(
+      this as unknown as Phaser.Scene,
+      { key: "menu-bg" },
     );
 
     // --- Title ---
@@ -126,6 +173,12 @@ export const AudioSettingsScene = {
     const sliderX = width * 0.58;
     const rowStartY = height * 0.28;
     const rowStep = 90;
+    const muteButtonConfig = {
+      variant: "warning" as const,
+      width: 140,
+      height: 36,
+      fontSize: 18,
+    };
 
     this.add
       .text(labelX, rowStartY - 30, "SFX Volume", rowStyle())
@@ -141,7 +194,7 @@ export const AudioSettingsScene = {
         settings = { ...settings, sfxVolume: nextVolume };
         if (nextVolume > 0 && settings.sfxMuted) {
           settings = { ...settings, sfxMuted: false };
-          sfxMuteValue.setText("On");
+          sfxMuteButton.setText("On");
         }
         audio.updateSettings({
           sfxMuted: settings.sfxMuted,
@@ -154,33 +207,28 @@ export const AudioSettingsScene = {
       },
     );
 
-    // SFX mute toggle
+    // SFX mute toggle (warning-variant StyledButton).
     this.add
       .text(labelX, rowStartY + 30, "SFX Mute", rowStyle())
       .setOrigin(0, 0.5);
-    const sfxMuteValue = this.add
-      .text(
-        sliderX + 130,
-        rowStartY + 30,
-        settings.sfxMuted ? "Muted" : "On",
-        toggleStyle(settings.sfxMuted),
-      )
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true });
-    sfxMuteValue.on?.("pointerup", () => {
-      const next = !settings.sfxMuted;
-      settings = { ...settings, sfxMuted: next };
-      sfxMuteValue.setText(next ? "Muted" : "On");
-      // Phaser text objects can't restyle backgroundColor after creation,
-      // so we accept the initial style. The text label change is enough.
-      audio.updateSettings({
-        sfxMuted: settings.sfxMuted,
-        musicMuted: settings.musicMuted,
-        sfxVolume: settings.sfxVolume,
-        musicVolume: settings.musicVolume,
-      });
-      if (!next) audio.playMenuClick();
-      if (storage) saveSettings(storage, settings);
+    sfxMuteButton = createStyledButton(sceneLike, {
+      x: sliderX + 130,
+      y: rowStartY + 30,
+      text: settings.sfxMuted ? "Muted" : "On",
+      ...muteButtonConfig,
+      onClick: () => {
+        const next = !settings.sfxMuted;
+        settings = { ...settings, sfxMuted: next };
+        sfxMuteButton.setText(next ? "Muted" : "On");
+        audio.updateSettings({
+          sfxMuted: settings.sfxMuted,
+          musicMuted: settings.musicMuted,
+          sfxVolume: settings.sfxVolume,
+          musicVolume: settings.musicVolume,
+        });
+        if (!next) audio.playMenuClick();
+        if (storage) saveSettings(storage, settings);
+      },
     });
 
     // --- Music row ---
@@ -188,7 +236,7 @@ export const AudioSettingsScene = {
       .text(labelX, rowStartY + rowStep - 30, "Music Volume", rowStyle())
       .setOrigin(0, 0.5);
 
-    createVolumeSlider(
+    const musicSlider = createVolumeSlider(
       this as unknown as Parameters<typeof createVolumeSlider>[0],
       sliderX,
       rowStartY + rowStep,
@@ -198,7 +246,7 @@ export const AudioSettingsScene = {
         settings = { ...settings, musicVolume: nextVolume };
         if (nextVolume > 0 && settings.musicMuted) {
           settings = { ...settings, musicMuted: false };
-          musicMuteValue.setText("On");
+          musicMuteButton.setText("On");
         }
         audio.updateSettings({
           sfxMuted: settings.sfxMuted,
@@ -211,65 +259,61 @@ export const AudioSettingsScene = {
       },
     );
 
-    // Music mute toggle
+    // Music mute toggle (warning-variant StyledButton).
     this.add
       .text(labelX, rowStartY + rowStep + 30, "Music Mute", rowStyle())
       .setOrigin(0, 0.5);
-    const musicMuteValue = this.add
-      .text(
-        sliderX + 130,
-        rowStartY + rowStep + 30,
-        settings.musicMuted ? "Muted" : "On",
-        toggleStyle(settings.musicMuted),
-      )
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true });
-    musicMuteValue.on?.("pointerup", () => {
-      const next = !settings.musicMuted;
-      settings = { ...settings, musicMuted: next };
-      musicMuteValue.setText(next ? "Muted" : "On");
-      audio.updateSettings({
-        sfxMuted: settings.sfxMuted,
-        musicMuted: settings.musicMuted,
-        sfxVolume: settings.sfxVolume,
-        musicVolume: settings.musicVolume,
-      });
-      if (!next) audio.playMenuTheme();
-      if (storage) saveSettings(storage, settings);
+    musicMuteButton = createStyledButton(sceneLike, {
+      x: sliderX + 130,
+      y: rowStartY + rowStep + 30,
+      text: settings.musicMuted ? "Muted" : "On",
+      ...muteButtonConfig,
+      onClick: () => {
+        const next = !settings.musicMuted;
+        settings = { ...settings, musicMuted: next };
+        musicMuteButton.setText(next ? "Muted" : "On");
+        audio.updateSettings({
+          sfxMuted: settings.sfxMuted,
+          musicMuted: settings.musicMuted,
+          sfxVolume: settings.sfxVolume,
+          musicVolume: settings.musicVolume,
+        });
+        if (!next) audio.playMenuTheme();
+        if (storage) saveSettings(storage, settings);
+      },
     });
 
     // --- Volume display helper ---
     void describeVolume;
 
-    // --- Back button ---
-    const backButton = this.add
-      .text(width / 2, height * 0.88, "Back", {
-        align: "center",
-        backgroundColor: "#f2cc8f",
-        color: "#101820",
-        fontFamily: "Arial",
-        fontSize: "28px",
-        padding: { x: 32, y: 14 },
-      })
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true });
-
+    // --- Back button (secondary StyledButton) ---
     const goBack = () => {
       audio.playMenuClick();
       this.scene.start("MainMenuScene");
     };
-    backButton.on?.("pointerup", goBack);
+    createStyledButton(sceneLike, {
+      x: width / 2,
+      y: height * 0.88,
+      text: "Back",
+      variant: "secondary",
+      onClick: goBack,
+    });
+
     this.input.keyboard?.on("keydown-ENTER", goBack);
     this.input.keyboard?.on("keydown-ESC", goBack);
 
-    // Wire global pointermove/up for sliders (B8 fix).
+    // Wire global pointermove/up for BOTH sliders (B8 fix) so that drag
+    // continues even when the pointer leaves the slider's narrow hit zone.
+    // Without this, only the slider whose hit zone the pointer is over
+    // receives pointermove events, and dragging beyond the zone freezes.
     this.input.on?.("pointermove", (pointer: unknown) => {
-      sfxSlider.handlePointerMove(
-        pointer as { x: number; y: number; isDown: boolean },
-      );
+      const p = pointer as { x: number; y: number; isDown: boolean };
+      sfxSlider.handlePointerMove(p);
+      musicSlider.handlePointerMove(p);
     });
     this.input.on?.("pointerup", () => {
       sfxSlider.endDrag();
+      musicSlider.endDrag();
     });
   },
 };

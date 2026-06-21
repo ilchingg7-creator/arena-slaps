@@ -16,6 +16,8 @@ import {
 import { getAudioService } from "../audio/getAudioService";
 import type { AudioService } from "../audio/AudioService";
 import { createTopRightMuteButton } from "../ui/TopRightMuteButton";
+import { createStyledButton, type StyledButton } from "../ui/StyledButton";
+import { createBackground } from "../ui/Background";
 
 type TextStyle = {
   align?: string;
@@ -33,8 +35,50 @@ type TextObject = {
   setText: (value: string) => TextObject;
 };
 
+type GraphicsObject = {
+  clear: () => GraphicsObject;
+  fillStyle: (color: number, alpha?: number) => GraphicsObject;
+  fillGradientRoundedRect: (
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    radius: number,
+    topLeft: number,
+    topRight: number,
+    bottomLeft: number,
+    bottomRight: number,
+    alpha?: number,
+  ) => GraphicsObject;
+  fillRoundedRect: (
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    radius?: number,
+  ) => GraphicsObject;
+  lineStyle: (width: number, color: number, alpha?: number) => GraphicsObject;
+  strokeRoundedRect: (
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    radius?: number,
+  ) => GraphicsObject;
+  setPosition: (x: number, y: number) => GraphicsObject;
+  setScale: (x: number, y?: number) => GraphicsObject;
+  setVisible: (visible: boolean) => GraphicsObject;
+  setAlpha: (alpha: number) => GraphicsObject;
+  setDepth: (depth: number) => GraphicsObject;
+  setInteractive: (config?: { useHandCursor?: boolean }) => GraphicsObject;
+  on: (event: string, handler: (pointer?: unknown) => void) => GraphicsObject;
+  removeAllListeners: () => GraphicsObject;
+  destroy: () => void;
+};
+
 type DisplayList = {
   text: (x: number, y: number, value: string, style?: TextStyle) => TextObject;
+  graphics: (config?: unknown) => GraphicsObject;
 };
 
 type BattleSetupContext = {
@@ -68,17 +112,6 @@ function rowStyle(): TextStyle {
     fontFamily: "Arial",
     fontSize: "22px",
     padding: { x: 14, y: 6 },
-  };
-}
-
-function valueStyle(): TextStyle {
-  return {
-    align: "center",
-    backgroundColor: "#3d405b",
-    color: "#f4f1de",
-    fontFamily: "Arial",
-    fontSize: "22px",
-    padding: { x: 18, y: 8 },
   };
 }
 
@@ -118,6 +151,12 @@ export const BattleSetupScene = {
       },
     );
 
+    // --- Background (menu-bg.png with dark navy fallback) ---
+    createBackground(
+      this as unknown as Phaser.Scene,
+      { key: "menu-bg" },
+    );
+
     // --- Title ---
     this.add
       .text(width / 2, height * 0.12, "Battle Setup", {
@@ -133,59 +172,109 @@ export const BattleSetupScene = {
     const rowStartY = height * 0.28;
     const rowStep = 50;
 
-    const modeValue = this.add
-      .text(valueX, rowStartY, describeMode(settings.mode), valueStyle())
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true });
+    // Small "secondary" StyledButtons for the 4 setting value labels.
+    // width=180, height=40, fontSize=18 per task spec.
+    const valueButtonConfig = {
+      variant: "secondary" as const,
+      width: 180,
+      height: 40,
+      fontSize: 18,
+    };
+
+    const sceneLike = this as unknown as Parameters<typeof createStyledButton>[0];
+
+    // Row labels (plain text, left-aligned).
     this.add
       .text(labelX, rowStartY, "Mode", rowStyle())
       .setOrigin(0, 0.5);
 
-    const difficultyValue = this.add
-      .text(
-        valueX,
-        rowStartY + rowStep,
-        describeDifficulty(settings.botDifficulty),
-        valueStyle(),
-      )
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true });
+    const modeButton = createStyledButton(sceneLike, {
+      x: valueX,
+      y: rowStartY,
+      text: describeMode(settings.mode),
+      ...valueButtonConfig,
+      onClick: () => {
+        clickPlay();
+        const nextMode = cycleOption(
+          MODE_OPTIONS as readonly GameMode[],
+          settings.mode,
+        );
+        settings = { ...settings, mode: nextMode };
+        modeButton.setText(describeMode(nextMode));
+        refreshDifficultyVisibility();
+        persist();
+      },
+    });
+
     const difficultyLabel = this.add
       .text(labelX, rowStartY + rowStep, "Bot Difficulty", rowStyle())
       .setOrigin(0, 0.5);
 
-    const roundValue = this.add
-      .text(
-        valueX,
-        rowStartY + rowStep * 2,
-        `${settings.roundLengthSeconds}s`,
-        valueStyle(),
-      )
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true });
+    const difficultyButton = createStyledButton(sceneLike, {
+      x: valueX,
+      y: rowStartY + rowStep,
+      text: describeDifficulty(settings.botDifficulty),
+      ...valueButtonConfig,
+      onClick: () => {
+        // onClick is only reachable when enabled (mode === "1p-vs-bot").
+        clickPlay();
+        const next: BotDifficulty = cycleOption(
+          BOT_DIFFICULTY_OPTIONS as readonly BotDifficulty[],
+          settings.botDifficulty,
+        );
+        settings = { ...settings, botDifficulty: next };
+        difficultyButton.setText(describeDifficulty(next));
+        persist();
+      },
+    });
+
     this.add
       .text(labelX, rowStartY + rowStep * 2, "Round Length", rowStyle())
       .setOrigin(0, 0.5);
 
-    const scoreValue = this.add
-      .text(
-        valueX,
-        rowStartY + rowStep * 3,
-        String(settings.winningScore),
-        valueStyle(),
-      )
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true });
+    const roundButton = createStyledButton(sceneLike, {
+      x: valueX,
+      y: rowStartY + rowStep * 2,
+      text: `${settings.roundLengthSeconds}s`,
+      ...valueButtonConfig,
+      onClick: () => {
+        clickPlay();
+        const next = cycleOption(
+          ROUND_LENGTH_OPTIONS,
+          settings.roundLengthSeconds,
+        );
+        settings = { ...settings, roundLengthSeconds: next };
+        roundButton.setText(`${next}s`);
+        persist();
+      },
+    });
+
     this.add
       .text(labelX, rowStartY + rowStep * 3, "Win Score", rowStyle())
       .setOrigin(0, 0.5);
 
+    const scoreButton = createStyledButton(sceneLike, {
+      x: valueX,
+      y: rowStartY + rowStep * 3,
+      text: String(settings.winningScore),
+      ...valueButtonConfig,
+      onClick: () => {
+        clickPlay();
+        const next = cycleOption(WINNING_SCORE_OPTIONS, settings.winningScore);
+        settings = { ...settings, winningScore: next };
+        scoreButton.setText(String(next));
+        persist();
+      },
+    });
+
     const refreshDifficultyVisibility = () => {
       const visible = settings.mode === "1p-vs-bot";
       difficultyLabel.setText(visible ? "Bot Difficulty" : "");
-      difficultyValue.setText(
+      difficultyButton.setText(
         visible ? describeDifficulty(settings.botDifficulty) : "—",
       );
+      // Dim + disable the difficulty control when it doesn't apply.
+      difficultyButton.setEnabled(visible);
     };
     refreshDifficultyVisibility();
 
@@ -195,74 +284,8 @@ export const BattleSetupScene = {
 
     const clickPlay = () => audio.playMenuClick();
 
-    modeValue.on?.("pointerup", () => {
-      clickPlay();
-      const nextMode = cycleOption(
-        MODE_OPTIONS as readonly GameMode[],
-        settings.mode,
-      );
-      settings = { ...settings, mode: nextMode };
-      modeValue.setText(describeMode(nextMode));
-      refreshDifficultyVisibility();
-      persist();
-    });
-
-    difficultyValue.on?.("pointerup", () => {
-      if (settings.mode !== "1p-vs-bot") return;
-      clickPlay();
-      const next: BotDifficulty = cycleOption(
-        BOT_DIFFICULTY_OPTIONS as readonly BotDifficulty[],
-        settings.botDifficulty,
-      );
-      settings = { ...settings, botDifficulty: next };
-      difficultyValue.setText(describeDifficulty(next));
-      persist();
-    });
-
-    roundValue.on?.("pointerup", () => {
-      clickPlay();
-      const next = cycleOption(
-        ROUND_LENGTH_OPTIONS,
-        settings.roundLengthSeconds,
-      );
-      settings = { ...settings, roundLengthSeconds: next };
-      roundValue.setText(`${next}s`);
-      persist();
-    });
-
-    scoreValue.on?.("pointerup", () => {
-      clickPlay();
-      const next = cycleOption(WINNING_SCORE_OPTIONS, settings.winningScore);
-      settings = { ...settings, winningScore: next };
-      scoreValue.setText(String(next));
-      persist();
-    });
-
-    // --- Start + Back buttons ---
-    const startButton = this.add
-      .text(width / 2, height * 0.78, "Start Battle", {
-        align: "center",
-        backgroundColor: "#e07a5f",
-        color: "#101820",
-        fontFamily: "Arial",
-        fontSize: "32px",
-        padding: { x: 36, y: 16 },
-      })
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true });
-
-    const backButton = this.add
-      .text(width / 2, height * 0.90, "Back", {
-        align: "center",
-        backgroundColor: "#3d405b",
-        color: "#f4f1de",
-        fontFamily: "Arial",
-        fontSize: "22px",
-        padding: { x: 24, y: 10 },
-      })
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true });
-
+    // --- Start + Back buttons (modern StyledButton) ---
+    let startButton: StyledButton;
     let battleSceneReady = false;
     let queuedStart = false;
 
@@ -277,6 +300,25 @@ export const BattleSetupScene = {
       audio.stopMusic();
       this.scene.start("BattleScene", settings);
     };
+
+    startButton = createStyledButton(sceneLike, {
+      x: width / 2,
+      y: height * 0.78,
+      text: "Start Battle",
+      variant: "success",
+      onClick: startBattle,
+    });
+
+    const backButton = createStyledButton(sceneLike, {
+      x: width / 2,
+      y: height * 0.90,
+      text: "Back",
+      variant: "secondary",
+      onClick: () => {
+        audio.playMenuClick();
+        this.scene.start("MainMenuScene");
+      },
+    });
 
     // Dynamically import BattleScene + ResultsScene (code-splitting).
     void Promise.all([
@@ -294,11 +336,6 @@ export const BattleSetupScene = {
       if (queuedStart) startBattle();
     });
 
-    startButton.on?.("pointerup", startBattle);
-    backButton.on?.("pointerup", () => {
-      audio.playMenuClick();
-      this.scene.start("MainMenuScene");
-    });
     this.input.keyboard?.on("keydown-ENTER", startBattle);
     this.input.keyboard?.on("keydown-ESC", () => {
       audio.playMenuClick();

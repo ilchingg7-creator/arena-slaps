@@ -97,4 +97,38 @@ describe("spriteManifest", () => {
     expect(keys).toContain("powerup-knockback");
     expect(keys).toContain("powerup-shield");
   });
+
+  it("has 8 total sprite definitions (5 originals + 3 backgrounds)", () => {
+    expect(SPRITE_DEFINITIONS).toHaveLength(8);
+  });
+
+  it("ships the 3 background keys (menu-bg, arena-bg, arena-platform)", () => {
+    const keys = SPRITE_DEFINITIONS.map((d) => d.key);
+    expect(keys).toContain("menu-bg");
+    expect(keys).toContain("arena-bg");
+    expect(keys).toContain("arena-platform");
+  });
+
+  it("every new background key has category 'background', defined width+height, and path /sprites/<key>.png", () => {
+    const bgKeys = ["menu-bg", "arena-bg", "arena-platform"];
+    for (const key of bgKeys) {
+      const def = SPRITE_DEFINITIONS.find((d) => d.key === key);
+      expect(def).toBeDefined();
+      if (!def) continue;
+      expect(def.category).toBe("background");
+      expect(def.width).toBeDefined();
+      expect(def.height).toBeDefined();
+      expect(typeof def.width).toBe("number");
+      expect(typeof def.height).toBe("number");
+      expect(def.path).toBe(`/sprites/${key}.png`);
+    }
+  });
+
+  it("getSpritesByCategory('background') returns exactly 3 entries", () => {
+    const bgs = getSpritesByCategory("background");
+    expect(bgs).toHaveLength(3);
+    for (const def of bgs) {
+      expect(def.category).toBe("background");
+    }
+  });
 });
