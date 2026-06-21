@@ -4,9 +4,7 @@ import {
   DEFAULT_SETTINGS,
   describeDifficulty,
   describeMode,
-  describeVolume,
   loadSettings,
-  MASTER_VOLUME_OPTIONS,
   MODE_OPTIONS,
   ROUND_LENGTH_OPTIONS,
   saveSettings,
@@ -17,6 +15,7 @@ import {
 } from "../config/gameSettings";
 import { AudioService } from "../audio/AudioService";
 import { NoopAudioBackend } from "../audio/AudioBackend";
+import { createVolumeSlider } from "../ui/VolumeSlider";
 
 type TextStyle = {
   align?: string;
@@ -105,11 +104,7 @@ export const MenuScene = {
     const storage = getStorage();
     let settings: GameSettings = loadSettings(storage);
 
-    // AudioService for menu click/start sounds. We use the NoopAudioBackend
-    // during SSR; in the browser the MenuScene is constructed by Phaser so
-    // `this.sound` is the real SoundManager and we could construct a
-    // PhaserAudioBackend. To keep the scene file test-friendly and free of
-    // Phaser imports, we use NoopAudioBackend when there is no window.
+    // AudioService for menu click/start sounds.
     const audio = new AudioService(new NoopAudioBackend(), {
       muted: settings.muted,
       masterVolume: settings.masterVolume,
@@ -187,18 +182,32 @@ export const MenuScene = {
       .setOrigin(0.5)
       .setInteractive();
 
+    // Volume slider row — replaces the cycle button with a graphical
+    // slider showing percentage (0% – 100%). See ui/VolumeSlider.ts.
     const volumeRow = this.add
       .text(labelX, rowStartY + rowStep * 4, "Volume", rowStyle())
       .setOrigin(0, 0.5);
-    const volumeValue = this.add
-      .text(
-        valueX,
-        rowStartY + rowStep * 4,
-        describeVolume(settings.masterVolume),
-        valueStyle(),
-      )
-      .setOrigin(0.5)
-      .setInteractive();
+    const volumeSlider = createVolumeSlider(
+      this as unknown as Parameters<typeof createVolumeSlider>[0],
+      valueX,
+      rowStartY + rowStep * 4,
+      220,
+      settings.masterVolume,
+      (nextVolume) => {
+        settings = { ...settings, masterVolume: nextVolume };
+        // Bumping volume above 0 implicitly unmutes so the user hears it.
+        if (nextVolume > 0 && settings.muted) {
+          settings = { ...settings, muted: false };
+          muteValue.setText("No");
+        }
+        audio.updateSettings({
+          muted: settings.muted,
+          masterVolume: settings.masterVolume,
+        });
+        audio.playMenuClick();
+        persist();
+      },
+    );
 
     const muteRow = this.add
       .text(labelX, rowStartY + rowStep * 5, "Mute", rowStyle())
@@ -275,27 +284,6 @@ export const MenuScene = {
       persist();
     });
 
-    volumeValue.on?.("pointerup", () => {
-      const next = cycleOption(
-        MASTER_VOLUME_OPTIONS,
-        settings.masterVolume,
-      );
-      settings = { ...settings, masterVolume: next };
-      volumeValue.setText(describeVolume(next));
-      // If user nudges volume above 0, implicitly unmute so they hear it.
-      if (next > 0 && settings.muted) {
-        settings = { ...settings, muted: false };
-        muteValue.setText("No");
-      }
-      audio.updateSettings({
-        muted: settings.muted,
-        masterVolume: settings.masterVolume,
-      });
-      // Play a click so the user can hear the new volume level.
-      audio.playMenuClick();
-      persist();
-    });
-
     muteValue.on?.("pointerup", () => {
       const next = !settings.muted;
       settings = { ...settings, muted: next };
@@ -331,7 +319,7 @@ export const MenuScene = {
       .text(
         width / 2,
         height * 0.31,
-        "Click any setting to cycle. Press Enter to start.",
+        "Click any setting to cycle. Drag the volume slider. Press Enter to start.",
         {
           color: "#81b29a",
           fontFamily: "Arial",
@@ -368,6 +356,11 @@ export const MenuScene = {
 
     startButton.on?.("pointerup", startBattle);
     this.input.keyboard?.on("keydown-ENTER", startBattle);
+
+    // Keep volumeSlider referenced so it isn't tree-shaken; the slider
+    // already wired its own input handlers in createVolumeSlider.
+    void volumeSlider;
+    void volumeRow;
   },
 };
 

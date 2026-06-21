@@ -7,6 +7,7 @@ import {
 import { createBot, type Bot } from "../entities/Bot";
 import {
   createPlayer,
+  isKnockedBack,
   moveActor,
   resetActor,
   type Player,
@@ -504,19 +505,23 @@ export class BattleScene extends Phaser.Scene {
     }
 
     // --- Player 1 movement ---
-    moveActor(runtime.player, getDirection(runtime));
+    if (!isKnockedBack(runtime.player, this.time.now)) {
+      moveActor(runtime.player, getDirection(runtime));
+    }
 
     // --- Opponent logic ---
     const opponentActor = this.opponentActor();
     if (runtime.opponent.kind === "bot") {
-      const dir = computeBotDirection(
-        runtime.opponent.bot,
-        runtime.player,
-        runtime.powerUp,
-        runtime.opponent.ai,
-        this.time.now,
-      );
-      moveActor(runtime.opponent.bot, new Phaser.Math.Vector2(dir.x, dir.y));
+      if (!isKnockedBack(runtime.opponent.bot, this.time.now)) {
+        const dir = computeBotDirection(
+          runtime.opponent.bot,
+          runtime.player,
+          runtime.powerUp,
+          runtime.opponent.ai,
+          this.time.now,
+        );
+        moveActor(runtime.opponent.bot, new Phaser.Math.Vector2(dir.x, dir.y));
+      }
 
       if (
         shouldBotSlap(
@@ -539,7 +544,9 @@ export class BattleScene extends Phaser.Scene {
         }
       }
     } else {
-      moveActor(runtime.opponent.player, getP2Direction(runtime));
+      if (!isKnockedBack(runtime.opponent.player, this.time.now)) {
+        moveActor(runtime.opponent.player, getP2Direction(runtime));
+      }
 
       if (Phaser.Input.Keyboard.JustDown(runtime.slapKeyP2)) {
         const hit = applySlap(

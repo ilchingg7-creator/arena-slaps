@@ -3,6 +3,7 @@ import type { ActorState } from "../entities/Player";
 import type { PowerUpState } from "./PowerUpSystem";
 import {
   computeBotDirection,
+  computeRawBotDirection,
   createBotAI,
   getDifficultyParams,
   shouldBotSlap,
@@ -62,12 +63,13 @@ function mockPowerUpState(
 }
 
 describe("BotAI", () => {
-  it("creates state with zeroed timers", () => {
+  it("creates state with zeroed timers and zeroed currentDir", () => {
     const ai = createBotAI("medium");
     expect(ai.difficulty).toBe("medium");
     expect(ai.lastDodgeAt).toBe(0);
     expect(ai.lastPlayerAttackSeenAt).toBe(0);
     expect(ai.lastSlapAttemptAt).toBe(0);
+    expect(ai.currentDir).toEqual({ x: 0, y: 0 });
   });
 
   it("exposes distinct difficulty parameters", () => {
@@ -83,16 +85,22 @@ describe("BotAI", () => {
     expect(medium.reactionMs).toBeGreaterThan(hard.reactionMs);
   });
 
-  it("moves toward the player by default", () => {
+  it("computeRawBotDirection moves toward the player by default", () => {
     const bot = mockActor(0, 0);
     const player = mockActor(100, 0);
     const ai = createBotAI("medium");
-    const dir = computeBotDirection(bot, player, mockPowerUpState(false), ai, 1000);
+    const dir = computeRawBotDirection(
+      bot,
+      player,
+      mockPowerUpState(false),
+      ai,
+      1000,
+    );
     expect(dir.x).toBeCloseTo(1, 5);
     expect(dir.y).toBeCloseTo(0, 5);
   });
 
-  it("dodges perpendicular when the player just attacked in range", () => {
+  it("computeRawBotDirection dodges perpendicular when player just attacked in range", () => {
     const bot = mockActor(100, 0);
     const player = mockActor(100, 60, {
       lastAttackAt: 1500,
@@ -107,7 +115,7 @@ describe("BotAI", () => {
       const v = [0.0, 0.0][calls++] ?? 0;
       return v;
     };
-    const dir = computeBotDirection(
+    const dir = computeRawBotDirection(
       bot,
       player,
       mockPowerUpState(false),
@@ -123,12 +131,12 @@ describe("BotAI", () => {
     expect(ai.lastPlayerAttackSeenAt).toBe(1500);
   });
 
-  it("does not dodge when player attack is out of range", () => {
+  it("computeRawBotDirection does not dodge when player attack is out of range", () => {
     const bot = mockActor(0, 0);
     const player = mockActor(500, 500, { lastAttackAt: 1500, slapRange: 84 });
     const ai = createBotAI("hard");
     ai.lastPlayerAttackSeenAt = 0;
-    const dir = computeBotDirection(
+    const dir = computeRawBotDirection(
       bot,
       player,
       mockPowerUpState(false),
@@ -142,29 +150,29 @@ describe("BotAI", () => {
     expect(dir.y).toBeCloseTo(expected, 5);
   });
 
-  it("moves toward an active power-up when it is close and beneficial", () => {
+  it("computeRawBotDirection moves toward an active power-up when beneficial", () => {
     const bot = mockActor(0, 0);
     const player = mockActor(300, 0);
     const powerUp = mockPowerUpState(true, 100, 0);
     const ai = createBotAI("medium");
-    const dir = computeBotDirection(
+    const dir = computeRawBotDirection(
       bot,
       player,
       powerUp,
       ai,
       1000,
-      () => 0.0, // always passes probability checks
+      () => 0.0,
     );
     expect(dir.x).toBeCloseTo(1, 5);
     expect(dir.y).toBeCloseTo(0, 5);
   });
 
-  it("ignores power-up when player is closer to it", () => {
+  it("computeRawBotDirection ignores power-up when player is closer to it", () => {
     const bot = mockActor(0, 0);
     const player = mockActor(50, 0);
     const powerUp = mockPowerUpState(true, 100, 0);
     const ai = createBotAI("medium");
-    const dir = computeBotDirection(
+    const dir = computeRawBotDirection(
       bot,
       player,
       powerUp,
@@ -175,6 +183,46 @@ describe("BotAI", () => {
     // Falls through to move toward player (toward x=50)
     expect(dir.x).toBeCloseTo(1, 5);
     expect(dir.y).toBeCloseTo(0, 5);
+  });
+
+  it("computeBotDirection returns the raw direction on the first call (no smoothing yet)", () => {
+    const bot = mockActor(0, 0);
+    const player = mockActor(100, 0);
+    const ai = createBotAI("medium");
+    const dir = computeBotDirection(
+      bot,
+      player,
+      mockPowerUpState(false),
+      ai,
+      1000,
+    );
+    expect(dir.x).toBeCloseTo(1, 5);
+    expect(dir.y).toBeCloseTo(0, 5);
+  });
+
+  it("computeBotDirection smooths transitions between frames", () => {
+    const bot = mockActor(0, 0);
+    const ai = createBotAI("medium");
+
+    // First call: player to the right -> currentDir = (1, 0)
+    const player1 = mockActor(100, 0);
+    computeBotDirection(bot, player1, mockPowerUpState(false), ai, 1000);
+
+    // Second call: player straight up -> raw target = (0, -1)
+    // With smoothing 0.3, currentDir becomes (0.7, -0.3) before normalization,
+    // then normalized to (0.919, -0.394). Confirm it's NOT exactly (0, -1).
+    const player2 = mockActor(0, -100);
+    const dir = computeBotDirection(
+      bot,
+      player2,
+      mockPowerUpState(false),
+      ai,
+      1100,
+    );
+    expect(dir.x).toBeGreaterThan(0.5);
+    expect(dir.x).toBeLessThan(1);
+    expect(dir.y).toBeLessThan(0);
+    expect(dir.y).toBeGreaterThan(-1);
   });
 
   it("does not slap when out of range", () => {

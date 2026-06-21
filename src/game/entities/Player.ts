@@ -13,6 +13,7 @@ export type ActorState = {
   facing: Phaser.Math.Vector2;
   knockbackSpeed: number;
   knockbackMultiplier: number;
+  knockbackUntil: number;
   lastAttackAt: number;
   moveSpeed: number;
   size: number;
@@ -47,14 +48,16 @@ export function createActor(
   body.setAllowGravity(false);
   body.setCollideWorldBounds(false);
   body.setDamping(true);
-  body.setDrag(0.003);
+  body.setDrag(0.05);
   body.setMaxVelocity(config.speed * 2, config.speed * 2);
+  body.setBounce(0.3, 0.3);
 
   return {
     body,
     facing: new Phaser.Math.Vector2(1, 0),
     knockbackSpeed: config.knockbackSpeed,
     knockbackMultiplier: 1,
+    knockbackUntil: 0,
     lastAttackAt: Number.NEGATIVE_INFINITY,
     moveSpeed: config.speed,
     size: config.size,
@@ -76,6 +79,10 @@ export function createPlayer(
     ...createActor(scene, x, y, config),
     kind: "player",
   };
+}
+
+export function isKnockedBack(actor: ActorState, now: number): boolean {
+  return now < actor.knockbackUntil;
 }
 
 export function moveActor(
@@ -100,6 +107,7 @@ export function resetActor(actor: ActorState): void {
   actor.body.setVelocity(0, 0);
   actor.facing.set(1, 0);
   actor.knockbackMultiplier = 1;
+  actor.knockbackUntil = 0;
   actor.speedMultiplier = 1;
   actor.shieldedUntil = 0;
 }

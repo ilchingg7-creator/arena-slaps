@@ -5,6 +5,7 @@ import type { ScoringSide } from "./ScoringSystem";
 import type { ActorState } from "../entities/Player";
 
 const SLAP_COOLDOWN_MS = 450;
+const KNOCKBACK_DURATION_MS = 280;
 
 export function applySlap(
   attacker: ActorState,
@@ -40,6 +41,7 @@ export function applySlap(
     defender.sprite.y - attacker.sprite.y,
   ).normalize();
 
+  defender.knockbackUntil = now + KNOCKBACK_DURATION_MS;
   defender.body.setVelocity(
     direction.x * attacker.knockbackSpeed * attacker.knockbackMultiplier,
     direction.y * attacker.knockbackSpeed * attacker.knockbackMultiplier,
