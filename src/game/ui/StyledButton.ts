@@ -8,9 +8,10 @@
  *     plus an outer accent stroke for the glow/border effect.
  *   - A bold text label centered on the button, with a subtle dark
  *     stroke + drop shadow for readability.
- *   - Interactive hit area covering the button bounds (Phaser computes
- *     the Graphics bounds automatically when `setInteractive` is called
- *     without an explicit hit area).
+ *   - Interactive hit area covering the button bounds (explicit Rectangle
+ *     hit area + Contains callback passed to `setInteractive`, because
+ *     Phaser's Graphics objects don't reliably compute hit areas from
+ *     drawn geometry).
  *
  * Interaction:
  *   - pointerover  -> scale up to 1.05x
@@ -146,7 +147,11 @@ export type ButtonGraphics = {
   setVisible: (visible: boolean) => ButtonGraphics;
   setAlpha: (alpha: number) => ButtonGraphics;
   setDepth: (depth: number) => ButtonGraphics;
-  setInteractive: (config?: { useHandCursor?: boolean }) => ButtonGraphics;
+  setInteractive: (
+    config?:
+      | { useHandCursor?: boolean }
+      | { hitArea: unknown; hitAreaCallback: (hitArea: unknown, x: number, y: number) => boolean; useHandCursor?: boolean },
+  ) => ButtonGraphics;
   on: (event: string, handler: (pointer?: unknown) => void) => ButtonGraphics;
   removeAllListeners: () => ButtonGraphics;
   destroy: () => void;
@@ -269,7 +274,27 @@ export function createStyledButton(
 
   render(variant);
 
-  graphics.setInteractive({ useHandCursor: true });
+  // Explicit hit area — Phaser's Graphics objects don't reliably compute
+  // hit areas from drawn geometry, so we provide a Rectangle covering the
+  // button bounds (in local coordinates, centered on 0,0 since the
+  // graphics is positioned at the button center).
+  const halfW = bounds.width / 2;
+  const halfH = bounds.height / 2;
+  const hitArea = {
+    x: -halfW,
+    y: -halfH,
+    width: bounds.width,
+    height: bounds.height,
+  };
+  const hitAreaCallback = (
+    ha: unknown,
+    px: number,
+    py: number,
+  ): boolean => {
+    const r = ha as { x: number; y: number; width: number; height: number };
+    return px >= r.x && px <= r.x + r.width && py >= r.y && py <= r.y + r.height;
+  };
+  graphics.setInteractive({ hitArea, hitAreaCallback, useHandCursor: true });
 
   graphics.on("pointerover", () => {
     if (!enabled) return;

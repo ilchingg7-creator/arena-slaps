@@ -23,7 +23,14 @@ type FakeGraphics = {
   alpha: number;
   depth: number;
   interactive: boolean;
-  interactiveConfig: { useHandCursor?: boolean } | undefined;
+  interactiveConfig:
+    | { useHandCursor?: boolean }
+    | {
+        hitArea: unknown;
+        hitAreaCallback: (hitArea: unknown, x: number, y: number) => boolean;
+        useHandCursor?: boolean;
+      }
+    | undefined;
   handlers: Map<string, (pointer?: unknown) => void>;
   fillRoundedCalls: number;
   strokeCalls: number;
@@ -320,9 +327,14 @@ describe("StyledButton - createStyledButton", () => {
       onClick: () => {},
     });
     expect(scene.graphicsList[0].interactive).toBe(true);
-    expect(scene.graphicsList[0].interactiveConfig).toEqual({
+    // The hit area is a rectangle covering the button bounds (in local
+    // coordinates, centered on 0,0). Default button is 240x56, so hitArea
+    // spans from (-120, -28) to (120, 28).
+    expect(scene.graphicsList[0].interactiveConfig).toMatchObject({
       useHandCursor: true,
+      hitArea: { x: -120, y: -28, width: 240, height: 56 },
     });
+    expect(typeof (scene.graphicsList[0].interactiveConfig as { hitAreaCallback?: unknown })?.hitAreaCallback).toBe("function");
   });
 
   it("positions the graphics at the button center", () => {
