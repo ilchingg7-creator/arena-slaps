@@ -225,6 +225,62 @@ describe("BotAI", () => {
     expect(dir.y).toBeGreaterThan(-1);
   });
 
+  it("computeBotDirection bypasses smoothing during dodge window", () => {
+    // Bot at (100, 0), player directly below at (100, 60).
+    // Player just attacked (lastAttackAt = 1500) within slap range.
+    // With random() = 0 the bot always dodges (0 < hard.dodgeChance 0.95)
+    // and picks sign = +1 (0 < 0.5), yielding a perpendicular dodge of (1, 0).
+    const bot = mockActor(100, 0);
+    const player = mockActor(100, 60, {
+      lastAttackAt: 1500,
+      slapRange: 84,
+    });
+    const ai = createBotAI("hard");
+    ai.lastPlayerAttackSeenAt = 0;
+    const stubRandom = () => 0.0;
+
+    // First call at now=1500: dodge triggers, returns perpendicular (1, 0).
+    const dir1 = computeBotDirection(
+      bot,
+      player,
+      mockPowerUpState(false),
+      ai,
+      1500,
+      stubRandom,
+    );
+    expect(dir1.x).toBeCloseTo(1, 5);
+    expect(dir1.y).toBeCloseTo(0, 5);
+
+    // Second call at now=1550 (still within the 200ms dodge window): the raw
+    // target has fallen back to chase direction (0, +1) since the attack has
+    // already been seen, but we must STILL return the perpendicular dodge
+    // direction — NOT a smoothed diagonal toward chase.
+    const dir2 = computeBotDirection(
+      bot,
+      player,
+      mockPowerUpState(false),
+      ai,
+      1550,
+      stubRandom,
+    );
+    expect(dir2.x).toBeCloseTo(1, 5);
+    expect(dir2.y).toBeCloseTo(0, 5);
+
+    // Third call at now=1800 (dodge window expired at 1700): smoothing kicks
+    // back in. The bot starts moving toward the chase direction (player below
+    // -> +y) but still carries dodge momentum (+x). Assert both components.
+    const dir3 = computeBotDirection(
+      bot,
+      player,
+      mockPowerUpState(false),
+      ai,
+      1800,
+      stubRandom,
+    );
+    expect(dir3.x).toBeGreaterThan(0.3);
+    expect(dir3.y).toBeGreaterThan(0.3);
+  });
+
   it("does not slap when out of range", () => {
     const bot = mockActor(0, 0, { slapRange: 50 });
     const player = mockActor(500, 500);

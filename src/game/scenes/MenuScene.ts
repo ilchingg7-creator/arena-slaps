@@ -1,7 +1,6 @@
 import {
   BOT_DIFFICULTY_OPTIONS,
   cycleOption,
-  DEFAULT_SETTINGS,
   describeDifficulty,
   describeMode,
   loadSettings,
@@ -13,8 +12,7 @@ import {
   type GameMode,
   type GameSettings,
 } from "../config/gameSettings";
-import { AudioService } from "../audio/AudioService";
-import { NoopAudioBackend } from "../audio/AudioBackend";
+import { createAudioService } from "../audio/createAudioService";
 import { createVolumeSlider } from "../ui/VolumeSlider";
 
 type TextStyle = {
@@ -51,16 +49,27 @@ type MenuSceneContext = {
     keyboard?: {
       on: (event: string, handler: () => void) => void;
     };
+    on?: (event: string, handler: (pointer: unknown) => void) => void;
   };
   scene: {
     add: (key: string, scene: unknown, autoStart?: boolean) => void;
+    /** Returns the scene registered under `key`, or null if none. Used to guard against re-adding scenes on every menu visit (B6). */
+    get: (key: string) => unknown;
     start: (key: string, data?: unknown) => void;
   };
   scale?: {
     width?: number;
     height?: number;
   };
-  sound?: unknown;
+  /** Phaser SoundManager duck-type. Widened from `unknown` so createAudioService can route through PhaserAudioBackend (B1). */
+  sound?: {
+    get?: (key: string) => unknown;
+    play: (
+      key: string,
+      config?: { volume?: number },
+    ) => unknown;
+    stopAll?: () => void;
+  };
 };
 
 type StorageLike = {
@@ -104,11 +113,16 @@ export const MenuScene = {
     const storage = getStorage();
     let settings: GameSettings = loadSettings(storage);
 
-    // AudioService for menu click/start sounds.
-    const audio = new AudioService(new NoopAudioBackend(), {
-      muted: settings.muted,
-      masterVolume: settings.masterVolume,
-    });
+    // AudioService for menu click/start sounds. Use the shared factory so
+    // the real PhaserAudioBackend is wired up in the browser (B1) — the
+    // previous code hardcoded a NoopAudioBackend, which meant menu sounds
+    // never played. The cast is needed because MenuSceneContext is a
+    // minimal duck type, while createAudioService expects the PhaserSceneLike
+    // shape used by PhaserAudioBackend (load + sound + cache).
+    const audio = createAudioService(
+      this as unknown as Parameters<typeof createAudioService>[0],
+      settings,
+    );
 
     let battleSceneReady = false;
     let scenesReady = false;
@@ -184,7 +198,7 @@ export const MenuScene = {
 
     // Volume slider row — replaces the cycle button with a graphical
     // slider showing percentage (0% – 100%). See ui/VolumeSlider.ts.
-    const volumeRow = this.add
+    this.add
       .text(labelX, rowStartY + rowStep * 4, "Volume", rowStyle())
       .setOrigin(0, 0.5);
     const volumeSlider = createVolumeSlider(
@@ -343,8 +357,15 @@ export const MenuScene = {
       import("./BattleScene"),
       import("./ResultsScene"),
     ]).then(([battleModule, resultsModule]) => {
-      this.scene.add("BattleScene", battleModule.BattleScene, false);
-      this.scene.add("ResultsScene", resultsModule.ResultsScene, false);
+      // Guard against re-adding scenes on every menu visit (B6). On the
+      // second playthrough Phaser would otherwise log "Scene already
+      // exists" and silently no-op, which is harmless but noisy.
+      if (!this.scene.get("BattleScene")) {
+        this.scene.add("BattleScene", battleModule.BattleScene, false);
+      }
+      if (!this.scene.get("ResultsScene")) {
+        this.scene.add("ResultsScene", resultsModule.ResultsScene, false);
+      }
       battleSceneReady = true;
       scenesReady = true;
       startButton.setText("Start");
@@ -357,12 +378,18 @@ export const MenuScene = {
     startButton.on?.("pointerup", startBattle);
     this.input.keyboard?.on("keydown-ENTER", startBattle);
 
-    // Keep volumeSlider referenced so it isn't tree-shaken; the slider
-    // already wired its own input handlers in createVolumeSlider.
-    void volumeSlider;
-    void volumeRow;
+    // Wire global pointermove + pointerup so the volume slider keeps
+    // updating even when the pointer leaves the slider's narrow hit zone
+    // (B8). The slider's own hit zone stops receiving pointermove once the
+    // pointer exits it; these global listeners forward the events to the
+    // slider's handlePointerMove / endDrag methods.
+    this.input.on?.("pointermove", (pointer: unknown) => {
+      volumeSlider.handlePointerMove(
+        pointer as { x: number; y: number; isDown: boolean },
+      );
+    });
+    this.input.on?.("pointerup", () => {
+      volumeSlider.endDrag();
+    });
   },
 };
-
-// Keep DEFAULT_SETTINGS import used to satisfy tsc when tree-shaking is off.
-void DEFAULT_SETTINGS;

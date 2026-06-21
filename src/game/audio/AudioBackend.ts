@@ -20,8 +20,6 @@ export interface IAudioBackend {
    * Implementations must accept `volume` in [0, 1] and clamp out-of-range.
    */
   play(key: SoundKey, volume: number): boolean;
-  /** Stop all currently playing instances of the given key. */
-  stop(key: SoundKey): void;
   /** Stop every sound this backend knows about. */
   stopAll(): void;
 }
@@ -85,14 +83,6 @@ export class PhaserAudioBackend implements IAudioBackend {
     }
   }
 
-  stop(key: SoundKey): void {
-    // Phaser's SoundManager.remove takes a BaseSound, not a key, so we go
-    // through stopAll + per-key get-by-key only when needed. For simplicity
-    // and to avoid runtime errors we just call stopAll here, which the
-    // service already does at scene shutdown.
-    this.scene.sound?.stopAll?.();
-  }
-
   stopAll(): void {
     this.scene.sound?.stopAll?.();
   }
@@ -104,7 +94,7 @@ export class PhaserAudioBackend implements IAudioBackend {
  */
 export class NoopAudioBackend implements IAudioBackend {
   calls: Array<{
-    op: "load" | "play" | "stop" | "stopAll";
+    op: "load" | "play" | "stopAll";
     key?: SoundKey;
     volume?: number;
   }> = [];
@@ -122,10 +112,6 @@ export class NoopAudioBackend implements IAudioBackend {
   play(key: SoundKey, volume: number): boolean {
     this.calls.push({ op: "play", key, volume: clamp01(volume) });
     return true;
-  }
-
-  stop(key: SoundKey): void {
-    this.calls.push({ op: "stop", key });
   }
 
   stopAll(): void {

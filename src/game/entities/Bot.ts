@@ -1,5 +1,5 @@
-import Phaser from "phaser";
-import { createActor, moveActor, type ActorConfig, type ActorState } from "./Player";
+import type Phaser from "phaser";
+import { createActor, type ActorConfig, type ActorState } from "./Player";
 
 export type Bot = ActorState & {
   kind: "bot";
@@ -18,13 +18,4 @@ export function createBot(
     ...actor,
     kind: "bot",
   };
-}
-
-export function moveBotToward(bot: Bot, target: ActorState): void {
-  const delta = new Phaser.Math.Vector2(
-    target.sprite.x - bot.sprite.x,
-    target.sprite.y - bot.sprite.y,
-  );
-
-  moveActor(bot, delta);
 }

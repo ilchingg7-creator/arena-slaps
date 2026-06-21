@@ -9,8 +9,21 @@ export type PowerUpDefinition = {
   label: string;
   knockbackMultiplier?: number;
   speedMultiplier?: number;
-  shieldDurationMs?: number;
 };
+
+/**
+ * Effect durations in milliseconds. All three power-ups are temporary so the
+ * player must make use of them quickly:
+ *   - Boost and Heavy Hand last 8 seconds.
+ *   - Shield expires after 5 seconds even if no slap is absorbed (so the
+ *     shield can't be banked indefinitely) and is also consumed after a
+ *     single blocked slap.
+ */
+export const powerUpDurations = {
+  speedMs: 8000,
+  knockbackMs: 8000,
+  shieldMs: 5000,
+} as const;
 
 type PowerUpSprite = {
   destroy: () => void;
@@ -36,24 +49,23 @@ type ArenaLike = {
 export const powerUpDefinitions = [
   {
     color: 0x81b29a,
-    description: "Move faster for the next clash.",
+    description: "Move 35% faster for 8 seconds.",
     effect: "speed",
     label: "Boost",
     speedMultiplier: 1.35,
   },
   {
     color: 0xf2cc8f,
-    description: "Deliver a heavier slap.",
+    description: "Heavier slap knockback for 8 seconds.",
     effect: "knockback",
     label: "Heavy Hand",
     knockbackMultiplier: 1.25,
   },
   {
     color: 0x3d405b,
-    description: "Absorb the next hit for a moment.",
+    description: "Block the next slap within 5 seconds.",
     effect: "shield",
     label: "Shield",
-    shieldDurationMs: 3000,
   },
 ] satisfies readonly PowerUpDefinition[];
 
@@ -124,14 +136,57 @@ export function tryCollectPowerUp(
 
   if (definition.effect === "speed") {
     actor.speedMultiplier = definition.speedMultiplier ?? actor.speedMultiplier;
+    actor.speedBoostUntil = now + powerUpDurations.speedMs;
   } else if (definition.effect === "knockback") {
     actor.knockbackMultiplier =
       definition.knockbackMultiplier ?? actor.knockbackMultiplier;
+    actor.knockbackBoostUntil = now + powerUpDurations.knockbackMs;
   } else {
-    actor.shieldedUntil = now + (definition.shieldDurationMs ?? 0);
+    actor.shieldHitsRemaining = 1;
+    actor.shieldUntil = now + powerUpDurations.shieldMs;
   }
 
   state.active.sprite.destroy();
   state.active = null;
   return true;
+}
+
+/**
+ * Whether the shield power-up is currently active. The shield is active iff
+ * there is at least one hit remaining AND the shield's wall-clock expiry has
+ * not yet passed.
+ */
+export function isShieldActive(actor: ActorState, now: number): boolean {
+  return actor.shieldHitsRemaining > 0 && now < actor.shieldUntil;
+}
+
+/**
+ * Consume one shield hit. Called by `applySlap` after a successful block.
+ * Decrements `shieldHitsRemaining` (clamped at zero) so a 1-hit shield is
+ * consumed after blocking a single slap.
+ */
+export function consumeShieldHit(actor: ActorState): void {
+  if (actor.shieldHitsRemaining > 0) {
+    actor.shieldHitsRemaining -= 1;
+  }
+}
+
+/**
+ * Reset any expired power-up boosts on the actor. Called every frame from
+ * `moveActor` (and from `applySlap` for the attacker) so that an expired
+ * Boost / Heavy Hand reverts the actor's multiplier to its baseline of 1
+ * as soon as the duration elapses.
+ *
+ * We do NOT touch the shield here — shield expiry is handled by
+ * `isShieldActive`, which already checks the wall-clock expiry.
+ */
+export function expirePowerUpBoosts(actor: ActorState, now: number): void {
+  if (actor.speedBoostUntil > 0 && now > actor.speedBoostUntil) {
+    actor.speedMultiplier = 1;
+    actor.speedBoostUntil = 0;
+  }
+  if (actor.knockbackBoostUntil > 0 && now > actor.knockbackBoostUntil) {
+    actor.knockbackMultiplier = 1;
+    actor.knockbackBoostUntil = 0;
+  }
 }

@@ -3,9 +3,15 @@ import type { RoundState } from "./RoundSystem";
 import { registerPoint } from "./RoundSystem";
 import type { ScoringSide } from "./ScoringSystem";
 import type { ActorState } from "../entities/Player";
+import {
+  consumeShieldHit,
+  expirePowerUpBoosts,
+  isShieldActive,
+} from "./PowerUpSystem";
+import { battleConfig } from "../config/battleConfig";
 
-const SLAP_COOLDOWN_MS = 450;
-const KNOCKBACK_DURATION_MS = 280;
+const { slapCooldownMs: SLAP_COOLDOWN_MS, knockbackDurationMs: KNOCKBACK_DURATION_MS } =
+  battleConfig.combat;
 
 export function applySlap(
   attacker: ActorState,
@@ -30,11 +36,22 @@ export function applySlap(
     return false;
   }
 
-  attacker.lastAttackAt = now;
-
-  if (defender.shieldedUntil > now) {
+  // Shield check happens BEFORE consuming the attacker's cooldown. A blocked
+  // slap is a no-op for the attacker: their hand is still ready for the next
+  // attempt. Only successful (unblocked) slaps trigger the 450ms cooldown.
+  // The shield is also consumed (1 hit) on block.
+  if (isShieldActive(defender, now)) {
+    consumeShieldHit(defender);
     return false;
   }
+
+  attacker.lastAttackAt = now;
+
+  // Expire any attacker power-up boosts whose timer has elapsed before
+  // computing the knockback velocity. This ensures the Heavy Hand boost
+  // reverts to baseline the moment its 8s window ends, even if the attacker
+  // hasn't moved since picking it up.
+  expirePowerUpBoosts(attacker, now);
 
   const direction = new Phaser.Math.Vector2(
     defender.sprite.x - attacker.sprite.x,

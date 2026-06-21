@@ -11,6 +11,17 @@ export const battleConfig = {
     slapRange: 74,
     size: 36,
   },
+  /**
+   * Combat tuning constants shared across the slap / knockback pipeline.
+   * Extracted from CombatSystem.ts so they live alongside the rest of the
+   * battle tuning and can be tweaked in one place.
+   */
+  combat: {
+    /** Minimum gap between two successful slaps by the same attacker (ms). */
+    slapCooldownMs: 450,
+    /** How long the defender is locked into knockback velocity (ms). */
+    knockbackDurationMs: 280,
+  },
   player: {
     color: 0x3d405b,
     knockbackSpeed: 560,

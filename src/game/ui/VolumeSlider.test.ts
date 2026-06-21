@@ -230,4 +230,47 @@ describe("VolumeSlider", () => {
     expect(changes.length).toBe(2);
     expect(changes[1]).toBeCloseTo(0.75, 5);
   });
+
+  it("handlePointerMove updates value while dragging even when pointer is outside zone", () => {
+    const scene = makeScene();
+    const changes: number[] = [];
+    const slider = createVolumeSlider(scene, 100, 50, 200, 0.5, (v) =>
+      changes.push(v),
+    );
+    // Start drag at x=50 (value 0.25)
+    scene.emit("pointerdown", { x: 50, y: 50, isDown: true });
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toBeCloseTo(0.25, 5);
+    // Pointer way outside the zone — without handlePointerMove the slider
+    // would stop updating because pointermove only fires over the hit zone.
+    slider.handlePointerMove({ x: 300, y: 200, isDown: true });
+    expect(changes).toHaveLength(2);
+    expect(changes[1]).toBeCloseTo(1, 5);
+    expect(slider.getValue()).toBeCloseTo(1, 5);
+    expect(scene.texts[0].text).toBe("100%");
+  });
+
+  it("handlePointerMove does nothing when not dragging", () => {
+    const scene = makeScene();
+    const changes: number[] = [];
+    const slider = createVolumeSlider(scene, 100, 50, 200, 0.5, (v) =>
+      changes.push(v),
+    );
+    // No prior pointerdown — slider is not dragging.
+    slider.handlePointerMove({ x: 100, y: 50, isDown: true });
+    expect(changes).toHaveLength(0);
+    expect(slider.getValue()).toBeCloseTo(0.5, 5);
+  });
+
+  it("endDrag stops further handlePointerMove from updating", () => {
+    const scene = makeScene();
+    const changes: number[] = [];
+    const slider = createVolumeSlider(scene, 100, 50, 200, 0.5, (v) =>
+      changes.push(v),
+    );
+    scene.emit("pointerdown", { x: 50, y: 50, isDown: true });
+    slider.endDrag();
+    slider.handlePointerMove({ x: 200, y: 50, isDown: true });
+    expect(changes).toHaveLength(1);
+  });
 });

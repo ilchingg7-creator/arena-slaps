@@ -74,6 +74,10 @@ type SliderPointer = {
 export type VolumeSlider = {
   setValue: (next: number) => void;
   getValue: () => number;
+  /** Forward a global pointermove event so the slider keeps updating when the pointer leaves its hit zone (B8). */
+  handlePointerMove: (pointer: SliderPointer) => void;
+  /** End the current drag (called from a global pointerup listener). */
+  endDrag: () => void;
   destroy: () => void;
 };
 
@@ -201,14 +205,10 @@ export function createVolumeSlider(
     dragging = false;
   });
 
-  // The scene may not wire a global pointermove handler. To make the slider
-  // usable even when the user drags beyond the hit zone, we attach a global
-  // pointermove via the zone itself by listening on pointermove events that
-  // bubble through scene.input. Phaser dispatches pointermove to whatever
-  // interactive object is under the pointer; if the pointer leaves the zone,
-  // we lose the event. As a pragmatic compromise we ALSO expose a public
-  // `setValue` so the scene can drive the slider programmatically, and we
-  // accept the limitation that drag must stay within the zone.
+  // The slider exposes `handlePointerMove` and `endDrag` so the owning scene
+  // can wire a global `pointermove` / `pointerup` listener that keeps the
+  // drag alive even when the pointer leaves the hit zone. The scene is
+  // responsible for forwarding these events (see MenuScene.create).
 
   return {
     setValue(next: number) {
@@ -216,6 +216,16 @@ export function createVolumeSlider(
     },
     getValue() {
       return value;
+    },
+    handlePointerMove(pointer: SliderPointer) {
+      if (!dragging || !pointer.isDown) {
+        return;
+      }
+      applyValue(pointerToValue(pointer));
+      onChange(value);
+    },
+    endDrag() {
+      dragging = false;
     },
     destroy() {
       hitZone.removeAllListeners?.();

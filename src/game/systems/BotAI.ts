@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import type { ActorState } from "../entities/Player";
 import type { PowerUpState } from "./PowerUpSystem";
 import type { BotDifficulty } from "../config/gameSettings";
+import { AI_CONFIG } from "../config/aiConfig";
 
 type Vec2 = { x: number; y: number };
 
@@ -11,6 +12,13 @@ export type BotAIState = {
   lastPlayerAttackSeenAt: number;
   lastSlapAttemptAt: number;
   currentDir: Vec2;
+  /**
+   * Timestamp (ms) until which the bot should keep committing to its most
+   * recent perpendicular dodge direction. While `now < dodgeUntil`, the
+   * smoothing lerp in `computeBotDirection` is bypassed so the evasive
+   * move is not blended back toward the chase direction.
+   */
+  dodgeUntil: number;
 };
 
 type DifficultyParams = {
@@ -54,6 +62,7 @@ export function createBotAI(difficulty: BotDifficulty): BotAIState {
     lastPlayerAttackSeenAt: 0,
     lastSlapAttemptAt: 0,
     currentDir: { x: 0, y: 0 },
+    dodgeUntil: 0,
   };
 }
 
@@ -100,8 +109,9 @@ export function computeRawBotDirection(
         player.sprite.y,
       );
 
-      if (dist < player.slapRange * 1.8 && random() < params.dodgeChance) {
+      if (dist < player.slapRange * AI_CONFIG.dodgeRangeMultiplier && random() < params.dodgeChance) {
         ai.lastDodgeAt = now;
+        ai.dodgeUntil = now + AI_CONFIG.dodgeDurationMs;
         const dx = bot.sprite.x - player.sprite.x;
         const dy = bot.sprite.y - player.sprite.y;
         const perpX = -dy;
@@ -127,8 +137,8 @@ export function computeRawBotDirection(
     );
 
     if (
-      distToPowerUp < 350 &&
-      distToPowerUp < distPlayerToPowerUp + 80
+      distToPowerUp < AI_CONFIG.powerUpChaseDistance &&
+      distToPowerUp < distPlayerToPowerUp + AI_CONFIG.powerUpAdvantageMargin
     ) {
       const dx = powerUp.active.sprite.x - bot.sprite.x;
       const dy = powerUp.active.sprite.y - bot.sprite.y;
@@ -153,6 +163,13 @@ export function computeRawBotDirection(
  * vector in the same direction as the target — normalization then yields
  * the exact target direction. This means the first call returns the raw
  * direction (important for tests), and subsequent calls smooth transitions.
+ *
+ * Dodge maneuvers are exempt from smoothing: when `computeRawBotDirection`
+ * decides to dodge it stamps `ai.dodgeUntil = now + DODGE_DURATION_MS`.
+ * For the next 200 ms we keep returning the cached perpendicular dodge
+ * direction directly, so the evasive move is not blended back toward the
+ * chase direction by the 0.3 lerp factor (which would produce a weak
+ * diagonal instead of a sharp dodge).
  */
 export function computeBotDirection(
   bot: ActorState,
@@ -171,7 +188,23 @@ export function computeBotDirection(
     random,
   );
 
-  const smoothing = 0.3;
+  // If a dodge was triggered on this frame, cache its perpendicular
+  // direction into currentDir so we can keep returning it for the rest
+  // of the dodge window. (`computeRawBotDirection` sets `ai.lastDodgeAt`
+  // to `now` exactly when a dodge is triggered, so this is a reliable
+  // one-frame signal.)
+  if (ai.lastDodgeAt === now) {
+    ai.currentDir.x = target.x;
+    ai.currentDir.y = target.y;
+  }
+
+  // During the dodge window, bypass the smoothing lerp and return the
+  // (cached) perpendicular dodge direction directly.
+  if (now < ai.dodgeUntil) {
+    return { x: ai.currentDir.x, y: ai.currentDir.y };
+  }
+
+  const smoothing = AI_CONFIG.smoothing;
   ai.currentDir.x = lerp(ai.currentDir.x, target.x, smoothing);
   ai.currentDir.y = lerp(ai.currentDir.y, target.y, smoothing);
 

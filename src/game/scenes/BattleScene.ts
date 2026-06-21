@@ -10,6 +10,7 @@ import {
   isKnockedBack,
   moveActor,
   resetActor,
+  type ActorState,
   type Player,
 } from "../entities/Player";
 import { applySlap, isRingOut } from "../systems/CombatSystem";
@@ -17,7 +18,7 @@ import {
   createBattleResults,
   saveBattleResults,
 } from "../systems/BattleResults";
-import { combineMovementInput, type DirectionInput } from "../systems/InputDirection";
+import { combineMovementInput, type DirectionInput, type DirectionVector } from "../systems/InputDirection";
 import {
   advanceRoundState,
   createRoundState,
@@ -41,6 +42,18 @@ import {
 type Opponent =
   | { kind: "bot"; bot: Bot; ai: BotAIState }
   | { kind: "player2"; player: Player };
+
+/**
+ * Minimal structural view of {@link BattleRuntime} that exposes only the
+ * fields `resetOffender` needs. Exported so the unit test can construct a
+ * stub without instantiating Phaser / the full BattleScene.
+ */
+export type BattleRuntimeLike = {
+  player: ActorState;
+  opponent:
+    | { kind: "bot"; bot: ActorState }
+    | { kind: "player2"; player: ActorState };
+};
 
 type BattleRuntime = {
   arena: Phaser.Geom.Rectangle;
@@ -72,35 +85,87 @@ type BattleRuntime = {
   lastTickInt: number;
 };
 
+/**
+ * Minimal structural view of a Phaser CursorKey / Key. Used by
+ * {@link computeP1Direction} and {@link computeP2Direction} so they can be
+ * unit-tested with plain `{ isDown: boolean }` stubs.
+ */
+export type DirectionKeyLike = {
+  isDown: boolean;
+};
+
+/**
+ * Minimal structural view of Phaser's CursorKeys (the four arrow keys).
+ * Also reused for the WASD key set since they have the same shape.
+ */
+export type CursorKeysLike = {
+  down: DirectionKeyLike;
+  left: DirectionKeyLike;
+  right: DirectionKeyLike;
+  up: DirectionKeyLike;
+};
+
+/**
+ * Combine P1's input sources into a single direction vector.
+ *
+ * In 1P-vs-bot mode, P1 may use EITHER arrow keys OR WASD (plus touch), so
+ * all three sources are combined. In 2P-local mode, P1 is restricted to
+ * WASD + touch so that P2 gets exclusive ownership of the arrow keys —
+ * otherwise pressing arrows would move BOTH players (B2).
+ *
+ * Extracted from {@link getDirection} so the input-combination logic can be
+ * unit-tested without instantiating Phaser.
+ */
+export function computeP1Direction(
+  settings: Pick<GameSettings, "mode">,
+  cursors: CursorKeysLike,
+  wasd: CursorKeysLike,
+  touchMovement: DirectionInput,
+): DirectionVector {
+  const inputs: DirectionInput[] = [];
+  if (settings.mode !== "2p-local") {
+    inputs.push({
+      down: cursors.down.isDown,
+      left: cursors.left.isDown,
+      right: cursors.right.isDown,
+      up: cursors.up.isDown,
+    });
+  }
+  inputs.push({
+    down: wasd.down.isDown,
+    left: wasd.left.isDown,
+    right: wasd.right.isDown,
+    up: wasd.up.isDown,
+  });
+  inputs.push(touchMovement);
+  return combineMovementInput(...inputs);
+}
+
+/**
+ * P2's direction vector from the arrow keys. In 2P-local mode P2 owns the
+ * arrow keys exclusively (B2).
+ */
+export function computeP2Direction(cursors: CursorKeysLike): DirectionVector {
+  return combineMovementInput({
+    down: cursors.down.isDown,
+    left: cursors.left.isDown,
+    right: cursors.right.isDown,
+    up: cursors.up.isDown,
+  });
+}
+
 function getDirection(runtime: BattleRuntime): Phaser.Math.Vector2 {
-  const movement = combineMovementInput(
-    {
-      down: runtime.cursors.down.isDown,
-      left: runtime.cursors.left.isDown,
-      right: runtime.cursors.right.isDown,
-      up: runtime.cursors.up.isDown,
-    },
-    {
-      down: runtime.wasd.down.isDown,
-      left: runtime.wasd.left.isDown,
-      right: runtime.wasd.right.isDown,
-      up: runtime.wasd.up.isDown,
-    },
+  const movement = computeP1Direction(
+    runtime.settings,
+    runtime.cursors,
+    runtime.wasd,
     runtime.touchMovement,
   );
-
   return new Phaser.Math.Vector2(movement.x, movement.y);
 }
 
 function getP2Direction(runtime: BattleRuntime): Phaser.Math.Vector2 {
-  // P2 uses the same cursor keys as P1 in single-player mode would have.
-  // In 2P mode, P1 is restricted to WASD and P2 gets the arrow keys.
-  const movement = combineMovementInput({
-    down: runtime.cursors.down.isDown,
-    left: runtime.cursors.left.isDown,
-    right: runtime.cursors.right.isDown,
-    up: runtime.cursors.up.isDown,
-  });
+  const movement = computeP2Direction(runtime.cursors);
   return new Phaser.Math.Vector2(movement.x, movement.y);
 }
 
@@ -115,12 +180,85 @@ function updateHud(runtime: BattleRuntime): void {
   );
 }
 
-function resetActors(runtime: BattleRuntime): void {
-  resetActor(runtime.player);
+/**
+ * Reset only the actor that rang out, leaving the other actor's power-up
+ * effects intact. Previously this code reset BOTH actors on any ring-out,
+ * which meant a bot ring-out would strip the human player of any active
+ * Boost / Heavy Hand / Shield — see bug B3.
+ */
+export function resetOffender(
+  runtime: BattleRuntimeLike,
+  who: "player" | "opponent",
+): void {
+  if (who === "player") {
+    resetActor(runtime.player);
+    return;
+  }
   if (runtime.opponent.kind === "bot") {
     resetActor(runtime.opponent.bot);
   } else {
     resetActor(runtime.opponent.player);
+  }
+}
+
+/**
+ * Minimal structural view of {@link BattleRuntime} that exposes only the
+ * fields {@link applyBotSlap} needs. Exported so the unit test can construct
+ * a stub without instantiating Phaser / the full BattleScene.
+ */
+export type BotSlapRuntimeLike = {
+  player: ActorState;
+  opponent:
+    | { kind: "bot"; bot: ActorState; ai: BotAIState }
+    | { kind: "player2"; player: ActorState };
+  round: RoundState;
+  settings: Pick<GameSettings, "winningScore">;
+  audio: {
+    playSlapHit: () => void;
+    playSlapMiss: () => void;
+  };
+};
+
+/**
+ * Attempt a bot slap and play the appropriate sound.
+ *
+ * Previously the bot branch of `update()` only played `slap-hit` on success
+ * and was silent on failure (cooldown / shield block / out-of-range). P1
+ * and P2 slap paths already played `slap-miss` on failure, so the bot was
+ * the only actor whose missed slaps were silent (B9).
+ *
+ * Extracted from `update()` so the audio-feedback contract can be
+ * unit-tested without driving the full Phaser scene.
+ */
+export function applyBotSlap(
+  runtime: BotSlapRuntimeLike,
+  now: number,
+): void {
+  if (runtime.opponent.kind !== "bot") {
+    return;
+  }
+  if (
+    !shouldBotSlap(
+      runtime.opponent.bot,
+      runtime.player,
+      runtime.opponent.ai,
+      now,
+    )
+  ) {
+    return;
+  }
+  const hit = applySlap(
+    runtime.opponent.bot,
+    runtime.player,
+    runtime.round,
+    "bots",
+    runtime.settings.winningScore,
+    now,
+  );
+  if (hit) {
+    runtime.audio.playSlapHit();
+  } else {
+    runtime.audio.playSlapMiss();
   }
 }
 
@@ -506,7 +644,7 @@ export class BattleScene extends Phaser.Scene {
 
     // --- Player 1 movement ---
     if (!isKnockedBack(runtime.player, this.time.now)) {
-      moveActor(runtime.player, getDirection(runtime));
+      moveActor(runtime.player, getDirection(runtime), this.time.now);
     }
 
     // --- Opponent logic ---
@@ -520,32 +658,27 @@ export class BattleScene extends Phaser.Scene {
           runtime.opponent.ai,
           this.time.now,
         );
-        moveActor(runtime.opponent.bot, new Phaser.Math.Vector2(dir.x, dir.y));
-      }
-
-      if (
-        shouldBotSlap(
+        moveActor(
           runtime.opponent.bot,
-          runtime.player,
-          runtime.opponent.ai,
-          this.time.now,
-        )
-      ) {
-        const hit = applySlap(
-          runtime.opponent.bot,
-          runtime.player,
-          runtime.round,
-          "bots",
-          runtime.settings.winningScore,
+          new Phaser.Math.Vector2(dir.x, dir.y),
           this.time.now,
         );
-        if (hit) {
-          runtime.audio.playSlapHit();
-        }
       }
+
+      // B9: bot slap attempt + audio feedback. applyBotSlap internally
+      // gates on shouldBotSlap and plays slap-hit / slap-miss as appropriate.
+      // Previously this block only played slap-hit on success and was silent
+      // on failure (cooldown / shield block). Delegating to a single helper
+      // also avoids double-calling shouldBotSlap (which has the side effect
+      // of stamping ai.lastSlapAttemptAt = now).
+      applyBotSlap(runtime, this.time.now);
     } else {
       if (!isKnockedBack(runtime.opponent.player, this.time.now)) {
-        moveActor(runtime.opponent.player, getP2Direction(runtime));
+        moveActor(
+          runtime.opponent.player,
+          getP2Direction(runtime),
+          this.time.now,
+        );
       }
 
       if (Phaser.Input.Keyboard.JustDown(runtime.slapKeyP2)) {
@@ -600,11 +733,11 @@ export class BattleScene extends Phaser.Scene {
     // --- Ring out ---
     if (isRingOut(runtime.player, runtime.arena, battleConfig.arena.ringOutMargin)) {
       runtime.audio.playRingOut();
-      resetActors(runtime);
+      resetOffender(runtime, "player");
     }
     if (isRingOut(opponentActor, runtime.arena, battleConfig.arena.ringOutMargin)) {
       runtime.audio.playRingOut();
-      resetActors(runtime);
+      resetOffender(runtime, "opponent");
     }
 
     advanceRoundState(
