@@ -152,11 +152,23 @@ export function createVolumeSlider(
 
   function applyValue(next: number): void {
     value = clamp01(snapToStep(next, SNAP_STEP));
-    const fillWidth = value * trackWidth;
+    // Constrain the handle's centre to the inner range
+    // [trackLeft + HANDLE_SIZE/2, trackLeft + trackWidth - HANDLE_SIZE/2]
+    // so the 22px square never spills past either edge of the track.
+    // The fill ends at the handle's LEFT edge, so the green can never
+    // overshoot the handle (and therefore never the track either). At
+    // value=0 the fill collapses to zero width — no green sliver under
+    // the handle. (Bug 2: previously fill.width = value * trackWidth,
+    // which hit the right edge at value=1 and clipped past it during
+    // pointer overshoot / anti-aliasing.)
+    const handleMinX = trackLeft + HANDLE_SIZE / 2;
+    const handleMaxX = trackLeft + trackWidth - HANDLE_SIZE / 2;
+    const handleRange = Math.max(0, handleMaxX - handleMinX);
+    handle.x = handleMinX + value * handleRange;
+    const handleLeftEdge = handle.x - HANDLE_SIZE / 2;
+    const fillWidth = Math.max(0, handleLeftEdge - trackLeft);
     fill.width = fillWidth;
-    // Reposition fill so its left edge stays at trackLeft.
     fill.x = trackLeft + fillWidth / 2;
-    handle.x = trackLeft + value * trackWidth;
     label.setText(formatPercent(value));
   }
 

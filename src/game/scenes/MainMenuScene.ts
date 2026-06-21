@@ -1,9 +1,10 @@
+import type Phaser from "phaser";
 import {
   loadSettings,
   saveSettings,
   type GameSettings,
 } from "../config/gameSettings";
-import { createAudioService } from "../audio/createAudioService";
+import { getAudioService } from "../audio/getAudioService";
 import type { AudioService } from "../audio/AudioService";
 import { createTopRightMuteButton } from "../ui/TopRightMuteButton";
 
@@ -59,8 +60,8 @@ export const MainMenuScene = {
     const storage = getStorage();
     let settings: GameSettings = loadSettings(storage);
 
-    const audio: AudioService = createAudioService(
-      this as unknown as Parameters<typeof createAudioService>[0],
+    const audio: AudioService = getAudioService(
+      this as unknown as Phaser.Scene,
       settings,
     );
 

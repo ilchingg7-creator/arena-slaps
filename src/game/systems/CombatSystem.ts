@@ -1,7 +1,4 @@
 import Phaser from "phaser";
-import type { RoundState } from "./RoundSystem";
-import { registerPoint } from "./RoundSystem";
-import type { ScoringSide } from "./ScoringSystem";
 import type { ActorState } from "../entities/Player";
 import {
   consumeShieldHit,
@@ -13,12 +10,22 @@ import { battleConfig } from "../config/battleConfig";
 const { slapCooldownMs: SLAP_COOLDOWN_MS, knockbackDurationMs: KNOCKBACK_DURATION_MS } =
   battleConfig.combat;
 
+/**
+ * Apply a single slap attempt: cooldown check, range check, shield block,
+ * then knockback. Returns `true` when the slap landed (knockback applied)
+ * and `false` on miss / cooldown / shield-block.
+ *
+ * NOTE: This function no longer awards points. Scoring moved to the
+ * ring-out handler in `BattleScene.update()` (see `handleRingOut`). Slaps
+ * only apply knockback — points are scored when an actor is knocked out
+ * of the arena. The previous signature took `round` / `side` /
+ * `winningScore` so it could call `registerPoint` directly; those
+ * parameters have been removed to make the "no scoring from slaps"
+ * invariant structural.
+ */
 export function applySlap(
   attacker: ActorState,
   defender: ActorState,
-  round: RoundState,
-  side: ScoringSide,
-  winningScore: number,
   now: number,
 ): boolean {
   if (now - attacker.lastAttackAt < SLAP_COOLDOWN_MS) {
@@ -63,7 +70,8 @@ export function applySlap(
     direction.x * attacker.knockbackSpeed * attacker.knockbackMultiplier,
     direction.y * attacker.knockbackSpeed * attacker.knockbackMultiplier,
   );
-  registerPoint(round, side, winningScore);
+  // Scoring moved to the ring-out handler in BattleScene.update() —
+  // see `handleRingOut`. Slaps apply knockback only.
   return true;
 }
 

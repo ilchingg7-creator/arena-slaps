@@ -273,4 +273,70 @@ describe("VolumeSlider", () => {
     slider.handlePointerMove({ x: 200, y: 50, isDown: true });
     expect(changes).toHaveLength(1);
   });
+
+  // --- Bug 2: handle + green fill overflow the track edges ---
+  // The handle is a 22px square (HANDLE_SIZE). At value=1 the handle used to
+  // be positioned at `trackLeft + trackWidth` (the exact right edge), so its
+  // centre was on the edge and its right half spilled 11px past the track.
+  // The green fill was `value * trackWidth` wide, which at value=1 hit the
+  // track's right edge exactly and could visually clip past it during
+  // anti-aliasing / pointer overshoot.
+  //
+  // Fix: keep the handle fully inside the track (its centre ranges over
+  // [trackLeft + HANDLE_SIZE/2, trackLeft + trackWidth - HANDLE_SIZE/2]) and
+  // make the fill end at the handle's LEFT edge so it can never reach past
+  // the handle (and therefore never past the track).
+
+  it("at value=1, handle.x stays inside the track (no right-edge overflow)", () => {
+    const scene = makeScene();
+    createVolumeSlider(scene, 100, 50, 200, 0.5, () => void 0);
+    // Slider centerX=100, trackWidth=200, so trackLeft = 0, trackRight = 200.
+    // handle.x must be <= trackRight - HANDLE_SIZE/2 = 200 - 11 = 189.
+    scene.emit("pointerdown", { x: 999, y: 50, isDown: true });
+    const handle = scene.rects[2];
+    expect(handle.x).toBeLessThanOrEqual(200 - 22 / 2);
+    expect(handle.x).toBeGreaterThanOrEqual(0);
+  });
+
+  it("at value=0, handle.x stays inside the track (no left-edge overflow)", () => {
+    const scene = makeScene();
+    createVolumeSlider(scene, 100, 50, 200, 0.5, () => void 0);
+    // handle.x must be >= trackLeft + HANDLE_SIZE/2 = 0 + 11 = 11.
+    scene.emit("pointerdown", { x: -500, y: 50, isDown: true });
+    const handle = scene.rects[2];
+    expect(handle.x).toBeGreaterThanOrEqual(0 + 22 / 2);
+    expect(handle.x).toBeLessThanOrEqual(200);
+  });
+
+  it("at value=1, fill.width never exceeds trackWidth - HANDLE_SIZE (no green overflow)", () => {
+    const scene = makeScene();
+    createVolumeSlider(scene, 100, 50, 200, 0.5, () => void 0);
+    scene.emit("pointerdown", { x: 999, y: 50, isDown: true });
+    const fill = scene.rects[1];
+    // Fill must end at the handle's LEFT edge, so its width is at most
+    // trackWidth - HANDLE_SIZE = 200 - 22 = 178.
+    expect(fill.width).toBeLessThanOrEqual(200 - 22);
+    expect(fill.width).toBeGreaterThanOrEqual(0);
+  });
+
+  it("at value=0, fill.width is 0 (no green sliver under the handle at minimum)", () => {
+    const scene = makeScene();
+    createVolumeSlider(scene, 100, 50, 200, 0.5, () => void 0);
+    scene.emit("pointerdown", { x: -500, y: 50, isDown: true });
+    const fill = scene.rects[1];
+    expect(fill.width).toBe(0);
+  });
+
+  it("at value=1, fill's right edge never passes the handle's left edge", () => {
+    const scene = makeScene();
+    createVolumeSlider(scene, 100, 50, 200, 0.5, () => void 0);
+    scene.emit("pointerdown", { x: 999, y: 50, isDown: true });
+    const fill = scene.rects[1];
+    const handle = scene.rects[2];
+    // Fill's right edge = fill.x + fill.width/2 (origin 0.5).
+    // Handle's left edge = handle.x - HANDLE_SIZE/2.
+    const fillRight = fill.x + fill.width / 2;
+    const handleLeft = handle.x - 22 / 2;
+    expect(fillRight).toBeLessThanOrEqual(handleLeft + 1e-9);
+  });
 });

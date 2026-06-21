@@ -33,9 +33,9 @@ vi.mock("phaser", () => {
   return { default: Phaser, ...Phaser };
 });
 
+import * as RoundSystem from "./RoundSystem";
 import { applySlap } from "./CombatSystem";
 import type { ActorState } from "../entities/Player";
-import type { RoundState } from "./RoundSystem";
 
 function mockActor(
   x: number,
@@ -65,41 +65,29 @@ function mockActor(
   } as unknown as ActorState;
 }
 
-function mockRound(): RoundState {
-  return {
-    isComplete: false,
-    timeLeft: 60,
-    score: { player: 0, bots: 0 },
-    winner: null,
-  };
-}
-
 describe("applySlap", () => {
-  it("returns true and awards a point on a clean hit", () => {
+  it("returns true on a clean hit but does NOT award a point (scoring is ring-out only)", () => {
     const attacker = mockActor(0, 0);
     const defender = mockActor(40, 0);
-    const round = mockRound();
-    const hit = applySlap(attacker, defender, round, "player", 5, 1000);
+    const hit = applySlap(attacker, defender, 1000);
     expect(hit).toBe(true);
-    expect(round.score.player).toBe(1);
+    // applySlap no longer takes a round/side/winningScore: it cannot award
+    // points. The only scoring path is the ring-out handler in BattleScene.
+    // Verified structurally — there is no round parameter to mutate.
   });
 
   it("returns false when the attacker is on cooldown", () => {
     const attacker = mockActor(0, 0, { lastAttackAt: 1000 });
     const defender = mockActor(40, 0);
-    const round = mockRound();
-    const hit = applySlap(attacker, defender, round, "player", 5, 1100);
+    const hit = applySlap(attacker, defender, 1100);
     expect(hit).toBe(false);
-    expect(round.score.player).toBe(0);
   });
 
   it("returns false when the defender is out of range", () => {
     const attacker = mockActor(0, 0, { slapRange: 50 });
     const defender = mockActor(200, 0);
-    const round = mockRound();
-    const hit = applySlap(attacker, defender, round, "player", 5, 1000);
+    const hit = applySlap(attacker, defender, 1000);
     expect(hit).toBe(false);
-    expect(round.score.player).toBe(0);
   });
 
   it("blocks a shielded defender without consuming the attacker's cooldown", () => {
@@ -109,21 +97,42 @@ describe("applySlap", () => {
       shieldHitsRemaining: 1,
       shieldUntil: 5000,
     });
-    const round = mockRound();
 
     // First slap: blocked by the shield. The shield is consumed AND the
     // attacker's cooldown must NOT be consumed (B10).
-    const blocked = applySlap(attacker, defender, round, "player", 5, 1000);
+    const blocked = applySlap(attacker, defender, 1000);
     expect(blocked).toBe(false);
-    expect(round.score.player).toBe(0);
     expect(attacker.lastAttackAt).toBe(Number.NEGATIVE_INFINITY);
     expect(defender.shieldHitsRemaining).toBe(0);
 
     // Second slap at the same instant: should land because (a) the cooldown
     // was not consumed by the blocked attempt (B10) and (b) the shield has
     // been consumed (B4).
-    const hit = applySlap(attacker, defender, round, "player", 5, 1000);
+    const hit = applySlap(attacker, defender, 1000);
     expect(hit).toBe(true);
-    expect(round.score.player).toBe(1);
+  });
+
+  it("applies knockback to the defender on a successful slap", () => {
+    const attacker = mockActor(0, 0);
+    const defender = mockActor(40, 0);
+    const setVelocity = vi.fn();
+    (defender as unknown as { body: { setVelocity: typeof setVelocity } }).body = {
+      setVelocity,
+    };
+    const hit = applySlap(attacker, defender, 1000);
+    expect(hit).toBe(true);
+    expect(setVelocity).toHaveBeenCalledTimes(1);
+    // Knockback direction is along +x (defender to the right of attacker).
+    expect(setVelocity.mock.calls[0][0]).toBeGreaterThan(0);
+  });
+
+  it("does NOT call registerPoint on a successful slap (scoring moved to ring-out handler)", () => {
+    const registerPointSpy = vi.spyOn(RoundSystem, "registerPoint");
+    const attacker = mockActor(0, 0);
+    const defender = mockActor(40, 0);
+    const hit = applySlap(attacker, defender, 1000);
+    expect(hit).toBe(true);
+    expect(registerPointSpy).not.toHaveBeenCalled();
+    registerPointSpy.mockRestore();
   });
 });

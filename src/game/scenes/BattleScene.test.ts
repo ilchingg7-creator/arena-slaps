@@ -63,7 +63,7 @@ vi.mock("phaser", () => {
   return { default: Phaser, ...Phaser };
 });
 
-import { resetOffender, computeP1Direction, computeP2Direction, applyBotSlap, type BattleRuntimeLike, type BotSlapRuntimeLike } from "./BattleScene";
+import { resetOffender, computeP1Direction, computeP2Direction, applyBotSlap, handleRingOut, type BattleRuntimeLike, type BotSlapRuntimeLike, type RingOutRuntimeLike } from "./BattleScene";
 import type { ActorState } from "../entities/Player";
 import type { GameSettings } from "../config/gameSettings";
 import type { DirectionInput } from "../systems/InputDirection";
@@ -346,7 +346,6 @@ function makeBotSlapRuntime(opts: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   player?: any;
   ai?: BotAIState;
-  winningScore?: number;
 }): BotSlapRuntimeLike {
   const bot = mockActor({
     sprite: { x: 100, y: 0, setPosition: () => void 0 },
@@ -374,8 +373,6 @@ function makeBotSlapRuntime(opts: {
   return {
     player,
     opponent: { kind: "bot", bot, ai: opts.ai ?? makeBotAI() },
-    round: makeRound(),
-    settings: { winningScore: opts.winningScore ?? 5 },
     audio,
   } as unknown as BotSlapRuntimeLike;
 }
@@ -427,5 +424,99 @@ describe("applyBotSlap (B9)", () => {
     applyBotSlap(runtime, now);
     expect(runtime.audio.playSlapHit).not.toHaveBeenCalled();
     expect(runtime.audio.playSlapMiss).not.toHaveBeenCalled();
+  });
+});
+
+// --- fix-scoring: points awarded on ring-out, not slap ---
+// Previously applySlap called registerPoint on every successful slap, which
+// meant a round could be won by slapping alone. Scoring has now moved to the
+// ring-out handler: when an actor is knocked out of the arena, the OPPOSITE
+// side is awarded the point. Slaps apply knockback only.
+
+function makeRingOutRuntime(opts: {
+  opponentKind?: "bot" | "player2";
+}): RingOutRuntimeLike {
+  const player = mockActor();
+  const opponent = mockActor();
+  const audio = {
+    playRingOut: vi.fn(),
+  };
+  return {
+    player,
+    opponent: {
+      kind: opts.opponentKind ?? "bot",
+      bot: opts.opponentKind === "player2" ? undefined : opponent,
+      player: opts.opponentKind === "player2" ? opponent : undefined,
+    },
+    round: makeRound(),
+    audio,
+  } as unknown as RingOutRuntimeLike;
+}
+
+describe("handleRingOut (fix-scoring)", () => {
+  it("awards the point to the BOTS side when the PLAYER rings out", () => {
+    const runtime = makeRingOutRuntime({});
+    handleRingOut(runtime, "player", 5);
+    expect(runtime.round.score.bots).toBe(1);
+    expect(runtime.round.score.player).toBe(0);
+    expect(runtime.audio.playRingOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("awards the point to the PLAYER side when the OPPONENT rings out (bot)", () => {
+    const runtime = makeRingOutRuntime({ opponentKind: "bot" });
+    handleRingOut(runtime, "opponent", 5);
+    expect(runtime.round.score.player).toBe(1);
+    expect(runtime.round.score.bots).toBe(0);
+    expect(runtime.audio.playRingOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("awards the point to the PLAYER side when the OPPONENT rings out (player2)", () => {
+    const runtime = makeRingOutRuntime({ opponentKind: "player2" });
+    handleRingOut(runtime, "opponent", 5);
+    expect(runtime.round.score.player).toBe(1);
+    expect(runtime.round.score.bots).toBe(0);
+    expect(runtime.audio.playRingOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("resets only the offender that rang out (player)", () => {
+    const runtime = makeRingOutRuntime({});
+    handleRingOut(runtime, "player", 5);
+    expect(runtime.player.speedMultiplier).toBe(1);
+    expect(runtime.player.shieldHitsRemaining).toBe(0);
+    // Opponent untouched.
+    const opp =
+      runtime.opponent.kind === "bot"
+        ? runtime.opponent.bot
+        : runtime.opponent.player;
+    expect(opp.speedMultiplier).toBe(2);
+    expect(opp.shieldHitsRemaining).toBe(1);
+  });
+
+  it("resets only the offender that rang out (opponent)", () => {
+    const runtime = makeRingOutRuntime({});
+    handleRingOut(runtime, "opponent", 5);
+    expect(runtime.player.speedMultiplier).toBe(2);
+    expect(runtime.player.shieldHitsRemaining).toBe(1);
+    // Opponent reset.
+    const opp =
+      runtime.opponent.kind === "bot"
+        ? runtime.opponent.bot
+        : runtime.opponent.player;
+    expect(opp.speedMultiplier).toBe(1);
+    expect(opp.shieldHitsRemaining).toBe(0);
+  });
+
+  it("completes the round when winningScore is reached via ring-out", () => {
+    const runtime = makeRingOutRuntime({});
+    handleRingOut(runtime, "player", 1); // bots reaches winningScore=1
+    expect(runtime.round.isComplete).toBe(true);
+    expect(runtime.round.winner).toBe("bots");
+  });
+
+  it("does not complete the round before winningScore is reached", () => {
+    const runtime = makeRingOutRuntime({});
+    handleRingOut(runtime, "player", 5); // bots=1, winningScore=5
+    expect(runtime.round.isComplete).toBe(false);
+    expect(runtime.round.winner).toBeNull();
   });
 });

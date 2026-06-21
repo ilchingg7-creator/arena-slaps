@@ -31,9 +31,22 @@ type PowerUpSprite = {
   y: number;
 };
 
+type PowerUpLabel = {
+  destroy: () => void;
+};
+
 type SceneLike = {
   add: {
     circle: (x: number, y: number, size: number, color: number) => PowerUpSprite;
+    text: (
+      x: number,
+      y: number,
+      value: string,
+      style?: { color?: string; fontFamily?: string; fontSize?: string },
+    ) => {
+      setOrigin: (x?: number, y?: number) => PowerUpLabel;
+      destroy: () => void;
+    };
   };
 };
 
@@ -72,6 +85,7 @@ export const powerUpDefinitions = [
 type ActivePowerUp = {
   definition: PowerUpDefinition;
   sprite: PowerUpSprite;
+  label: PowerUpLabel;
 };
 
 export type PowerUpState = {
@@ -108,10 +122,22 @@ export function spawnPowerUp(
   const point = slots[state.spawnIndex % slots.length];
   const definition = getNextPowerUpDefinition(state.spawnIndex);
 
+  const label = scene.add.text(
+    point.x,
+    point.y - size - 14,
+    definition.label,
+    {
+      color: "#f4f1de",
+      fontFamily: "Arial",
+      fontSize: "14px",
+    },
+  ).setOrigin(0.5, 0.5);
+
   state.spawnIndex += 1;
   state.active = {
     definition,
     sprite: scene.add.circle(point.x, point.y, size, definition.color),
+    label,
   };
 }
 
@@ -147,6 +173,7 @@ export function tryCollectPowerUp(
   }
 
   state.active.sprite.destroy();
+  state.active.label.destroy();
   state.active = null;
   return true;
 }

@@ -22,15 +22,17 @@ import { combineMovementInput, type DirectionInput, type DirectionVector } from 
 import {
   advanceRoundState,
   createRoundState,
+  registerPoint,
   type RoundState,
 } from "../systems/RoundSystem";
+import type { ScoringSide } from "../systems/ScoringSystem";
 import {
   createPowerUpState,
   spawnPowerUp,
   tryCollectPowerUp,
   type PowerUpState,
 } from "../systems/PowerUpSystem";
-import { createAudioService } from "../audio/createAudioService";
+import { getAudioService } from "../audio/getAudioService";
 import type { AudioService } from "../audio/AudioService";
 import {
   computeBotDirection,
@@ -205,17 +207,36 @@ export function resetOffender(
  * Minimal structural view of {@link BattleRuntime} that exposes only the
  * fields {@link applyBotSlap} needs. Exported so the unit test can construct
  * a stub without instantiating Phaser / the full BattleScene.
+ *
+ * Note: previously this type also carried `round` and `settings.winningScore`
+ * so `applyBotSlap` could forward them to `applySlap` for scoring. Scoring
+ * has moved to the ring-out handler (`handleRingOut`), so the bot slap path
+ * no longer touches round state — those fields are gone.
  */
 export type BotSlapRuntimeLike = {
   player: ActorState;
   opponent:
     | { kind: "bot"; bot: ActorState; ai: BotAIState }
     | { kind: "player2"; player: ActorState };
-  round: RoundState;
-  settings: Pick<GameSettings, "winningScore">;
   audio: {
     playSlapHit: () => void;
     playSlapMiss: () => void;
+  };
+};
+
+/**
+ * Minimal structural view of {@link BattleRuntime} that exposes only the
+ * fields {@link handleRingOut} needs. Exported so the unit test can construct
+ * a stub without instantiating Phaser / the full BattleScene.
+ */
+export type RingOutRuntimeLike = {
+  player: ActorState;
+  opponent:
+    | { kind: "bot"; bot: ActorState }
+    | { kind: "player2"; player: ActorState };
+  round: RoundState;
+  audio: {
+    playRingOut: () => void;
   };
 };
 
@@ -247,19 +268,36 @@ export function applyBotSlap(
   ) {
     return;
   }
-  const hit = applySlap(
-    runtime.opponent.bot,
-    runtime.player,
-    runtime.round,
-    "bots",
-    runtime.settings.winningScore,
-    now,
-  );
+  const hit = applySlap(runtime.opponent.bot, runtime.player, now);
   if (hit) {
     runtime.audio.playSlapHit();
   } else {
     runtime.audio.playSlapMiss();
   }
+}
+
+/**
+ * Handle a ring-out: award the point to the OPPOSITE side (the actor that
+ * fell off concedes), play the ring-out sound, and reset only the offender.
+ *
+ * Extracted from `update()` so the scoring-on-ring-out contract can be
+ * unit-tested without driving the full Phaser scene. Previously the
+ * ring-out branch only played the sound + reset the offender — no point
+ * was awarded, because `applySlap` was awarding points on every successful
+ * slap. Scoring has now moved here (slap → knockback only, ring-out →
+ * point + reset).
+ */
+export function handleRingOut(
+  runtime: RingOutRuntimeLike,
+  who: "player" | "opponent",
+  winningScore: number,
+): void {
+  // The actor that rings out concedes the point to the OPPOSITE side:
+  // player rings out → bots score; opponent rings out → player scores.
+  const side: ScoringSide = who === "player" ? "bots" : "player";
+  registerPoint(runtime.round, side, winningScore);
+  runtime.audio.playRingOut();
+  resetOffender(runtime, who);
 }
 
 function getStorage(): Storage | null {
@@ -371,7 +409,7 @@ export class BattleScene extends Phaser.Scene {
 
     this.runtime = {
       arena,
-      audio: createAudioService(this, settings),
+      audio: getAudioService(this, settings),
       botAI: opponent.kind === "bot" ? opponent.ai : null,
       cursors,
       opponent,
@@ -435,9 +473,6 @@ export class BattleScene extends Phaser.Scene {
       const hit = applySlap(
         rt.player,
         this.opponentActor(),
-        rt.round,
-        "player",
-        rt.settings.winningScore,
         this.time.now,
       );
       if (hit) {
@@ -458,9 +493,6 @@ export class BattleScene extends Phaser.Scene {
       const hit = applySlap(
         rt.opponent.player,
         rt.player,
-        rt.round,
-        "bots",
-        rt.settings.winningScore,
         this.time.now,
       );
       if (hit) {
@@ -691,9 +723,6 @@ export class BattleScene extends Phaser.Scene {
         const hit = applySlap(
           runtime.opponent.player,
           runtime.player,
-          runtime.round,
-          "bots",
-          runtime.settings.winningScore,
           this.time.now,
         );
         if (hit) {
@@ -709,9 +738,6 @@ export class BattleScene extends Phaser.Scene {
       const hit = applySlap(
         runtime.player,
         opponentActor,
-        runtime.round,
-        "player",
-        runtime.settings.winningScore,
         this.time.now,
       );
       if (hit) {
@@ -737,13 +763,15 @@ export class BattleScene extends Phaser.Scene {
     }
 
     // --- Ring out ---
+    // Points are awarded ONLY on ring-out: the actor that falls off concedes
+    // a point to the opposite side. Slaps apply knockback but do not score
+    // (see `applySlap`). `handleRingOut` also plays the ring-out sound and
+    // resets only the offender.
     if (isRingOut(runtime.player, runtime.arena, battleConfig.arena.ringOutMargin)) {
-      runtime.audio.playRingOut();
-      resetOffender(runtime, "player");
+      handleRingOut(runtime, "player", runtime.settings.winningScore);
     }
     if (isRingOut(opponentActor, runtime.arena, battleConfig.arena.ringOutMargin)) {
-      runtime.audio.playRingOut();
-      resetOffender(runtime, "opponent");
+      handleRingOut(runtime, "opponent", runtime.settings.winningScore);
     }
 
     advanceRoundState(
