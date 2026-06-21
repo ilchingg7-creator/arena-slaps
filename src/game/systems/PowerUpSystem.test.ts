@@ -508,19 +508,33 @@ describe("PowerUpSystem", () => {
   });
 
   describe("tryCollectPowerUp (freeze)", () => {
-    it("sets frozenUntil = now + freezeMs", () => {
+    it("sets frozenUntil on the OPPONENT (not the collector)", () => {
+      const actor = mockActor(0, 0);
+      const opponent = mockActor(100, 0);
+      const state = createPowerUpState();
+      spawnAt(state, "freeze");
+
+      const collected = tryCollectPowerUp(actor, state, 1000, opponent);
+      expect(collected).toBe(true);
+      // Freeze targets the opponent, not the collector.
+      expect(opponent.frozenUntil).toBe(1000 + POWERUP_TIMINGS.freezeMs);
+      expect(actor.frozenUntil).toBe(0);
+      // Freeze does NOT touch knockback / speed multipliers on either actor.
+      expect(actor.knockbackMultiplier).toBe(1);
+      expect(actor.speedMultiplier).toBe(1);
+      expect(opponent.knockbackMultiplier).toBe(1);
+      expect(opponent.speedMultiplier).toBe(1);
+    });
+
+    it("is a no-op on opponent when no opponent is provided", () => {
       const actor = mockActor(0, 0);
       const state = createPowerUpState();
       spawnAt(state, "freeze");
 
       const collected = tryCollectPowerUp(actor, state, 1000);
       expect(collected).toBe(true);
-      expect(actor.frozenUntil).toBe(1000 + POWERUP_TIMINGS.freezeMs);
-      // Freeze does NOT touch knockback / speed multipliers.
-      expect(actor.knockbackMultiplier).toBe(1);
-      expect(actor.speedMultiplier).toBe(1);
-      expect(actor.knockbackBoostUntil).toBe(0);
-      expect(actor.speedBoostUntil).toBe(0);
+      // No opponent → freeze is a no-op (collector is NOT frozen).
+      expect(actor.frozenUntil).toBe(0);
     });
   });
 

@@ -34,12 +34,16 @@ import {
   isInDespawnWarning,
   shouldBlink,
   despawnPowerUp,
+  isFrozen,
+  isDoubleSlapReady,
   type PowerUpState,
 } from "../systems/PowerUpSystem";
 import { getAudioService } from "../audio/getAudioService";
 import type { AudioService } from "../audio/AudioService";
 import { createBackground } from "../ui/Background";
 import { createPauseMenu, type PauseMenu } from "../ui/PauseMenu";
+import { loadProfile, saveProfile } from "../config/profile";
+import { ProfileService } from "../services/ProfileService";
 import {
   computeBotDirection,
   createBotAI,
@@ -789,6 +793,15 @@ export class BattleScene extends Phaser.Scene {
         this.scene.pause();
       }
     });
+
+    // Clean up the pause menu + runtime when the scene shuts down.
+    this.events.on("shutdown", () => {
+      if (this.pauseMenu) {
+        this.pauseMenu.destroy();
+        this.pauseMenu = null;
+      }
+      this.runtime = null;
+    });
   }
 
   private opponentActor() {
@@ -846,6 +859,33 @@ export class BattleScene extends Phaser.Scene {
           saveBattleResults(storage, results);
         }
 
+        // Record game result to the player's profile (1P-vs-bot only —
+        // in 2P-local mode both players are human, so "win/loss" doesn't
+        // apply to a single profile).
+        if (storage && runtime.settings.mode === "1p-vs-bot") {
+          try {
+            const profile = loadProfile(storage);
+            const service = new ProfileService(profile);
+            const outcome: "win" | "loss" | "draw" =
+              runtime.round.winner === "player"
+                ? "win"
+                : runtime.round.winner === "bots"
+                  ? "loss"
+                  : "draw";
+            service.recordGameResult({
+              mode: runtime.settings.mode,
+              outcome,
+              ringOutsInflicted: runtime.round.score.player,
+              ringOutsSuffered: runtime.round.score.bots,
+              powerUpsCollected: runtime.powerUpsCollected.player,
+              powerUpTypes: [], // not tracked per-type yet — future enhancement
+            });
+            saveProfile(storage, service.getProfile());
+          } catch {
+            // Profile recording is non-critical — don't crash the round-end flow.
+          }
+        }
+
         // End-of-round sting. In 2P-local mode we always use round-win
         // because the game logic doesn't know which human is "the player";
         // in 1P-vs-bot we play win/lose/draw depending on outcome.
@@ -873,14 +913,14 @@ export class BattleScene extends Phaser.Scene {
     }
 
     // --- Player 1 movement ---
-    if (!isKnockedBack(runtime.player, this.time.now)) {
+    if (!isKnockedBack(runtime.player, this.time.now) && !isFrozen(runtime.player, this.time.now)) {
       moveActor(runtime.player, getDirection(runtime), this.time.now);
     }
 
     // --- Opponent logic ---
     const opponentActor = this.opponentActor();
     if (runtime.opponent.kind === "bot") {
-      if (!isKnockedBack(runtime.opponent.bot, this.time.now)) {
+      if (!isKnockedBack(runtime.opponent.bot, this.time.now) && !isFrozen(runtime.opponent.bot, this.time.now)) {
         const dir = computeBotDirection(
           runtime.opponent.bot,
           runtime.player,
@@ -903,7 +943,7 @@ export class BattleScene extends Phaser.Scene {
       // of stamping ai.lastSlapAttemptAt = now).
       applyBotSlap(runtime, this.time.now);
     } else {
-      if (!isKnockedBack(runtime.opponent.player, this.time.now)) {
+      if (!isKnockedBack(runtime.opponent.player, this.time.now) && !isFrozen(runtime.opponent.player, this.time.now)) {
         moveActor(
           runtime.opponent.player,
           getP2Direction(runtime),
@@ -970,12 +1010,12 @@ export class BattleScene extends Phaser.Scene {
       spawnPowerUp(this, runtime.powerUp, runtime.arena, battleConfig.powerUp.size);
     }
 
-    if (tryCollectPowerUp(runtime.player, runtime.powerUp, this.time.now)) {
+    if (tryCollectPowerUp(runtime.player, runtime.powerUp, this.time.now, opponentActor)) {
       runtime.powerUpsCollected.player += 1;
       runtime.audio.playPowerUpCollect();
     }
 
-    if (tryCollectPowerUp(opponentActor, runtime.powerUp, this.time.now)) {
+    if (tryCollectPowerUp(opponentActor, runtime.powerUp, this.time.now, runtime.player)) {
       runtime.powerUpsCollected.bots += 1;
       runtime.audio.playPowerUpCollect();
     }

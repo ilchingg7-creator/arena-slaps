@@ -193,12 +193,16 @@ export function spawnPowerUp(
  * later, after the player sees the pickup flash).
  *
  * Effect application dispatches on `definition.key`:
- *   - speed          → speedMultiplier + speedBoostUntil
- *   - knockback      → knockbackMultiplier + knockbackBoostUntil
- *   - shield         → shieldHitsRemaining = 1, shieldUntil
- *   - mega-knockback → knockbackMultiplier + knockbackBoostUntil (stronger)
- *   - freeze         → frozenUntil (NEW ActorState field)
- *   - double-slap    → doubleSlapUntil (NEW ActorState field)
+ *   - speed          → speedMultiplier + speedBoostUntil (on collector)
+ *   - knockback      → knockbackMultiplier + knockbackBoostUntil (on collector)
+ *   - shield         → shieldHitsRemaining = 1, shieldUntil (on collector)
+ *   - mega-knockback → knockbackMultiplier + knockbackBoostUntil (on collector)
+ *   - freeze         → frozenUntil (on OPPONENT, not collector)
+ *   - double-slap    → doubleSlapUntil (on collector)
+ *
+ * The `opponent` parameter is required for the freeze effect (which freezes
+ * the opponent, not the collector). For all other effects, opponent is
+ * unused.
  *
  * Each effect duration is looked up from {@link POWERUP_TIMINGS} via the
  * definition's `durationKey`.
@@ -207,6 +211,7 @@ export function tryCollectPowerUp(
   actor: ActorState,
   state: PowerUpState,
   now: number,
+  opponent?: ActorState,
 ): boolean {
   if (!state.active) {
     return false;
@@ -241,7 +246,11 @@ export function tryCollectPowerUp(
       definition.knockbackMultiplier ?? actor.knockbackMultiplier;
     actor.knockbackBoostUntil = now + durationMs;
   } else if (definition.key === "freeze") {
-    actor.frozenUntil = now + durationMs;
+    // Freeze the OPPONENT, not the collector. If no opponent is provided
+    // (e.g. in a unit test), the effect is a no-op.
+    if (opponent) {
+      opponent.frozenUntil = now + durationMs;
+    }
   } else if (definition.key === "double-slap") {
     actor.doubleSlapUntil = now + durationMs;
   }
