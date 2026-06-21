@@ -26,6 +26,7 @@ type SceneLoader = {
   image: (key: string, uri: string) => void;
   audio: (key: string, urls: string | string[]) => void;
   atlas: (key: string, textureURL: string, atlasURL: string) => void;
+  on: (event: string, handler: (file: { key: string; url: string }) => void) => void;
 };
 
 type SceneController = {
@@ -57,6 +58,16 @@ export const PreloadScene = {
       })
       .setOrigin(0.5);
 
+    // Log load errors so missing assets are visible in the console instead
+    // of silently hanging the loader. Phaser still calls create() after all
+    // files complete (success or error), but a 404/HTML-fallback on an
+    // image can make the Image element hang without firing onerror in some
+    // browser/dev-server combos — hence the placeholder PNGs in
+    // /public/sprites/ that guarantee every manifest entry resolves.
+    this.load.on("loaderror", (file: { key: string; url: string }) => {
+      console.warn(`[PreloadScene] Failed to load asset: key="${file.key}" url="${file.url}"`);
+    });
+
     // Load image assets (placeholder UI button, etc.).
     loadAssets(this, assetManifest);
 
@@ -66,8 +77,8 @@ export const PreloadScene = {
     }
 
     // Load every sprite from the manifest (.png files under /public/sprites/).
-    // If a sprite file is missing, Phaser will log a warning but continue;
-    // the SpriteManager will fall back to a primitive at render time.
+    // Every manifest entry has a corresponding PNG file — if a sprite is
+    // missing, the loaderror handler above will log it.
     loadAllSprites(this.load);
   },
   create(this: PreloadSceneContext) {
