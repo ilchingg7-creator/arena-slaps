@@ -56,6 +56,7 @@ import {
   getActorEffectTint,
 } from "../sprites/actorAnimations";
 import { resolveNicknames, type NicknamePair } from "./nicknameHelpers";
+import { I18nService } from "../i18n/I18nService";
 
 type Opponent =
   | { kind: "bot"; bot: Bot; ai: BotAIState }
@@ -78,6 +79,12 @@ type BattleRuntime = {
   audio: AudioService;
   botAI: BotAIState | null;
   cursors: Phaser.Types.Input.Keyboard.CursorKeys;
+  /**
+   * Localization service. Loaded once in `create()` from the user's
+   * persisted language preference. Used for the HUD "Time:" prefix,
+   * the controls hint, and the winner banner (Draw / Player wins / etc).
+   */
+  i18n: I18nService;
   /**
    * Visual sprite wrapper for the opponent actor. Sits on top of the
    * (hidden) physics rectangle and swaps textures based on the opponent's
@@ -220,7 +227,9 @@ function getP2Direction(runtime: BattleRuntime): Phaser.Math.Vector2 {
 }
 
 function updateHud(runtime: BattleRuntime): void {
-  runtime.timerText.setText(`Time: ${Math.ceil(runtime.round.timeLeft)}`);
+  runtime.timerText.setText(
+    `${runtime.i18n.t("battle.time")}: ${Math.ceil(runtime.round.timeLeft)}`,
+  );
   // --- Nicknames (Task 3b) ---
   // Both labels come from the resolved nickname pair stashed in the runtime.
   // Previously this used hard-coded "Player"/"Bot"/"P1"/"P2" labels; the
@@ -412,6 +421,8 @@ export class BattleScene extends Phaser.Scene {
 
     const width = this.scale.width || 1280;
     const height = this.scale.height || 720;
+    const storage = typeof window !== "undefined" ? window.localStorage : null;
+    const i18n = I18nService.load(storage);
     const arena = new Phaser.Geom.Rectangle(
       (width - battleConfig.arena.width) / 2,
       (height - battleConfig.arena.height) / 2,
@@ -561,6 +572,7 @@ export class BattleScene extends Phaser.Scene {
       audio: getAudioService(this, settings),
       botAI: opponent.kind === "bot" ? opponent.ai : null,
       cursors,
+      i18n,
       nicknames,
       opponentAnim,
       opponentNameLabel,
@@ -609,8 +621,8 @@ export class BattleScene extends Phaser.Scene {
 
     const controlsHint =
       settings.mode === "2p-local"
-        ? "P1: WASD + Space   |   P2: Arrows + Enter   |   Slap or tap SLAP"
-        : "Move: WASD / Arrows   Slap: Space, click arena, or tap SLAP";
+        ? i18n.t("battle.controls.2p")
+        : i18n.t("battle.controls.1p");
     this.add
       .text(width / 2, arena.bottom + 24, controlsHint, {
         color: "#f4f1de",
@@ -762,6 +774,7 @@ export class BattleScene extends Phaser.Scene {
     // resume / settings-toggle / quit-to-main-menu behaviour.
     const pauseMenu = createPauseMenu(this, {
       battleSceneKey: "BattleScene",
+      i18n,
       onResume: () => {
         this.scene.resume();
       },
@@ -826,14 +839,14 @@ export class BattleScene extends Phaser.Scene {
       opp.body.setVelocity(0, 0);
       runtime.winnerText.setText(
         runtime.round.winner === "draw"
-          ? "Draw"
+          ? runtime.i18n.t("battle.draw")
           : runtime.round.winner === "player"
             ? runtime.settings.mode === "2p-local"
-              ? "P1 wins"
-              : "Player wins"
+              ? runtime.i18n.t("battle.p1Wins")
+              : runtime.i18n.t("battle.playerWins")
             : runtime.settings.mode === "2p-local"
-              ? "P2 wins"
-              : "Bot wins",
+              ? runtime.i18n.t("battle.p2Wins")
+              : runtime.i18n.t("battle.botWins"),
       );
       updateHud(runtime);
       // Sync the animated sprites one last time so they settle on the

@@ -43,6 +43,8 @@ import {
   type SliderSceneLike,
   type VolumeSlider,
 } from "./VolumeSlider";
+import type { I18nService } from "../i18n/I18nService";
+import type { TranslationKey } from "../config/translations";
 
 export type PauseMenuConfig = {
   /** The scene that should be resumed/quit (typically the BattleScene). */
@@ -53,6 +55,14 @@ export type PauseMenuConfig = {
   onSettings: () => void;
   /** Called when the user clicks "Главное меню". */
   onQuit: () => void;
+  /**
+   * Optional i18n service. When provided, all menu strings (title, button
+   * labels, settings panel labels) are read from the translation table
+   * via `i18n.t(key)`. When omitted, the legacy hardcoded strings are
+   * used (kept for backward compatibility with the PauseMenu unit tests
+   * that don't construct an I18nService).
+   */
+  i18n?: I18nService;
 };
 
 export type PauseMenu = {
@@ -165,6 +175,20 @@ export function createPauseMenu(
   const centerX = width / 2;
   const centerY = height / 2;
 
+  // --- Strings: use i18n when provided, otherwise fall back to the
+  // legacy hardcoded values (matching the original PauseMenu tests).
+  const tr = (key: TranslationKey, fallback: string): string =>
+    config.i18n ? config.i18n.t(key) : fallback;
+
+  const TITLE_TEXT = tr("pause.title", "Paused");
+  const RESUME_TEXT = tr("pause.resume", "Продолжить");
+  const SETTINGS_TEXT = tr("pause.settings", "Настройки");
+  const QUIT_TEXT = tr("pause.mainMenu", "Главное меню");
+  const SETTINGS_TITLE_TEXT = tr("pause.settingsTitle", "Settings");
+  const SFX_VOLUME_TEXT = tr("audio.sfxVolume", "SFX Volume");
+  const MUSIC_VOLUME_TEXT = tr("audio.musicVolume", "Music Volume");
+  const BACK_TEXT = tr("pause.back", "Back");
+
   // --- Main menu elements (overlay + title + 3 buttons) ----------------
   // These are created with the ORIGINAL scene.add — they're managed
   // individually (not via the settings-panel tracking list).
@@ -175,7 +199,7 @@ export function createPauseMenu(
   overlay.setVisible(false);
 
   const title = s.add
-    .text(centerX, centerY - 180, "Paused", TITLE_STYLE)
+    .text(centerX, centerY - 180, TITLE_TEXT, TITLE_STYLE)
     .setOrigin(0.5, 0.5)
     .setDepth(CONTENT_DEPTH);
   title.setVisible(false);
@@ -187,7 +211,7 @@ export function createPauseMenu(
     {
       x: centerX,
       y: centerY - 60,
-      text: "Продолжить",
+      text: RESUME_TEXT,
       variant: "success",
       onClick: () => {
         config.onResume();
@@ -203,7 +227,7 @@ export function createPauseMenu(
     {
       x: centerX,
       y: centerY + 10,
-      text: "Настройки",
+      text: SETTINGS_TEXT,
       variant: "secondary",
       onClick: () => {
         // The menu stays visible — the caller's onSettings callback is
@@ -221,7 +245,7 @@ export function createPauseMenu(
     {
       x: centerX,
       y: centerY + 80,
-      text: "Главное меню",
+      text: QUIT_TEXT,
       variant: "danger",
       onClick: () => {
         config.onQuit();
@@ -281,14 +305,14 @@ export function createPauseMenu(
   try {
     // Settings title
     s.add
-      .text(centerX, centerY - 180, "Settings", SETTINGS_TITLE_STYLE)
+      .text(centerX, centerY - 180, SETTINGS_TITLE_TEXT, SETTINGS_TITLE_STYLE)
       .setOrigin(0.5, 0.5)
       .setDepth(CONTENT_DEPTH)
       .setVisible(false);
 
     // SFX row
     s.add
-      .text(centerX - 220, centerY - 80, "SFX Volume", LABEL_STYLE)
+      .text(centerX - 220, centerY - 80, SFX_VOLUME_TEXT, LABEL_STYLE)
       .setOrigin(0, 0.5)
       .setDepth(CONTENT_DEPTH)
       .setVisible(false);
@@ -305,7 +329,7 @@ export function createPauseMenu(
 
     // Music row
     s.add
-      .text(centerX - 220, centerY + 20, "Music Volume", LABEL_STYLE)
+      .text(centerX - 220, centerY + 20, MUSIC_VOLUME_TEXT, LABEL_STYLE)
       .setOrigin(0, 0.5)
       .setDepth(CONTENT_DEPTH)
       .setVisible(false);
@@ -336,7 +360,7 @@ export function createPauseMenu(
   backButton = createStyledButton(s as unknown as ButtonSceneLike, {
     x: centerX,
     y: centerY + 120,
-    text: "Back",
+    text: BACK_TEXT,
     variant: "secondary",
     onClick: () => {
       toggleSettings();

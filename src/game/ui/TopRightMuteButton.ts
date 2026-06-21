@@ -44,14 +44,35 @@ export type MuteButtonState = {
   musicMuted: boolean;
 };
 
+/**
+ * Optional labels for the mute button. When not provided, the button
+ * falls back to the legacy hardcoded English strings ("🔊 Sound" /
+ * "🔇 Muted"). Scenes that are i18n-aware pass translated labels via
+ * {@link MuteButtonOptions.soundLabel} / {@link MuteButtonOptions.mutedLabel}
+ * so the button text matches the active language.
+ */
+export type MuteButtonOptions = {
+  /** Label shown when neither channel is muted (e.g. i18n.t("mute.sound")). */
+  soundLabel?: string;
+  /** Label shown when both channels are muted (e.g. i18n.t("mute.muted")). */
+  mutedLabel?: string;
+};
+
 export type TopRightMuteButton = {
   setState: (state: MuteButtonState) => void;
   isMasterMuted: () => boolean;
 };
 
-function labelFor(state: MuteButtonState): string {
+const DEFAULT_SOUND_LABEL = "🔊 Sound";
+const DEFAULT_MUTED_LABEL = "🔇 Muted";
+
+function labelFor(
+  state: MuteButtonState,
+  soundLabel: string,
+  mutedLabel: string,
+): string {
   const masterMuted = state.sfxMuted && state.musicMuted;
-  return masterMuted ? "🔇 Muted" : "🔊 Sound";
+  return masterMuted ? mutedLabel : soundLabel;
 }
 
 function backgroundColorFor(state: MuteButtonState): string {
@@ -63,14 +84,17 @@ export function createTopRightMuteButton(
   scene: MuteButtonSceneLike,
   initialState: MuteButtonState,
   onChange: (next: MuteButtonState) => void,
+  options?: MuteButtonOptions,
 ): TopRightMuteButton {
   const width = scene.scale?.width ?? 1280;
   const margin = 20;
+  const soundLabel = options?.soundLabel ?? DEFAULT_SOUND_LABEL;
+  const mutedLabel = options?.mutedLabel ?? DEFAULT_MUTED_LABEL;
 
   let state: MuteButtonState = { ...initialState };
 
   const button = scene.add
-    .text(width - margin, margin, labelFor(state), {
+    .text(width - margin, margin, labelFor(state, soundLabel, mutedLabel), {
       align: "center",
       backgroundColor: backgroundColorFor(state),
       color: "#f4f1de",
@@ -90,7 +114,7 @@ export function createTopRightMuteButton(
       // Mute both
       state = { sfxMuted: true, musicMuted: true };
     }
-    button.setText(labelFor(state));
+    button.setText(labelFor(state, soundLabel, mutedLabel));
     // Re-set style by recreating the visual — Phaser text objects don't
     // support changing backgroundColor after creation, so we accept the
     // initial color. The label text change is sufficient to indicate state.
@@ -102,7 +126,7 @@ export function createTopRightMuteButton(
   return {
     setState(next: MuteButtonState) {
       state = { ...next };
-      button.setText(labelFor(state));
+      button.setText(labelFor(state, soundLabel, mutedLabel));
     },
     isMasterMuted() {
       return state.sfxMuted && state.musicMuted;

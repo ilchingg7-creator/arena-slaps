@@ -154,3 +154,74 @@ describe("TopRightMuteButton", () => {
     expect(scene.texts[0].text).toBe("🔊 Sound");
   });
 });
+
+describe("TopRightMuteButton - i18n labels", () => {
+  it("uses the provided soundLabel when not muted", () => {
+    const scene = makeScene();
+    createTopRightMuteButton(
+      scene,
+      { sfxMuted: false, musicMuted: false },
+      () => {},
+      { soundLabel: "🔊 Звук", mutedLabel: "🔇 Заглушено" },
+    );
+    expect(scene.texts[0].text).toBe("🔊 Звук");
+  });
+
+  it("uses the provided mutedLabel when both are muted", () => {
+    const scene = makeScene();
+    createTopRightMuteButton(
+      scene,
+      { sfxMuted: true, musicMuted: true },
+      () => {},
+      { soundLabel: "🔊 Звук", mutedLabel: "🔇 Заглушено" },
+    );
+    expect(scene.texts[0].text).toBe("🔇 Заглушено");
+  });
+
+  it("uses the provided labels after a click toggles state", () => {
+    const scene = makeScene();
+    createTopRightMuteButton(
+      scene,
+      { sfxMuted: false, musicMuted: false },
+      () => {},
+      { soundLabel: "🔊 Звук", mutedLabel: "🔇 Заглушено" },
+    );
+    scene.click();
+    expect(scene.texts[0].text).toBe("🔇 Заглушено");
+    scene.click();
+    expect(scene.texts[0].text).toBe("🔊 Звук");
+  });
+
+  it("uses the provided labels in setState()", () => {
+    const scene = makeScene();
+    const btn = createTopRightMuteButton(
+      scene,
+      { sfxMuted: false, musicMuted: false },
+      () => {},
+      { soundLabel: "🔊 Звук", mutedLabel: "🔇 Заглушено" },
+    );
+    btn.setState({ sfxMuted: true, musicMuted: true });
+    expect(scene.texts[0].text).toBe("🔇 Заглушено");
+  });
+
+  it("falls back to default labels when no options provided", () => {
+    const scene = makeScene();
+    createTopRightMuteButton(
+      scene,
+      { sfxMuted: false, musicMuted: false },
+      () => {},
+    );
+    expect(scene.texts[0].text).toBe("🔊 Sound");
+  });
+
+  it("falls back to default labels when options is undefined", () => {
+    const scene = makeScene();
+    createTopRightMuteButton(
+      scene,
+      { sfxMuted: true, musicMuted: true },
+      () => {},
+      undefined,
+    );
+    expect(scene.texts[0].text).toBe("🔇 Muted");
+  });
+});

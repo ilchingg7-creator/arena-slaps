@@ -14,7 +14,18 @@ import {
   loadSettings,
   saveSettings,
   type GameSettings,
+  type GameMode,
 } from "../config/gameSettings";
+import { I18nService } from "../i18n/I18nService";
+import type { TranslationKey } from "../config/translations";
+
+/**
+ * Translation keys for the 2 game-mode values.
+ */
+const MODE_KEYS: Record<GameMode, TranslationKey> = {
+  "1p-vs-bot": "mode.1p-vs-bot",
+  "2p-local": "mode.2p-local",
+};
 
 /**
  * Profile scene — displays the player's statistics (nickname, win rate,
@@ -44,6 +55,9 @@ export class ProfileScene extends Phaser.Scene {
     const audio = getAudioService(this, settings);
     audio.playMenuTheme();
 
+    // --- i18n (RU/EN) ---
+    const i18n = I18nService.load(storage);
+
     // --- Top-right mute button (toggles both SFX + Music) ---
     createTopRightMuteButton(
       this as unknown as Parameters<typeof createTopRightMuteButton>[0],
@@ -66,6 +80,10 @@ export class ProfileScene extends Phaser.Scene {
         if (storage) saveSettings(storage, settings);
         if (!next.musicMuted) audio.playMenuTheme();
       },
+      {
+        soundLabel: i18n.t("mute.sound"),
+        mutedLabel: i18n.t("mute.muted"),
+      },
     );
 
     // --- Background ---
@@ -73,7 +91,7 @@ export class ProfileScene extends Phaser.Scene {
 
     // --- Title ---
     this.add
-      .text(width / 2, height * 0.1, "Profile", {
+      .text(width / 2, height * 0.1, i18n.t("profile.title"), {
         color: "#f4f1de",
         fontFamily: "Arial",
         fontSize: "42px",
@@ -104,20 +122,20 @@ export class ProfileScene extends Phaser.Scene {
         .setOrigin(1, 0.5);
     };
 
-    addRow("Nickname", profile.nickname, 0);
-    addRow("Total Games", String(service.getTotalGames()), 1);
-    addRow("Wins", String(profile.wins), 2);
-    addRow("Losses", String(profile.losses), 3);
-    addRow("Draws", String(profile.draws), 4);
-    addRow("Win Rate", `${Math.round(service.getWinRate() * 100)}%`, 5);
-    addRow("Ring Outs (Inflicted)", String(profile.ringOutsInflicted), 6);
-    addRow("Ring Outs (Suffered)", String(profile.ringOutsSuffered), 7);
-    addRow("Power-ups Collected", String(profile.powerUpsCollected), 8);
+    addRow(i18n.t("profile.nickname"), profile.nickname, 0);
+    addRow(i18n.t("profile.totalGames"), String(service.getTotalGames()), 1);
+    addRow(i18n.t("profile.wins"), String(profile.wins), 2);
+    addRow(i18n.t("profile.losses"), String(profile.losses), 3);
+    addRow(i18n.t("profile.draws"), String(profile.draws), 4);
+    addRow(i18n.t("profile.winRate"), `${Math.round(service.getWinRate() * 100)}%`, 5);
+    addRow(i18n.t("profile.ringOutsInflicted"), String(profile.ringOutsInflicted), 6);
+    addRow(i18n.t("profile.ringOutsSuffered"), String(profile.ringOutsSuffered), 7);
+    addRow(i18n.t("profile.powerUpsCollected"), String(profile.powerUpsCollected), 8);
     const favPu = service.getFavoritePowerUp();
-    addRow("Favorite Power-up", favPu ?? "—", 9);
+    addRow(i18n.t("profile.favoritePowerUp"), favPu ?? "—", 9);
     addRow(
-      "Favorite Mode",
-      service.getFavoriteMode() === "1p-vs-bot" ? "1P vs Bot" : "2P Local",
+      i18n.t("profile.favoriteMode"),
+      i18n.t(MODE_KEYS[service.getFavoriteMode()]),
       10,
     );
 
@@ -128,7 +146,7 @@ export class ProfileScene extends Phaser.Scene {
       {
         x: width * 0.3,
         y: buttonY,
-        text: "Change Nickname",
+        text: i18n.t("profile.changeNickname"),
         variant: "secondary",
         width: 220,
         height: 44,
@@ -138,7 +156,7 @@ export class ProfileScene extends Phaser.Scene {
           // Prompt for new nickname (simple browser prompt for now).
           const newName =
             typeof window !== "undefined"
-              ? window.prompt("Enter new nickname:", profile.nickname)
+              ? window.prompt(i18n.t("profile.changeNicknamePrompt"), profile.nickname)
               : null;
           if (
             newName &&
@@ -160,7 +178,7 @@ export class ProfileScene extends Phaser.Scene {
       {
         x: width * 0.55,
         y: buttonY,
-        text: "Reset Stats",
+        text: i18n.t("profile.resetStats"),
         variant: "danger",
         width: 180,
         height: 44,
@@ -169,9 +187,7 @@ export class ProfileScene extends Phaser.Scene {
           audio.playMenuClick();
           const confirmReset =
             typeof window !== "undefined"
-              ? window.confirm(
-                  "Reset all statistics? This cannot be undone.",
-                )
+              ? window.confirm(i18n.t("profile.resetConfirm"))
               : false;
           if (confirmReset) {
             profile = resetProfileStats(profile);
@@ -187,7 +203,7 @@ export class ProfileScene extends Phaser.Scene {
       {
         x: width * 0.78,
         y: buttonY,
-        text: "Back",
+        text: i18n.t("profile.back"),
         variant: "primary",
         width: 160,
         height: 44,

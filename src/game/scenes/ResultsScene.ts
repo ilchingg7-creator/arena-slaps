@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { createBattleResultsSummary, loadBattleResults } from "../systems/BattleResults";
 import { createStyledButton } from "../ui/StyledButton";
 import { createBackground } from "../ui/Background";
+import { I18nService } from "../i18n/I18nService";
 
 /**
  * Results scene — shows the winner, score, rounds played, and power-ups
@@ -16,19 +17,19 @@ export class ResultsScene extends Phaser.Scene {
   create(): void {
     const width = this.scale.width;
     const height = this.scale.height;
-    const results =
-      typeof window !== "undefined"
-        ? loadBattleResults(window.localStorage)
-        : null;
+    const storage =
+      typeof window !== "undefined" ? window.localStorage : null;
+    const i18n = I18nService.load(storage);
+    const results = storage ? loadBattleResults(storage) : null;
     const summary = results
       ? createBattleResultsSummary(results)
-      : ["No result stored yet."];
+      : [i18n.t("results.noResult")];
 
     // --- Background (arena-bg.png — same cosmic sky as the battle) ---
     createBackground(this as unknown as Phaser.Scene, { key: "arena-bg" });
 
     this.add
-      .text(width / 2, height * 0.24, "Match Results", {
+      .text(width / 2, height * 0.24, i18n.t("results.title"), {
         color: "#f4f1de",
         fontFamily: "Arial",
         fontSize: "52px",
@@ -52,7 +53,7 @@ export class ResultsScene extends Phaser.Scene {
     createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
       x: width / 2,
       y: height * 0.74,
-      text: "Back to menu",
+      text: i18n.t("results.back"),
       variant: "primary",
       onClick: goMenu,
     });

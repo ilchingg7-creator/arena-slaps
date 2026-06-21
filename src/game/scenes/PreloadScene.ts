@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { loadAllSprites } from "../assets/spriteLoader";
 import { SOUND_MANIFEST } from "../assets/soundManifest";
+import { I18nService } from "../i18n/I18nService";
 
 /**
  * Preload scene — loads all sound and sprite assets declared in the
@@ -21,9 +22,12 @@ export class PreloadScene extends Phaser.Scene {
   preload(): void {
     const width = this.scale.width;
     const height = this.scale.height;
+    const storage =
+      typeof window !== "undefined" ? window.localStorage : null;
+    const i18n = I18nService.load(storage);
 
     const loadingText = this.add
-      .text(width / 2, height / 2, "Loading...", {
+      .text(width / 2, height / 2, i18n.t("preload.loading"), {
         color: "#f4f1de",
         fontFamily: "Arial",
         fontSize: "28px",
@@ -60,7 +64,7 @@ export class PreloadScene extends Phaser.Scene {
         console.warn(
           `[PreloadScene] loader did not complete within ${LOADER_TIMEOUT_MS}ms — forcing transition to MainMenuScene`,
         );
-        loadingText.setText("Loading... (timeout — continuing)");
+        loadingText.setText(`${i18n.t("preload.loading")} (timeout — continuing)`);
         this.scene.start("MainMenuScene");
       },
     });

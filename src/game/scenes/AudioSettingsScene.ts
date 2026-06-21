@@ -11,6 +11,7 @@ import { createTopRightMuteButton } from "../ui/TopRightMuteButton";
 import { createVolumeSlider } from "../ui/VolumeSlider";
 import { createStyledButton, type StyledButton } from "../ui/StyledButton";
 import { createBackground } from "../ui/Background";
+import { I18nService } from "../i18n/I18nService";
 
 type TextStyle = {
   align?: string;
@@ -51,8 +52,14 @@ export class AudioSettingsScene extends Phaser.Scene {
     const audio: AudioService = getAudioService(this, settings);
     audio.playMenuTheme();
 
+    // --- i18n (RU/EN) ---
+    const i18n = I18nService.load(storage);
+
     let sfxMuteButton: StyledButton;
     let musicMuteButton: StyledButton;
+
+    const mutedLabel = settings.sfxMuted ? i18n.t("audio.muted") : i18n.t("audio.on");
+    const mutedLabelMusic = settings.musicMuted ? i18n.t("audio.muted") : i18n.t("audio.on");
 
     // --- Top-right mute button (toggles both) ---
     createTopRightMuteButton(this as unknown as Parameters<typeof createTopRightMuteButton>[0], {
@@ -72,8 +79,11 @@ export class AudioSettingsScene extends Phaser.Scene {
       });
       if (storage) saveSettings(storage, settings);
       if (!next.musicMuted) audio.playMenuTheme();
-      sfxMuteButton.setText(settings.sfxMuted ? "Muted" : "On");
-      musicMuteButton.setText(settings.musicMuted ? "Muted" : "On");
+      sfxMuteButton.setText(settings.sfxMuted ? i18n.t("audio.muted") : i18n.t("audio.on"));
+      musicMuteButton.setText(settings.musicMuted ? i18n.t("audio.muted") : i18n.t("audio.on"));
+    }, {
+      soundLabel: i18n.t("mute.sound"),
+      mutedLabel: i18n.t("mute.muted"),
     });
 
     // --- Background ---
@@ -81,7 +91,7 @@ export class AudioSettingsScene extends Phaser.Scene {
 
     // --- Title ---
     this.add
-      .text(width / 2, height * 0.12, "Audio Settings", {
+      .text(width / 2, height * 0.12, i18n.t("audio.title"), {
         color: "#f4f1de",
         fontFamily: "Arial",
         fontSize: "42px",
@@ -101,14 +111,14 @@ export class AudioSettingsScene extends Phaser.Scene {
     };
 
     this.add
-      .text(labelX, rowStartY - 30, "SFX Volume", rowStyle())
+      .text(labelX, rowStartY - 30, i18n.t("audio.sfxVolume"), rowStyle())
       .setOrigin(0, 0.5);
 
     const sfxSlider = createVolumeSlider(this as unknown as Parameters<typeof createVolumeSlider>[0], sliderX, rowStartY, 240, settings.sfxVolume, (nextVolume) => {
       settings = { ...settings, sfxVolume: nextVolume };
       if (nextVolume > 0 && settings.sfxMuted) {
         settings = { ...settings, sfxMuted: false };
-        sfxMuteButton.setText("On");
+        sfxMuteButton.setText(i18n.t("audio.on"));
       }
       audio.updateSettings({
         sfxMuted: settings.sfxMuted,
@@ -121,17 +131,17 @@ export class AudioSettingsScene extends Phaser.Scene {
     });
 
     this.add
-      .text(labelX, rowStartY + 30, "SFX Mute", rowStyle())
+      .text(labelX, rowStartY + 30, i18n.t("audio.sfxMute"), rowStyle())
       .setOrigin(0, 0.5);
     sfxMuteButton = createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
       x: sliderX + 130,
       y: rowStartY + 30,
-      text: settings.sfxMuted ? "Muted" : "On",
+      text: mutedLabel,
       ...muteButtonConfig,
       onClick: () => {
         const next = !settings.sfxMuted;
         settings = { ...settings, sfxMuted: next };
-        sfxMuteButton.setText(next ? "Muted" : "On");
+        sfxMuteButton.setText(next ? i18n.t("audio.muted") : i18n.t("audio.on"));
         audio.updateSettings({
           sfxMuted: settings.sfxMuted,
           musicMuted: settings.musicMuted,
@@ -145,14 +155,14 @@ export class AudioSettingsScene extends Phaser.Scene {
 
     // --- Music row ---
     this.add
-      .text(labelX, rowStartY + rowStep - 30, "Music Volume", rowStyle())
+      .text(labelX, rowStartY + rowStep - 30, i18n.t("audio.musicVolume"), rowStyle())
       .setOrigin(0, 0.5);
 
     const musicSlider = createVolumeSlider(this as unknown as Parameters<typeof createVolumeSlider>[0], sliderX, rowStartY + rowStep, 240, settings.musicVolume, (nextVolume) => {
       settings = { ...settings, musicVolume: nextVolume };
       if (nextVolume > 0 && settings.musicMuted) {
         settings = { ...settings, musicMuted: false };
-        musicMuteButton.setText("On");
+        musicMuteButton.setText(i18n.t("audio.on"));
       }
       audio.updateSettings({
         sfxMuted: settings.sfxMuted,
@@ -165,17 +175,17 @@ export class AudioSettingsScene extends Phaser.Scene {
     });
 
     this.add
-      .text(labelX, rowStartY + rowStep + 30, "Music Mute", rowStyle())
+      .text(labelX, rowStartY + rowStep + 30, i18n.t("audio.musicMute"), rowStyle())
       .setOrigin(0, 0.5);
     musicMuteButton = createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
       x: sliderX + 130,
       y: rowStartY + rowStep + 30,
-      text: settings.musicMuted ? "Muted" : "On",
+      text: mutedLabelMusic,
       ...muteButtonConfig,
       onClick: () => {
         const next = !settings.musicMuted;
         settings = { ...settings, musicMuted: next };
-        musicMuteButton.setText(next ? "Muted" : "On");
+        musicMuteButton.setText(next ? i18n.t("audio.muted") : i18n.t("audio.on"));
         audio.updateSettings({
           sfxMuted: settings.sfxMuted,
           musicMuted: settings.musicMuted,
@@ -195,7 +205,7 @@ export class AudioSettingsScene extends Phaser.Scene {
     createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
       x: width / 2,
       y: height * 0.88,
-      text: "Back",
+      text: i18n.t("audio.back"),
       variant: "secondary",
       onClick: goBack,
     });

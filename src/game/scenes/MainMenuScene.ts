@@ -9,12 +9,15 @@ import type { AudioService } from "../audio/AudioService";
 import { createTopRightMuteButton } from "../ui/TopRightMuteButton";
 import { createStyledButton } from "../ui/StyledButton";
 import { createBackground } from "../ui/Background";
+import { I18nService } from "../i18n/I18nService";
+import { createLanguageToggle } from "../ui/LanguageToggle";
 
 /**
  * Main menu scene — title screen with "Начать", "Профиль", and
  * "Audio Settings" buttons. Plays the menu-theme music in a loop.
  * Includes a top-right master mute button that toggles both SFX and
- * Music.
+ * Music, and a top-left language toggle that switches between RU and EN
+ * (persisted to localStorage).
  */
 export class MainMenuScene extends Phaser.Scene {
   constructor() {
@@ -31,6 +34,9 @@ export class MainMenuScene extends Phaser.Scene {
 
     // Start menu music (no-op if already playing via shared AudioService).
     audio.playMenuTheme();
+
+    // --- i18n (RU/EN) ---
+    const i18n = I18nService.load(storage);
 
     // --- Top-right mute button (toggles both SFX + Music) ---
     createTopRightMuteButton(this as unknown as Parameters<typeof createTopRightMuteButton>[0], {
@@ -50,14 +56,29 @@ export class MainMenuScene extends Phaser.Scene {
       });
       if (storage) saveSettings(storage, settings);
       if (!next.musicMuted) audio.playMenuTheme();
+    }, {
+      soundLabel: i18n.t("mute.sound"),
+      mutedLabel: i18n.t("mute.muted"),
     });
+
+    // --- Top-left language toggle (RU <-> EN) ---
+    createLanguageToggle(
+      this as unknown as Parameters<typeof createLanguageToggle>[0],
+      i18n,
+      () => {
+        // Persist the new language preference.
+        if (storage) i18n.save(storage);
+        // Restart the scene so every text re-renders in the new language.
+        this.scene.restart();
+      },
+    );
 
     // --- Background (menu-bg.png with dark navy fallback) ---
     createBackground(this as unknown as Phaser.Scene, { key: "menu-bg" });
 
     // --- Title ---
     this.add
-      .text(width / 2, height * 0.25, "Arena Slaps", {
+      .text(width / 2, height * 0.25, i18n.t("mainmenu.title"), {
         color: "#f4f1de",
         fontFamily: "Arial",
         fontSize: "64px",
@@ -65,7 +86,7 @@ export class MainMenuScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(width / 2, height * 0.35, "Load-in, slap in, repeat.", {
+      .text(width / 2, height * 0.35, i18n.t("mainmenu.tagline"), {
         color: "#81b29a",
         fontFamily: "Arial",
         fontSize: "20px",
@@ -89,7 +110,7 @@ export class MainMenuScene extends Phaser.Scene {
     createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
       x: width / 2,
       y: height * 0.45,
-      text: "Начать",
+      text: i18n.t("mainmenu.start"),
       variant: "primary",
       onClick: goStart,
     });
@@ -97,7 +118,7 @@ export class MainMenuScene extends Phaser.Scene {
     createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
       x: width / 2,
       y: height * 0.58,
-      text: "Профиль",
+      text: i18n.t("mainmenu.profile"),
       variant: "secondary",
       onClick: goProfile,
     });
@@ -105,7 +126,7 @@ export class MainMenuScene extends Phaser.Scene {
     createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
       x: width / 2,
       y: height * 0.71,
-      text: "Audio Settings",
+      text: i18n.t("mainmenu.audioSettings"),
       variant: "secondary",
       onClick: goAudio,
     });
