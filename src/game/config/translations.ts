@@ -99,8 +99,8 @@ export const TRANSLATIONS = {
   "mute.muted": { ru: "🔇 Заглушено", en: "🔇 Muted" },
 
   // --- Mode descriptions (for describeMode helper) ---
-  "mode.1p-vs-bot": { ru: "1П против бота", en: "1P vs Bot" },
-  "mode.2p-local": { ru: "2П локально", en: "2P Local" },
+  "mode.1p-vs-bot": { ru: "1И против бота", en: "1P vs Bot" },
+  "mode.2p-local": { ru: "2И локально", en: "2P Local" },
 } as const;
 
 export type TranslationKey = keyof typeof TRANSLATIONS;
