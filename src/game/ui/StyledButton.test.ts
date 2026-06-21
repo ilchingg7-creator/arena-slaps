@@ -25,7 +25,6 @@ type FakeGraphics = {
   interactive: boolean;
   interactiveConfig: { useHandCursor?: boolean } | undefined;
   handlers: Map<string, (pointer?: unknown) => void>;
-  fillGradientCalls: number;
   fillRoundedCalls: number;
   strokeCalls: number;
   lineStyleCalls: number;
@@ -74,7 +73,6 @@ function makeScene(): FakeScene {
           interactive: false,
           interactiveConfig: undefined,
           handlers: new Map(),
-          fillGradientCalls: 0,
           fillRoundedCalls: 0,
           strokeCalls: 0,
           lineStyleCalls: 0,
@@ -90,21 +88,6 @@ function makeScene(): FakeScene {
             return proxy;
           },
           fillStyle(_color: number, _alpha?: number) {
-            return proxy;
-          },
-          fillGradientRoundedRect(
-            _x: number,
-            _y: number,
-            _w: number,
-            _h: number,
-            _r: number,
-            _tl: number,
-            _tr: number,
-            _bl: number,
-            _br: number,
-            _a?: number,
-          ) {
-            g.fillGradientCalls += 1;
             return proxy;
           },
           fillRoundedRect() {
@@ -362,7 +345,7 @@ describe("StyledButton - createStyledButton", () => {
       variant: "primary",
       onClick: () => {},
     });
-    expect(scene.graphicsList[0].fillGradientCalls).toBe(1);
+    expect(scene.graphicsList[0].fillRoundedCalls).toBe(2);
     expect(scene.graphicsList[0].strokeCalls).toBe(1);
     expect(scene.graphicsList[0].lineStyleCalls).toBe(1);
   });
@@ -455,7 +438,7 @@ describe("StyledButton - createStyledButton", () => {
     // primary uses 0x9b5de5 as the top color. We can't read the actual
     // fillStyle color from the stub, but we can assert that a gradient
     // call happened (proving the render path ran with the default).
-    expect(scene.graphicsList[0].fillGradientCalls).toBe(1);
+    expect(scene.graphicsList[0].fillRoundedCalls).toBe(2);
   });
 });
 
@@ -500,9 +483,10 @@ describe("StyledButton - setVariant", () => {
       variant: "primary",
       onClick: () => {},
     });
-    expect(scene.graphicsList[0].fillGradientCalls).toBe(1);
+    expect(scene.graphicsList[0].fillRoundedCalls).toBe(2);
     btn.setVariant("success");
-    expect(scene.graphicsList[0].fillGradientCalls).toBe(2);
+    // After re-render, total fillRoundedRect calls = 4 (2 from initial render + 2 from setVariant).
+    expect(scene.graphicsList[0].fillRoundedCalls).toBe(4);
     expect(scene.graphicsList[0].strokeCalls).toBe(2);
     expect(scene.graphicsList[0].cleared).toBe(true);
   });

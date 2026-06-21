@@ -4,8 +4,8 @@
  * Renders:
  *   - A Graphics object positioned at (x, y) with a vertical gradient
  *     (top color lighter, bottom color darker) drawn with
- *     `fillGradientRoundedRect`, plus an outer accent stroke for the
- *     glow/border effect.
+ *     `fillRoundedRect` (2 stacked rects simulating a vertical gradient),
+ *     plus an outer accent stroke for the glow/border effect.
  *   - A bold text label centered on the button, with a subtle dark
  *     stroke + drop shadow for readability.
  *   - Interactive hit area covering the button bounds (Phaser computes
@@ -126,18 +126,6 @@ export function getButtonBounds(config: StyledButtonConfig): ButtonBounds {
 export type ButtonGraphics = {
   clear: () => ButtonGraphics;
   fillStyle: (color: number, alpha?: number) => ButtonGraphics;
-  fillGradientRoundedRect: (
-    x: number,
-    y: number,
-    w: number,
-    h: number,
-    radius: number,
-    topLeft: number,
-    topRight: number,
-    bottomLeft: number,
-    bottomRight: number,
-    alpha?: number,
-  ) => ButtonGraphics;
   fillRoundedRect: (
     x: number,
     y: number,
@@ -244,18 +232,29 @@ export function createStyledButton(
     const halfH = bounds.height / 2;
 
     graphics.clear();
-    // Vertical gradient: top corners use `top`, bottom corners use `bottom`.
-    graphics.fillGradientRoundedRect(
+    // Simulate a vertical gradient with 2 stacked rounded rectangles:
+    // top half = lighter color, bottom half = darker color. Phaser's
+    // Graphics doesn't have a fillGradientRoundedRect method, so we draw
+    // the full body in the darker color first, then overlay the top half
+    // with the lighter color. Both use fillRoundedRect which IS supported.
+    graphics.fillStyle(colors.bottom, 1);
+    graphics.fillRoundedRect(
       -halfW,
       -halfH,
       bounds.width,
       bounds.height,
       DEFAULT_RADIUS,
-      colors.top,
-      colors.top,
-      colors.bottom,
-      colors.bottom,
-      1,
+    );
+    // Top half overlay (lighter). Use a smaller height so the rounded
+    // corners on top remain visible. We draw it slightly inset to avoid
+    // covering the bottom rounded corners.
+    graphics.fillStyle(colors.top, 1);
+    graphics.fillRoundedRect(
+      -halfW,
+      -halfH,
+      bounds.width,
+      bounds.height / 2 + DEFAULT_RADIUS / 2,
+      DEFAULT_RADIUS,
     );
     // Outer accent stroke for the glow/border effect.
     graphics.lineStyle(BORDER_WIDTH, colors.border, 1);
