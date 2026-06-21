@@ -6,21 +6,34 @@ import {
   type PowerUpEffect,
 } from "../config/powerUpConfig";
 import { POWERUP_TIMINGS } from "../config/powerUpTimings";
-import { POWERUP_SPRITE_KEYS } from "../sprites/PowerUpSprite";
+import {
+  createPowerUpSprite,
+  type PowerUpSpriteScene,
+} from "../sprites/PowerUpSprite";
 
 // Re-export the types so existing callers (BotAI, CombatSystem, tests) can
 // still import them from "./PowerUpSystem" without churning the import graph.
 export type { PowerUpEffect, PowerUpDefinition };
 
 /**
- * Duck-typed view of the power-up sprite. Real Phaser scenes return a
- * `Phaser.GameObjects.Image` from `scene.add.image(...)`, which satisfies
- * this shape. Tests pass a minimal stub.
+ * Duck-typed view of the power-up sprite. The {@link createPowerUpSprite}
+ * wrapper satisfies this shape — it exposes `destroy` / `setVisible` /
+ * `setAlpha` / `x` / `y` (delegating to the underlying
+ * `Phaser.GameObjects.Image`) plus the 3 animation methods
+ * (`playSpawnAnimation` / `playCollectedAnimation` / `playDespawnAnimation`)
+ * introduced in Phase 3C.
  *
- * The `setVisible` / `setAlpha` methods are required so BattleScene can
- * drive the despawn blink strobe and so the pickup collection can hide
- * the sprite (the "collected" flash — full tween-based animation is a
- * Phase 3C enhancement).
+ * The animation methods drive the visual transitions:
+ *   - spawn: scale 0 → 1 over 200ms (Back.out ease) — the "pop in".
+ *   - collected: scale → 1.5× + alpha → 0 over 250ms, then onComplete.
+ *   - despawn: alpha → 0 over 300ms, then onComplete.
+ *
+ * The collected / despawn animations defer the sprite's `destroy()` to
+ * their `onComplete` callback so the player sees the full transition
+ * before the sprite is removed from the scene graph. Callers must null
+ * out `state.active` *before* starting the animation so subsequent
+ * `tryCollectPowerUp` calls during the 250ms window return false (no
+ * double-collect).
  */
 type PowerUpSprite = {
   destroy: () => void;
@@ -28,21 +41,37 @@ type PowerUpSprite = {
   setAlpha: (alpha: number) => void;
   x: number;
   y: number;
+  /** Play the spawn animation: scale 0 → 1 over durationMs. */
+  playSpawnAnimation: (durationMs?: number) => void;
+  /** Play the collected animation: scale up + fade out, then call onComplete. */
+  playCollectedAnimation: (
+    onComplete: () => void,
+    durationMs?: number,
+  ) => void;
+  /** Play the despawn animation: fade out, then call onComplete. */
+  playDespawnAnimation: (
+    onComplete: () => void,
+    durationMs?: number,
+  ) => void;
 };
 
 type PowerUpLabel = {
   destroy: () => void;
 };
 
-type SceneLike = {
+/**
+ * Duck-typed scene the PowerUpSystem needs. Extends {@link PowerUpSpriteScene}
+ * (which provides `add.image` for `createPowerUpSprite` and `tweens.add` for
+ * the animation methods) with `add.text` for the power-up label.
+ *
+ * Real `Phaser.Scene` instances satisfy this shape — `Phaser.Scene.add.image`
+ * returns `Phaser.GameObjects.Image` (which `PowerUpSpriteScene.add.image`
+ * accepts), `Phaser.Scene.tweens.add` accepts `TweenBuilderConfig | object`
+ * (which `PowerUpSpriteScene.tweens.add` accepts via parameter
+ * contravariance), and `Phaser.Scene.add.text` returns the label type.
+ */
+type SceneLike = PowerUpSpriteScene & {
   add: {
-    /**
-     * Create the sprite image for a power-up. The `key` is the manifest
-     * key (e.g. "powerup-speed") — see {@link POWERUP_SPRITE_KEYS} for the
-     * effect → key mapping. The returned object must satisfy the
-     * {@link PowerUpSprite} duck type.
-     */
-    image: (x: number, y: number, key: string) => PowerUpSprite;
     text: (
       x: number,
       y: number,
@@ -96,7 +125,9 @@ export function getNextPowerUpDefinition(index: number): PowerUpDefinition {
  * Spawn the next power-up in the rotation. Picks a position from
  * {@link POWERUP_TIMINGS.spawnSlots} (rotating through all 5 slots),
  * derives its absolute pixel position from the arena rectangle, and
- * records `spawnedAt = Date.now()` so the despawn timer can run.
+ * records `spawnedAt = Date.now()` so the despawn timer can run. After
+ * constructing the sprite, kicks off the spawn animation (scale 0 → 1
+ * over 200ms with a `Back.out` ease) for a satisfying "pop in".
  *
  * Early-returns if a power-up is already active (the caller is expected
  * to despawn or collect the previous one first).
@@ -128,23 +159,38 @@ export function spawnPowerUp(
     .setOrigin(0.5, 0.5);
 
   state.spawnIndex += 1;
+  // Create the power-up sprite via the PowerUpSprite wrapper (Task 3C). The
+  // wrapper:
+  //   - calls `scene.add.image(x, y, "powerup-<effect>")` internally to
+  //     instantiate the bare Phaser.GameObjects.Image,
+  //   - captures `scene` in its closure so the animation methods can call
+  //     `scene.tweens.add(...)` later,
+  //   - exposes the duck-typed PowerUpSprite API (destroy / setVisible /
+  //     setAlpha / x / y) plus the 3 animation methods.
+  // The `size` arg is intentionally not applied to the image — PNGs render
+  // at their natural size; the previous circle primitive used `size` as its
+  // radius, but the new sprite art is authored at the correct pixel size.
+  const sprite = createPowerUpSprite(scene, definition.key, x, y);
   state.active = {
     definition,
-    // Look up the per-type PNG key from the central map (e.g. "powerup-speed").
-    // The `size` arg is intentionally not applied to the image — PNGs render
-    // at their natural size; the previous circle primitive used `size` as its
-    // radius, but the new sprite art is authored at the correct pixel size.
-    sprite: scene.add.image(x, y, POWERUP_SPRITE_KEYS[definition.key]),
+    sprite,
     label,
     spawnedAt: Date.now(),
   };
+  // Kick off the spawn animation (scale 0 → 1, Back.out ease, 200ms) so the
+  // power-up "pops in" instead of appearing at full size. The animation is
+  // fire-and-forget — Phaser's tween system owns the timeline.
+  sprite.playSpawnAnimation();
 }
 
 /**
  * Try to collect the active power-up for `actor`. Collection succeeds iff
  * the actor is within {@link POWERUP_TIMINGS.collectDistance} pixels of
- * the power-up sprite. On success: applies the power-up effect, destroys
- * the sprite + label, clears `state.active`, and returns true.
+ * the power-up sprite. On success: applies the power-up effect, kicks off
+ * the collected animation (scale → 1.5× + alpha → 0 over 250ms), nulls
+ * `state.active` immediately, and returns true. The sprite + label are
+ * destroyed inside the animation's `onComplete` callback (i.e. ~250ms
+ * later, after the player sees the pickup flash).
  *
  * Effect application dispatches on `definition.key`:
  *   - speed          → speedMultiplier + speedBoostUntil
@@ -200,9 +246,19 @@ export function tryCollectPowerUp(
     actor.doubleSlapUntil = now + durationMs;
   }
 
-  state.active.sprite.destroy();
-  state.active.label.destroy();
+  // Play the collected animation (scale → 1.5× + alpha → 0 over 250ms) and
+  // defer the sprite + label destruction to the animation's onComplete
+  // callback. `state.active` is nulled IMMEDIATELY so subsequent
+  // `tryCollectPowerUp` calls during the 250ms animation window return
+  // false — no double-collect (the actor can't pick up the same power-up
+  // twice while the pickup flash is still playing).
+  const sprite = state.active.sprite;
+  const label = state.active.label;
   state.active = null;
+  sprite.playCollectedAnimation(() => {
+    sprite.destroy();
+    label.destroy();
+  });
   return true;
 }
 
@@ -274,8 +330,12 @@ export function shouldBlink(state: PowerUpState, now: number): boolean {
 }
 
 /**
- * Despawn the active power-up: destroy its sprite + label and null out
- * `state.active`. No-op if no power-up is currently active.
+ * Despawn the active power-up: play the despawn animation (alpha → 0 over
+ * 300ms) and defer the sprite + label destruction to the animation's
+ * `onComplete` callback. `state.active` is nulled immediately so the
+ * BattleScene's `if (!runtime.powerUp.active) spawnPowerUp(...)` branch
+ * can spawn the next power-up on the same frame (without waiting for the
+ * 300ms fade to finish). No-op if no power-up is currently active.
  *
  * This is the cleanup counterpart to {@link spawnPowerUp}. The scene's
  * update loop should call {@link shouldDespawnPowerUp} each frame and,
@@ -285,9 +345,13 @@ export function despawnPowerUp(state: PowerUpState): void {
   if (!state.active) {
     return;
   }
-  state.active.sprite.destroy();
-  state.active.label.destroy();
+  const sprite = state.active.sprite;
+  const label = state.active.label;
   state.active = null;
+  sprite.playDespawnAnimation(() => {
+    sprite.destroy();
+    label.destroy();
+  });
 }
 
 /**

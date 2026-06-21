@@ -3,6 +3,7 @@ import type Phaser from "phaser";
 import {
   createPowerUpSprite,
   POWERUP_SPRITE_KEYS,
+  type PowerUpSpriteScene,
 } from "./PowerUpSprite";
 import type { PowerUpEffect } from "../config/powerUpConfig";
 
@@ -12,8 +13,11 @@ import type { PowerUpEffect } from "../config/powerUpConfig";
  *   - image.x / image.y (read & write)
  *   - image.setVisible(boolean)
  *   - image.setAlpha(number)
+ *   - image.setScale(number, number)  (used by playSpawnAnimation)
  *   - image.setPosition(x, y)
  *   - image.destroy()
+ *   - scene.tweens.add({ targets, scaleX, scaleY, alpha, duration, ease,
+ *                        onComplete })  (used by the 3 animation methods)
  *
  * We build a stub scene + image that record every call so we can assert
  * the wrapper's behaviour. Because PowerUpSprite.ts uses
@@ -26,24 +30,49 @@ type StubImage = {
   y: number;
   alpha: number;
   visible: boolean;
+  scaleX: number;
+  scaleY: number;
   setVisible: ReturnType<typeof vi.fn>;
   setAlpha: ReturnType<typeof vi.fn>;
+  setScale: ReturnType<typeof vi.fn>;
   setPosition: ReturnType<typeof vi.fn>;
   destroy: ReturnType<typeof vi.fn>;
+};
+
+/**
+ * Recorded shape of every `scene.tweens.add({...})` call. The stub's
+ * `tweens.add` just pushes the config into `tweenCalls` — tests can then
+ * assert the targets / props / duration / ease, and `flushTween(index)`
+ * invokes the recorded `onComplete` (if any) to simulate the tween
+ * finishing.
+ */
+type TweenConfig = {
+  targets: unknown;
+  scaleX?: number;
+  scaleY?: number;
+  alpha?: number;
+  duration?: number;
+  ease?: string;
+  onComplete?: () => void;
 };
 
 type StubScene = {
   add: {
     image: ReturnType<typeof vi.fn>;
   };
+  tweens: {
+    add: ReturnType<typeof vi.fn>;
+  };
   // Recorded data:
   imageCalls: { x: number; y: number; key: string }[];
   createdImages: StubImage[];
+  tweenCalls: TweenConfig[];
 };
 
 function makeStubScene(): StubScene {
   const imageCalls: { x: number; y: number; key: string }[] = [];
   const createdImages: StubImage[] = [];
+  const tweenCalls: TweenConfig[] = [];
 
   const image = vi.fn((x: number, y: number, key: string) => {
     imageCalls.push({ x, y, key });
@@ -52,12 +81,19 @@ function makeStubScene(): StubScene {
       y,
       alpha: 1,
       visible: true,
+      scaleX: 1,
+      scaleY: 1,
       setVisible: vi.fn((v: boolean) => {
         img.visible = v;
         return img;
       }),
       setAlpha: vi.fn((a: number) => {
         img.alpha = a;
+        return img;
+      }),
+      setScale: vi.fn((sx: number, sy: number) => {
+        img.scaleX = sx;
+        img.scaleY = sy;
         return img;
       }),
       setPosition: vi.fn((px: number, py: number) => {
@@ -71,15 +107,43 @@ function makeStubScene(): StubScene {
     return img;
   });
 
+  const tweensAdd = vi.fn((config: TweenConfig) => {
+    tweenCalls.push(config);
+  });
+
   return {
     add: { image },
+    tweens: { add: tweensAdd },
     imageCalls,
     createdImages,
+    tweenCalls,
   };
 }
 
-function asScene(stub: StubScene): Phaser.Scene {
-  return stub as unknown as Phaser.Scene;
+function asScene(stub: StubScene): PowerUpSpriteScene {
+  // The stub satisfies PowerUpSpriteScene directly (it has add.image and
+  // tweens.add with compatible signatures). We cast through unknown to
+  // bypass TypeScript's structural check on the vi.fn() return type
+  // (Mock vs. the concrete function signatures in PowerUpSpriteScene).
+  return stub as unknown as PowerUpSpriteScene;
+}
+
+/**
+ * Invoke the recorded `onComplete` of the tween at `index`. Simulates the
+ * Phaser tween system firing its completion callback after `duration` ms.
+ * No-op (and throws a clear error) if that tween has no `onComplete`.
+ */
+function flushTween(scene: StubScene, index = 0): void {
+  const config = scene.tweenCalls[index];
+  if (!config) {
+    throw new Error(`flushTween: no tween at index ${index}`);
+  }
+  if (typeof config.onComplete !== "function") {
+    throw new Error(
+      `flushTween: tween at index ${index} has no onComplete callback`,
+    );
+  }
+  config.onComplete();
 }
 
 const EFFECTS: PowerUpEffect[] = [
@@ -268,6 +332,181 @@ describe("PowerUpSprite", () => {
       sprite.destroy();
 
       expect(scene.createdImages[0].destroy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("playSpawnAnimation", () => {
+    it("snaps the sprite's scale to 0 before the tween starts", () => {
+      const scene = makeStubScene();
+      const sprite = createPowerUpSprite(asScene(scene), "speed", 0, 0);
+
+      sprite.playSpawnAnimation();
+
+      // The spawn animation snaps the sprite invisible (scale 0) before
+      // tweening back to (1, 1) — without this snap, the sprite would be
+      // briefly visible at full size before the tween begins.
+      expect(scene.createdImages[0].setScale).toHaveBeenCalledTimes(1);
+      expect(scene.createdImages[0].setScale).toHaveBeenCalledWith(0, 0);
+      expect(scene.createdImages[0].scaleX).toBe(0);
+      expect(scene.createdImages[0].scaleY).toBe(0);
+    });
+
+    it("calls scene.tweens.add with scaleX/scaleY = 1 targeting the image", () => {
+      const scene = makeStubScene();
+      const sprite = createPowerUpSprite(asScene(scene), "speed", 0, 0);
+
+      sprite.playSpawnAnimation();
+
+      expect(scene.tweens.add).toHaveBeenCalledTimes(1);
+      const config = scene.tweenCalls[0];
+      expect(config.targets).toBe(sprite.gameObject);
+      expect(config.scaleX).toBe(1);
+      expect(config.scaleY).toBe(1);
+    });
+
+    it("uses the 'Back.out' ease for a satisfying pop-in", () => {
+      const scene = makeStubScene();
+      createPowerUpSprite(asScene(scene), "speed", 0, 0).playSpawnAnimation();
+
+      expect(scene.tweenCalls[0].ease).toBe("Back.out");
+    });
+
+    it("uses the default 200ms duration when no argument is passed", () => {
+      const scene = makeStubScene();
+      createPowerUpSprite(asScene(scene), "speed", 0, 0).playSpawnAnimation();
+
+      expect(scene.tweenCalls[0].duration).toBe(200);
+    });
+
+    it("accepts a custom duration argument", () => {
+      const scene = makeStubScene();
+      createPowerUpSprite(asScene(scene), "speed", 0, 0).playSpawnAnimation(500);
+
+      expect(scene.tweenCalls[0].duration).toBe(500);
+    });
+
+    it("does not register an onComplete callback (spawn has no follow-up)", () => {
+      const scene = makeStubScene();
+      createPowerUpSprite(asScene(scene), "speed", 0, 0).playSpawnAnimation();
+
+      expect(scene.tweenCalls[0].onComplete).toBeUndefined();
+    });
+  });
+
+  describe("playCollectedAnimation", () => {
+    it("calls scene.tweens.add with scaleX/scaleY = 1.5 and alpha = 0", () => {
+      const scene = makeStubScene();
+      const sprite = createPowerUpSprite(asScene(scene), "speed", 0, 0);
+
+      sprite.playCollectedAnimation(() => void 0);
+
+      expect(scene.tweens.add).toHaveBeenCalledTimes(1);
+      const config = scene.tweenCalls[0];
+      expect(config.targets).toBe(sprite.gameObject);
+      expect(config.scaleX).toBe(1.5);
+      expect(config.scaleY).toBe(1.5);
+      expect(config.alpha).toBe(0);
+    });
+
+    it("registers the onComplete callback on the tween config", () => {
+      const scene = makeStubScene();
+      const sprite = createPowerUpSprite(asScene(scene), "speed", 0, 0);
+      const onComplete = vi.fn();
+
+      sprite.playCollectedAnimation(onComplete);
+
+      expect(scene.tweenCalls[0].onComplete).toBe(onComplete);
+    });
+
+    it("invokes the onComplete callback when the tween is flushed", () => {
+      const scene = makeStubScene();
+      const sprite = createPowerUpSprite(asScene(scene), "speed", 0, 0);
+      const onComplete = vi.fn();
+
+      sprite.playCollectedAnimation(onComplete);
+      // Simulate the Phaser tween system firing onComplete after 250ms.
+      flushTween(scene, 0);
+
+      expect(onComplete).toHaveBeenCalledTimes(1);
+    });
+
+    it("uses the default 250ms duration when no argument is passed", () => {
+      const scene = makeStubScene();
+      createPowerUpSprite(asScene(scene), "speed", 0, 0).playCollectedAnimation(
+        () => void 0,
+      );
+
+      expect(scene.tweenCalls[0].duration).toBe(250);
+    });
+
+    it("accepts a custom duration argument", () => {
+      const scene = makeStubScene();
+      createPowerUpSprite(asScene(scene), "speed", 0, 0).playCollectedAnimation(
+        () => void 0,
+        600,
+      );
+
+      expect(scene.tweenCalls[0].duration).toBe(600);
+    });
+  });
+
+  describe("playDespawnAnimation", () => {
+    it("calls scene.tweens.add with alpha = 0 (no scale change)", () => {
+      const scene = makeStubScene();
+      const sprite = createPowerUpSprite(asScene(scene), "speed", 0, 0);
+
+      sprite.playDespawnAnimation(() => void 0);
+
+      expect(scene.tweens.add).toHaveBeenCalledTimes(1);
+      const config = scene.tweenCalls[0];
+      expect(config.targets).toBe(sprite.gameObject);
+      expect(config.alpha).toBe(0);
+      // The despawn animation is a pure fade — it must NOT rescale the
+      // sprite (otherwise the sprite would shrink/grow during the fade,
+      // which reads as a "collected" flash, not a graceful despawn).
+      expect(config.scaleX).toBeUndefined();
+      expect(config.scaleY).toBeUndefined();
+    });
+
+    it("registers the onComplete callback on the tween config", () => {
+      const scene = makeStubScene();
+      const sprite = createPowerUpSprite(asScene(scene), "speed", 0, 0);
+      const onComplete = vi.fn();
+
+      sprite.playDespawnAnimation(onComplete);
+
+      expect(scene.tweenCalls[0].onComplete).toBe(onComplete);
+    });
+
+    it("invokes the onComplete callback when the tween is flushed", () => {
+      const scene = makeStubScene();
+      const sprite = createPowerUpSprite(asScene(scene), "speed", 0, 0);
+      const onComplete = vi.fn();
+
+      sprite.playDespawnAnimation(onComplete);
+      // Simulate the Phaser tween system firing onComplete after 300ms.
+      flushTween(scene, 0);
+
+      expect(onComplete).toHaveBeenCalledTimes(1);
+    });
+
+    it("uses the default 300ms duration when no argument is passed", () => {
+      const scene = makeStubScene();
+      createPowerUpSprite(asScene(scene), "speed", 0, 0).playDespawnAnimation(
+        () => void 0,
+      );
+
+      expect(scene.tweenCalls[0].duration).toBe(300);
+    });
+
+    it("accepts a custom duration argument", () => {
+      const scene = makeStubScene();
+      createPowerUpSprite(asScene(scene), "speed", 0, 0).playDespawnAnimation(
+        () => void 0,
+        700,
+      );
+
+      expect(scene.tweenCalls[0].duration).toBe(700);
     });
   });
 

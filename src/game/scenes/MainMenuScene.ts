@@ -11,9 +11,10 @@ import { createStyledButton } from "../ui/StyledButton";
 import { createBackground } from "../ui/Background";
 
 /**
- * Main menu scene — title screen with "Начать" and "Audio Settings" buttons.
- * Plays the menu-theme music in a loop. Includes a top-right master mute
- * button that toggles both SFX and Music.
+ * Main menu scene — title screen with "Начать", "Профиль", and
+ * "Audio Settings" buttons. Plays the menu-theme music in a loop.
+ * Includes a top-right master mute button that toggles both SFX and
+ * Music.
  */
 export class MainMenuScene extends Phaser.Scene {
   constructor() {
@@ -76,6 +77,10 @@ export class MainMenuScene extends Phaser.Scene {
       audio.playMenuClick();
       this.scene.start("BattleSetupScene");
     };
+    const goProfile = () => {
+      audio.playMenuClick();
+      this.scene.start("ProfileScene");
+    };
     const goAudio = () => {
       audio.playMenuClick();
       this.scene.start("AudioSettingsScene");
@@ -83,7 +88,7 @@ export class MainMenuScene extends Phaser.Scene {
 
     createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
       x: width / 2,
-      y: height * 0.52,
+      y: height * 0.45,
       text: "Начать",
       variant: "primary",
       onClick: goStart,
@@ -91,7 +96,15 @@ export class MainMenuScene extends Phaser.Scene {
 
     createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
       x: width / 2,
-      y: height * 0.66,
+      y: height * 0.58,
+      text: "Профиль",
+      variant: "secondary",
+      onClick: goProfile,
+    });
+
+    createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
+      x: width / 2,
+      y: height * 0.71,
       text: "Audio Settings",
       variant: "secondary",
       onClick: goAudio,

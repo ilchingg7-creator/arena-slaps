@@ -51,6 +51,7 @@ import {
   getActorAnimationState,
   getActorEffectTint,
 } from "../sprites/actorAnimations";
+import { resolveNicknames, type NicknamePair } from "./nicknameHelpers";
 
 type Opponent =
   | { kind: "bot"; bot: Bot; ai: BotAIState }
@@ -80,7 +81,20 @@ type BattleRuntime = {
    * 2P-local mode (the only two character texture sets that exist today).
    */
   opponentAnim: AnimatedSprite;
+  /**
+   * Floating name label rendered above the opponent's sprite. Repositioned
+   * every frame in `update()` so it tracks the actor across the arena.
+   * Set in `create()` once the opponent sprite has been created.
+   */
+  opponentNameLabel: Phaser.GameObjects.Text;
   opponent: Opponent;
+  /**
+   * Resolved (player, opponent) nicknames for the HUD score line and the
+   * floating labels. Source of truth lives in the registry (written by
+   * `init`), but `updateHud` reads from the runtime copy each frame to
+   * avoid hitting the registry every tick.
+   */
+  nicknames: NicknamePair;
   player: Player;
   /**
    * Visual sprite wrapper for the human player. Sits on top of the (hidden)
@@ -88,6 +102,12 @@ type BattleRuntime = {
    * state. Prefix is always "player".
    */
   playerAnim: AnimatedSprite;
+  /**
+   * Floating name label rendered above the player's sprite. Repositioned
+   * every frame in `update()` so it tracks the actor across the arena.
+   * Set in `create()` once the player sprite has been created.
+   */
+  playerNameLabel: Phaser.GameObjects.Text;
   powerUp: PowerUpState;
   powerUpsCollected: {
     bots: number;
@@ -197,10 +217,12 @@ function getP2Direction(runtime: BattleRuntime): Phaser.Math.Vector2 {
 
 function updateHud(runtime: BattleRuntime): void {
   runtime.timerText.setText(`Time: ${Math.ceil(runtime.round.timeLeft)}`);
-  const opponentLabel =
-    runtime.settings.mode === "2p-local" ? "P2" : "Bot";
-  const playerLabel =
-    runtime.settings.mode === "2p-local" ? "P1" : "Player";
+  // --- Nicknames (Task 3b) ---
+  // Both labels come from the resolved nickname pair stashed in the runtime.
+  // Previously this used hard-coded "Player"/"Bot"/"P1"/"P2" labels; the
+  // nickname pair flows through from BattleSetupScene (profile nickname for
+  // the player, random nickname for the bot / P2).
+  const { player: playerLabel, opponent: opponentLabel } = runtime.nicknames;
   runtime.scoreText.setText(
     `${playerLabel} ${runtime.round.score.player} - ${runtime.round.score.bots} ${opponentLabel}`,
   );
@@ -345,17 +367,44 @@ export class BattleScene extends Phaser.Scene {
     super("BattleScene");
   }
 
-  init(data: Partial<GameSettings> | undefined): void {
+  init(
+    data:
+      | {
+          settings?: Partial<GameSettings>;
+          playerNickname?: string;
+          botNickname?: string;
+          player2Nickname?: string;
+        }
+      | undefined,
+  ): void {
     const settings: GameSettings = {
       ...DEFAULT_SETTINGS,
-      ...(data ?? {}),
+      ...(data?.settings ?? {}),
     };
     this.registry.set("settings", settings);
+    // --- Nicknames (Task 3b) ---
+    // Resolve (player, opponent) pair via the pure helper so the rules can
+    // be unit-tested without instantiating Phaser. The result is stashed in
+    // the registry here; `create()` copies it into the runtime so updateHud
+    // doesn't have to hit the registry every frame.
+    const nicknames = resolveNicknames(
+      settings.mode,
+      data?.playerNickname ?? "Player",
+      data?.botNickname,
+      data?.player2Nickname,
+    );
+    this.registry.set("nicknames", nicknames);
   }
 
   create(): void {
     const settings: GameSettings =
       this.registry.get("settings") ?? DEFAULT_SETTINGS;
+    // Nicknames were resolved in `init` and stashed in the registry. The
+    // runtime copies them so `updateHud` doesn't have to read the registry
+    // every frame.
+    const nicknames: NicknamePair =
+      this.registry.get("nicknames") ??
+      resolveNicknames(settings.mode, "Player");
 
     const width = this.scale.width || 1280;
     const height = this.scale.height || 720;
@@ -482,15 +531,39 @@ export class BattleScene extends Phaser.Scene {
       keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER) ??
       createDisabledKey();
 
+    // --- Floating name labels (Task 3b) ---
+    // Rendered above each actor and repositioned every frame in `update()`
+    // so they track the actors as they move around the arena. Depth 10
+    // keeps them on top of the arena graphics + animated sprites.
+    const playerNameLabel = this.add
+      .text(player.sprite.x, player.sprite.y - 40, nicknames.player, {
+        color: "#f4f1de",
+        fontFamily: "Arial",
+        fontSize: "16px",
+      })
+      .setOrigin(0.5)
+      .setDepth(10);
+    const opponentNameLabel = this.add
+      .text(opponentSprite.x, opponentSprite.y - 40, nicknames.opponent, {
+        color: "#f4f1de",
+        fontFamily: "Arial",
+        fontSize: "16px",
+      })
+      .setOrigin(0.5)
+      .setDepth(10);
+
     this.runtime = {
       arena,
       audio: getAudioService(this, settings),
       botAI: opponent.kind === "bot" ? opponent.ai : null,
       cursors,
+      nicknames,
       opponentAnim,
+      opponentNameLabel,
       opponent,
       player,
       playerAnim,
+      playerNameLabel,
       powerUp: createPowerUpState(),
       powerUpsCollected: {
         bots: 0,
@@ -943,6 +1016,18 @@ export class BattleScene extends Phaser.Scene {
     // once per frame AFTER all movement / slap / ring-out logic has
     // settled so they reflect the actors' final state for this tick.
     this.syncAnimatedSprites();
+
+    // --- Floating name labels (Task 3b) ---
+    // Track each actor's final position for this tick. Same offset (-40)
+    // used in `create()` so the label sits just above the sprite.
+    runtime.playerNameLabel.setPosition(
+      runtime.player.sprite.x,
+      runtime.player.sprite.y - 40,
+    );
+    runtime.opponentNameLabel.setPosition(
+      opponentActor.sprite.x,
+      opponentActor.sprite.y - 40,
+    );
 
     updateHud(runtime);
   }

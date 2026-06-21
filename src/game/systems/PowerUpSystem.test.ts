@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type Phaser from "phaser";
 import {
   consumeShieldHit,
   createPowerUpState,
@@ -52,10 +53,142 @@ function mockActor(
 type Definition = (typeof POWERUP_DEFINITIONS)[number];
 
 /**
+ * Stub sprite that satisfies the duck-typed `PowerUpSprite` shape used by
+ * PowerUpSystem (destroy / setVisible / setAlpha / x / y) AND exposes the
+ * 3 animation methods (playSpawnAnimation / playCollectedAnimation /
+ * playDespawnAnimation) introduced in Phase 3C.
+ *
+ * The animation methods do NOT fire their `onComplete` callback
+ * synchronously — instead they record the callback (and the durationMs
+ * argument) on the stub so tests can:
+ *   1. assert that the animation was invoked (via the `__spawnCalls` /
+ *      `__collectedCallbacks` / `__despawnCallbacks` arrays), and
+ *   2. simulate the Phaser tween system firing `onComplete` after the
+ *      animation duration via the `flushCollectedAnimation` /
+ *      `flushDespawnAnimation` helpers.
+ *
+ * Recording (rather than firing) the callback is what lets us assert the
+ * "no double-collect during the 250ms animation window" property: the
+ * test calls `tryCollectPowerUp` once (records callback, nulls
+ * state.active), then calls it again (returns false because state.active
+ * is null), and ONLY THEN flushes the recorded callback to fire destroy.
+ */
+type StubSprite = {
+  x: number;
+  y: number;
+  scaleX: number;
+  scaleY: number;
+  destroy: () => void;
+  setVisible: (visible: boolean) => void;
+  setAlpha: (alpha: number) => void;
+  setScale: (sx: number, sy: number) => void;
+  setPosition: (x: number, y: number) => void;
+  playSpawnAnimation: (durationMs?: number) => void;
+  playCollectedAnimation: (
+    onComplete: () => void,
+    durationMs?: number,
+  ) => void;
+  playDespawnAnimation: (
+    onComplete: () => void,
+    durationMs?: number,
+  ) => void;
+  // Recorded data (prefixed with __ to distinguish from the public API):
+  __spawnCalls: Array<number | undefined>;
+  __collectedCallbacks: Array<{
+    onComplete: () => void;
+    durationMs?: number;
+  }>;
+  __despawnCallbacks: Array<{
+    onComplete: () => void;
+    durationMs?: number;
+  }>;
+};
+
+function makeStubSprite(opts: {
+  x?: number;
+  y?: number;
+  destroy?: () => void;
+} = {}): StubSprite {
+  const sprite = {
+    x: opts.x ?? 0,
+    y: opts.y ?? 0,
+    scaleX: 1,
+    scaleY: 1,
+  } as StubSprite;
+  const __spawnCalls: Array<number | undefined> = [];
+  const __collectedCallbacks: Array<{
+    onComplete: () => void;
+    durationMs?: number;
+  }> = [];
+  const __despawnCallbacks: Array<{
+    onComplete: () => void;
+    durationMs?: number;
+  }> = [];
+  sprite.destroy = opts.destroy ?? (() => void 0);
+  sprite.setVisible = () => void 0;
+  sprite.setAlpha = () => void 0;
+  sprite.setScale = (sx: number, sy: number) => {
+    sprite.scaleX = sx;
+    sprite.scaleY = sy;
+  };
+  sprite.setPosition = (px: number, py: number) => {
+    sprite.x = px;
+    sprite.y = py;
+  };
+  sprite.playSpawnAnimation = (durationMs?: number) => {
+    __spawnCalls.push(durationMs);
+  };
+  sprite.playCollectedAnimation = (onComplete: () => void, durationMs?: number) => {
+    __collectedCallbacks.push({ onComplete, durationMs });
+  };
+  sprite.playDespawnAnimation = (onComplete: () => void, durationMs?: number) => {
+    __despawnCallbacks.push({ onComplete, durationMs });
+  };
+  sprite.__spawnCalls = __spawnCalls;
+  sprite.__collectedCallbacks = __collectedCallbacks;
+  sprite.__despawnCallbacks = __despawnCallbacks;
+  return sprite;
+}
+
+/**
+ * Invoke the recorded `onComplete` of the collected animation at `index`
+ * (default 0). Simulates the Phaser tween system firing onComplete after
+ * 250ms. Throws a clear error if no collected animation was recorded.
+ */
+function flushCollectedAnimation(sprite: StubSprite, index = 0): void {
+  const entry = sprite.__collectedCallbacks[index];
+  if (!entry) {
+    throw new Error(
+      `flushCollectedAnimation: no collected animation at index ${index}`,
+    );
+  }
+  entry.onComplete();
+}
+
+/**
+ * Invoke the recorded `onComplete` of the despawn animation at `index`
+ * (default 0). Simulates the Phaser tween system firing onComplete after
+ * 300ms. Throws a clear error if no despawn animation was recorded.
+ */
+function flushDespawnAnimation(sprite: StubSprite, index = 0): void {
+  const entry = sprite.__despawnCallbacks[index];
+  if (!entry) {
+    throw new Error(
+      `flushDespawnAnimation: no despawn animation at index ${index}`,
+    );
+  }
+  entry.onComplete();
+}
+
+/**
  * Stub an active power-up of the given effect directly into `state`
  * (bypassing spawnPowerUp) so collection / despawn tests don't have to
  * mock scene.add. The spawn time defaults to 0 — pass a non-zero
  * `spawnedAt` via the optional 4th arg when testing the despawn timer.
+ *
+ * Returns the stub sprite so the caller can flush its recorded animation
+ * callbacks (e.g. `flushCollectedAnimation(sprite)` after
+ * `tryCollectPowerUp`) or assert on the recorded animation calls.
  */
 function spawnAt(
   state: PowerUpState,
@@ -63,46 +196,33 @@ function spawnAt(
   x = 0,
   y = 0,
   spawnedAt = 0,
-): void {
+): StubSprite {
   const def = POWERUP_DEFINITIONS.find((d) => d.key === effect) as Definition;
+  const sprite = makeStubSprite({ x, y });
   (state as unknown as {
     active: {
       definition: Definition;
-      sprite: {
-        x: number;
-        y: number;
-        destroy: () => void;
-        setVisible: (visible: boolean) => void;
-        setAlpha: (alpha: number) => void;
-      };
+      sprite: StubSprite;
       label: { destroy: () => void };
       spawnedAt: number;
     };
   }).active = {
     definition: def,
-    sprite: {
-      x,
-      y,
-      destroy: () => void 0,
-      setVisible: () => void 0,
-      setAlpha: () => void 0,
-    },
+    sprite,
     label: { destroy: () => void 0 },
     spawnedAt,
   };
+  return sprite;
 }
 
 function makeSceneAndArena() {
+  const tweenCalls: Phaser.Types.Tweens.TweenBuilderConfig[] = [];
   return {
+    tweenCalls,
     scene: {
       add: {
-        image: (x: number, y: number, _key: string) => ({
-          destroy: () => void 0,
-          setVisible: () => void 0,
-          setAlpha: () => void 0,
-          x,
-          y,
-        }),
+        image: (x: number, y: number, _key: string) =>
+          makeStubSprite({ x, y }),
         text: (
           _x: number,
           _y: number,
@@ -114,6 +234,11 @@ function makeSceneAndArena() {
             destroy: () => void 0,
           };
           return labelObj;
+        },
+      },
+      tweens: {
+        add: (config: Phaser.Types.Tweens.TweenBuilderConfig) => {
+          tweenCalls.push(config);
         },
       },
     },
@@ -131,8 +256,13 @@ function makeSceneAndArena() {
 type TextStyle = { color?: string; fontFamily?: string; fontSize?: string };
 
 /**
- * Stub scene that records every `add.image` / `add.text` call so tests can
- * assert how the power-up sprite and label were created.
+ * Stub scene that records every `add.image` / `add.text` / `tweens.add` call
+ * so tests can assert how the power-up sprite, label, and spawn animation
+ * were created. The sprite returned by `image` is a full {@link StubSprite}
+ * (with all 3 animation methods + setScale) so the spawnPowerUp flow —
+ * which uses `createPowerUpSprite` internally and calls
+ * `sprite.playSpawnAnimation()` (which calls `gameObject.setScale(0, 0)` +
+ * `scene.tweens.add(...)`) — works without further mocking.
  */
 function makeRecordingSceneAndArena() {
   const textCalls: Array<{
@@ -146,20 +276,16 @@ function makeRecordingSceneAndArena() {
     y: number;
     key: string;
   }> = [];
+  const tweenCalls: Phaser.Types.Tweens.TweenBuilderConfig[] = [];
   return {
     textCalls,
     imageCalls,
+    tweenCalls,
     scene: {
       add: {
         image: (x: number, y: number, key: string) => {
           imageCalls.push({ x, y, key });
-          return {
-            destroy: () => void 0,
-            setVisible: () => void 0,
-            setAlpha: () => void 0,
-            x,
-            y,
-          };
+          return makeStubSprite({ x, y });
         },
         text: (
           x: number,
@@ -173,6 +299,11 @@ function makeRecordingSceneAndArena() {
             destroy: () => void 0,
           };
           return labelObj;
+        },
+      },
+      tweens: {
+        add: (config: Phaser.Types.Tweens.TweenBuilderConfig) => {
+          tweenCalls.push(config);
         },
       },
     },
@@ -443,21 +574,61 @@ describe("PowerUpSystem", () => {
     });
   });
 
-  describe("tryCollectPowerUp (label cleanup)", () => {
-    it("destroys the label when the power-up is collected", () => {
+  describe("tryCollectPowerUp (collected animation)", () => {
+    it("calls playCollectedAnimation on the sprite (instead of destroying immediately)", () => {
       const actor = mockActor(0, 0);
       const state = createPowerUpState();
+      const sprite = spawnAt(state, "speed");
+
+      const collected = tryCollectPowerUp(actor, state, 1000);
+
+      expect(collected).toBe(true);
+      // The collected animation was kicked off — the sprite is NOT
+      // destroyed synchronously (the destroy is deferred to the
+      // animation's onComplete callback, ~250ms later).
+      expect(sprite.__collectedCallbacks).toHaveLength(1);
+      // The destroy() method on the sprite has NOT been called yet.
+      // (The stub's destroy is a no-op, so we can't spy on it directly —
+      // but we can verify the callback hasn't been flushed by checking
+      // that __collectedCallbacks still holds the un-fired callback.)
+      expect(sprite.__collectedCallbacks[0].onComplete).toBeDefined();
+    });
+
+    it("nulls state.active immediately so the actor can't double-collect during the 250ms animation", () => {
+      const actor = mockActor(0, 0);
+      const state = createPowerUpState();
+      spawnAt(state, "speed");
+
+      // First collection: succeeds — state.active is nulled and the
+      // collected animation is recorded (NOT yet flushed).
+      const first = tryCollectPowerUp(actor, state, 1000);
+      expect(first).toBe(true);
+      expect(state.active).toBeNull();
+
+      // Second collection attempt on the same frame: must return false
+      // because state.active is null (the actor can't pick up the same
+      // power-up twice while the pickup flash is still playing).
+      const second = tryCollectPowerUp(actor, state, 1000);
+      expect(second).toBe(false);
+
+      // After flushing the recorded animation callback, state.active is
+      // STILL null (the callback destroys the sprite + label, but those
+      // references are kept in the closure — state.active was already
+      // nulled before the animation started).
+      const sprite = (state as unknown as { active: null }).active;
+      expect(sprite).toBeNull();
+    });
+
+    it("the collected animation's onComplete destroys both the sprite and the label", () => {
+      const actor = mockActor(0, 0);
+      const state = createPowerUpState();
+      const spriteDestroy = vi.fn();
       const labelDestroy = vi.fn();
+      const sprite = makeStubSprite({ destroy: spriteDestroy });
       (state as unknown as {
         active: {
           definition: Definition;
-          sprite: {
-            x: number;
-            y: number;
-            destroy: () => void;
-            setVisible: (visible: boolean) => void;
-            setAlpha: (alpha: number) => void;
-          };
+          sprite: StubSprite;
           label: { destroy: () => void };
           spawnedAt: number;
         };
@@ -465,21 +636,58 @@ describe("PowerUpSystem", () => {
         definition: POWERUP_DEFINITIONS.find(
           (d) => d.key === "speed",
         ) as Definition,
-        sprite: {
-          x: 0,
-          y: 0,
-          destroy: () => void 0,
-          setVisible: () => void 0,
-          setAlpha: () => void 0,
-        },
+        sprite,
+        label: { destroy: labelDestroy },
+        spawnedAt: 0,
+      };
+
+      tryCollectPowerUp(actor, state, 1000);
+      // Before flush: neither destroy has been called.
+      expect(spriteDestroy).not.toHaveBeenCalled();
+      expect(labelDestroy).not.toHaveBeenCalled();
+      // After flush: both are destroyed exactly once.
+      flushCollectedAnimation(sprite);
+      expect(spriteDestroy).toHaveBeenCalledTimes(1);
+      expect(labelDestroy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("tryCollectPowerUp (label cleanup)", () => {
+    it("destroys the label when the power-up is collected (after the collected animation completes)", () => {
+      const actor = mockActor(0, 0);
+      const state = createPowerUpState();
+      const labelDestroy = vi.fn();
+      const sprite = makeStubSprite();
+      (state as unknown as {
+        active: {
+          definition: Definition;
+          sprite: StubSprite;
+          label: { destroy: () => void };
+          spawnedAt: number;
+        };
+      }).active = {
+        definition: POWERUP_DEFINITIONS.find(
+          (d) => d.key === "speed",
+        ) as Definition,
+        sprite,
         label: { destroy: labelDestroy },
         spawnedAt: 0,
       };
 
       const collected = tryCollectPowerUp(actor, state, 1000);
       expect(collected).toBe(true);
-      expect(labelDestroy).toHaveBeenCalledTimes(1);
+
+      // The label is NOT destroyed synchronously — the destroy is deferred
+      // to the collected animation's onComplete callback (~250ms later).
+      expect(labelDestroy).not.toHaveBeenCalled();
+      // But the animation WAS kicked off:
+      expect(sprite.__collectedCallbacks).toHaveLength(1);
+      // And state.active is nulled immediately (no double-collect).
       expect(state.active).toBeNull();
+
+      // Flush the tween to simulate the 250ms animation completing.
+      flushCollectedAnimation(sprite);
+      expect(labelDestroy).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -645,40 +853,41 @@ describe("PowerUpSystem", () => {
   });
 
   describe("despawnPowerUp", () => {
-    it("destroys the sprite + label and nulls state.active", () => {
+    it("plays the despawn animation, nulls state.active immediately, and destroys the sprite + label after the animation completes", () => {
       const state = createPowerUpState();
       const spriteDestroy = vi.fn();
       const labelDestroy = vi.fn();
+      const sprite = makeStubSprite({ destroy: spriteDestroy });
       (state as unknown as {
         active: {
           definition: Definition;
-          sprite: {
-            x: number;
-            y: number;
-            destroy: () => void;
-            setVisible: (visible: boolean) => void;
-            setAlpha: (alpha: number) => void;
-          };
+          sprite: StubSprite;
           label: { destroy: () => void };
           spawnedAt: number;
         };
       }).active = {
         definition: POWERUP_DEFINITIONS[0],
-        sprite: {
-          x: 0,
-          y: 0,
-          destroy: spriteDestroy,
-          setVisible: () => void 0,
-          setAlpha: () => void 0,
-        },
+        sprite,
         label: { destroy: labelDestroy },
         spawnedAt: 0,
       };
 
       despawnPowerUp(state);
+
+      // state.active is nulled immediately so the BattleScene can spawn the
+      // next power-up on the same frame (without waiting for the 300ms fade).
+      expect(state.active).toBeNull();
+      // The despawn animation was kicked off (NOT an immediate destroy).
+      expect(sprite.__despawnCallbacks).toHaveLength(1);
+      // The sprite + label are NOT destroyed synchronously — destroy is
+      // deferred to the despawn animation's onComplete callback (~300ms).
+      expect(spriteDestroy).not.toHaveBeenCalled();
+      expect(labelDestroy).not.toHaveBeenCalled();
+
+      // Flush the tween to simulate the 300ms fade completing.
+      flushDespawnAnimation(sprite);
       expect(spriteDestroy).toHaveBeenCalledTimes(1);
       expect(labelDestroy).toHaveBeenCalledTimes(1);
-      expect(state.active).toBeNull();
     });
 
     it("is a no-op when there is no active power-up", () => {
@@ -864,6 +1073,64 @@ describe("PowerUpSystem", () => {
         expect(state.active).not.toBeNull();
         expect(typeof state.active!.sprite.setVisible).toBe("function");
         expect(typeof state.active!.sprite.setAlpha).toBe("function");
+      });
+    });
+
+    describe("spawn animation", () => {
+      it("kicks off the spawn tween via scene.tweens.add (scaleX/scaleY = 1, Back.out ease)", () => {
+        const state = createPowerUpState();
+        const { scene, arena, tweenCalls } = makeRecordingSceneAndArena();
+
+        spawnPowerUp(scene, state, arena, 16);
+
+        expect(state.active).not.toBeNull();
+        // spawnPowerUp calls sprite.playSpawnAnimation() which (inside the
+        // PowerUpSprite wrapper) calls scene.tweens.add with the spawn
+        // tween config: scale 0 → 1 over 200ms with Back.out ease.
+        expect(tweenCalls).toHaveLength(1);
+        expect(tweenCalls[0].scaleX).toBe(1);
+        expect(tweenCalls[0].scaleY).toBe(1);
+        expect(tweenCalls[0].ease).toBe("Back.out");
+        expect(tweenCalls[0].duration).toBe(200);
+      });
+
+      it("does NOT kick off the collected or despawn tween on spawn (only the spawn tween)", () => {
+        const state = createPowerUpState();
+        const { scene, arena, tweenCalls } = makeRecordingSceneAndArena();
+
+        spawnPowerUp(scene, state, arena, 16);
+
+        // Exactly 1 tween — the spawn tween. The collected tween (which
+        // would have scaleX/scaleY = 1.5 + alpha = 0) and the despawn
+        // tween (which would have only alpha = 0) are NOT triggered.
+        expect(tweenCalls).toHaveLength(1);
+        expect(tweenCalls[0].alpha).toBeUndefined();
+        expect(tweenCalls[0].onComplete).toBeUndefined();
+      });
+
+      it("kicks off a spawn tween on every spawn across the rotation", () => {
+        const state = createPowerUpState();
+        const { scene, arena, tweenCalls } = makeRecordingSceneAndArena();
+
+        // Spawn + despawn 3 power-ups; each spawn should kick off a new
+        // spawn tween (recorded in tweenCalls). despawnPowerUp also kicks
+        // off a despawn tween, so after 3 cycles we expect 3 spawn tweens
+        // + 3 despawn tweens = 6 total tween calls.
+        for (let i = 0; i < 3; i++) {
+          spawnPowerUp(scene, state, arena, 16);
+          despawnPowerUp(state);
+        }
+
+        expect(tweenCalls).toHaveLength(6);
+        // The spawn tweens are at indices 0, 2, 4 (every other call,
+        // because despawnPowerUp adds a despawn tween after each spawn).
+        // Each spawn tween has scaleX/scaleY = 1 + ease = "Back.out".
+        expect(tweenCalls[0].scaleX).toBe(1);
+        expect(tweenCalls[0].ease).toBe("Back.out");
+        expect(tweenCalls[2].scaleX).toBe(1);
+        expect(tweenCalls[2].ease).toBe("Back.out");
+        expect(tweenCalls[4].scaleX).toBe(1);
+        expect(tweenCalls[4].ease).toBe("Back.out");
       });
     });
   });

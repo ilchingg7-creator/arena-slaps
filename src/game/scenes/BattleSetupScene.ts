@@ -18,6 +18,8 @@ import type { AudioService } from "../audio/AudioService";
 import { createTopRightMuteButton } from "../ui/TopRightMuteButton";
 import { createStyledButton, type StyledButton } from "../ui/StyledButton";
 import { createBackground } from "../ui/Background";
+import { getRandomNickname } from "../config/nicknames";
+import { loadProfile } from "../config/profile";
 
 type TextStyle = {
   align?: string;
@@ -212,7 +214,31 @@ export class BattleSetupScene extends Phaser.Scene {
       }
       audio.playMenuStart();
       audio.stopMusic();
-      this.scene.start("BattleScene", settings);
+      // --- Nicknames (Task 3b) ---
+      // In 1P-vs-bot mode the player carries their profile nickname and the
+      // bot gets a random nickname (drawn from the 500-name pool, excluding
+      // the player's name so the two never collide). In 2P-local mode both
+      // humans get random unique nicknames — P1 keeps the profile name, P2
+      // gets a random one (also excluding P1's name). BattleScene.init
+      // resolves these into the { player, opponent } pair shown in the HUD
+      // and as floating labels above each actor.
+      const profile = loadProfile(storage);
+      const playerNickname = profile.nickname;
+      if (settings.mode === "1p-vs-bot") {
+        const botNickname = getRandomNickname([playerNickname]);
+        this.scene.start("BattleScene", {
+          settings,
+          playerNickname,
+          botNickname,
+        });
+      } else {
+        const player2Nickname = getRandomNickname([playerNickname]);
+        this.scene.start("BattleScene", {
+          settings,
+          playerNickname,
+          player2Nickname,
+        });
+      }
     };
 
     startButton = createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {

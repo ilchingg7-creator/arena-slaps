@@ -33,14 +33,19 @@ describe("sceneClasses", () => {
     expect(sceneClasses.some((scene) => scene.name === "AudioSettingsScene")).toBe(true);
   });
 
-  it("has 5 scenes in the correct order", () => {
-    expect(sceneClasses).toHaveLength(5);
+  it("includes ProfileScene", () => {
+    expect(sceneClasses.some((scene) => scene.name === "ProfileScene")).toBe(true);
+  });
+
+  it("has 6 scenes in the correct order", () => {
+    expect(sceneClasses).toHaveLength(6);
     expect(sceneClasses.map((s) => s.name)).toEqual([
       "BootScene",
       "PreloadScene",
       "MainMenuScene",
       "BattleSetupScene",
       "AudioSettingsScene",
+      "ProfileScene",
     ]);
   });
 });
