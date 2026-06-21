@@ -240,8 +240,10 @@ const settings1p: GameSettings = {
   botDifficulty: "medium",
   roundLengthSeconds: 60,
   winningScore: 5,
-  muted: false,
-  masterVolume: 0.7,
+  sfxMuted: false,
+  musicMuted: false,
+  sfxVolume: 0.7,
+  musicVolume: 0.5,
 };
 
 const settings2p: GameSettings = { ...settings1p, mode: "2p-local" };

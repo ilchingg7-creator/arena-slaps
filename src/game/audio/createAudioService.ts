@@ -37,11 +37,16 @@ export function createAudioBackend(
  */
 export function createAudioService(
   scene: PhaserSceneLike,
-  settings: Pick<GameSettings, "muted" | "masterVolume">,
+  settings: Pick<
+    GameSettings,
+    "sfxMuted" | "musicMuted" | "sfxVolume" | "musicVolume"
+  >,
 ): AudioService {
   const backend = createAudioBackend(scene);
   return new AudioService(backend, {
-    muted: settings.muted,
-    masterVolume: settings.masterVolume,
+    sfxMuted: settings.sfxMuted,
+    musicMuted: settings.musicMuted,
+    sfxVolume: settings.sfxVolume,
+    musicVolume: settings.musicVolume,
   });
 }

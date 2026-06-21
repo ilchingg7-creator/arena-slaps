@@ -565,6 +565,9 @@ export class BattleScene extends Phaser.Scene {
       battleConfig.powerUp.size,
     );
     updateHud(this.runtime);
+
+    // Start battle background music (loops via AudioService).
+    this.runtime.audio.playBattleTheme();
   }
 
   private opponentActor() {
@@ -635,6 +638,9 @@ export class BattleScene extends Phaser.Scene {
         } else {
           runtime.audio.playRoundDraw();
         }
+
+        // Stop battle music before leaving the battle scene.
+        runtime.audio.stopMusic();
 
         this.scene.start("ResultsScene");
       }

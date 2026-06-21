@@ -91,7 +91,7 @@ export const ResultsScene = {
       .setInteractive();
 
     const goMenu = () => {
-      this.scene.start("MenuScene");
+      this.scene.start("MainMenuScene");
     };
 
     menuButton.on?.("pointerup", goMenu);

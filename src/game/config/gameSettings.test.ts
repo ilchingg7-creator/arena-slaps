@@ -3,7 +3,8 @@ import {
   BOT_DIFFICULTY_OPTIONS,
   DEFAULT_SETTINGS,
   describeVolume,
-  MASTER_VOLUME_OPTIONS,
+  SFX_VOLUME_OPTIONS,
+  MUSIC_VOLUME_OPTIONS,
   MODE_OPTIONS,
   ROUND_LENGTH_OPTIONS,
   WINNING_SCORE_OPTIONS,
@@ -21,8 +22,10 @@ describe("gameSettings", () => {
     expect(DEFAULT_SETTINGS.botDifficulty).toBe("medium");
     expect(DEFAULT_SETTINGS.roundLengthSeconds).toBe(60);
     expect(DEFAULT_SETTINGS.winningScore).toBe(5);
-    expect(DEFAULT_SETTINGS.muted).toBe(false);
-    expect(DEFAULT_SETTINGS.masterVolume).toBe(0.7);
+    expect(DEFAULT_SETTINGS.sfxMuted).toBe(false);
+    expect(DEFAULT_SETTINGS.musicMuted).toBe(false);
+    expect(DEFAULT_SETTINGS.sfxVolume).toBe(0.7);
+    expect(DEFAULT_SETTINGS.musicVolume).toBe(0.5);
   });
 
   it("lists every option preset", () => {
@@ -30,7 +33,8 @@ describe("gameSettings", () => {
     expect(BOT_DIFFICULTY_OPTIONS).toEqual(["easy", "medium", "hard"]);
     expect([...ROUND_LENGTH_OPTIONS]).toEqual([30, 60, 90, 120]);
     expect([...WINNING_SCORE_OPTIONS]).toEqual([3, 5, 7, 10]);
-    expect([...MASTER_VOLUME_OPTIONS]).toEqual([0, 0.25, 0.5, 0.7, 1]);
+    expect([...SFX_VOLUME_OPTIONS]).toEqual([0, 0.25, 0.5, 0.7, 1]);
+    expect([...MUSIC_VOLUME_OPTIONS]).toEqual([0, 0.25, 0.5, 0.7, 1]);
   });
 
   it("returns defaults when storage is missing", () => {
@@ -71,8 +75,10 @@ describe("gameSettings", () => {
     expect(loaded.winningScore).toBe(7);
     expect(loaded.botDifficulty).toBe(DEFAULT_SETTINGS.botDifficulty);
     expect(loaded.roundLengthSeconds).toBe(DEFAULT_SETTINGS.roundLengthSeconds);
-    expect(loaded.muted).toBe(DEFAULT_SETTINGS.muted);
-    expect(loaded.masterVolume).toBe(DEFAULT_SETTINGS.masterVolume);
+    expect(loaded.sfxMuted).toBe(DEFAULT_SETTINGS.sfxMuted);
+    expect(loaded.musicMuted).toBe(DEFAULT_SETTINGS.musicMuted);
+    expect(loaded.sfxVolume).toBe(DEFAULT_SETTINGS.sfxVolume);
+    expect(loaded.musicVolume).toBe(DEFAULT_SETTINGS.musicVolume);
   });
 
   it("persists settings via setItem", () => {
@@ -88,8 +94,10 @@ describe("gameSettings", () => {
       botDifficulty: "hard",
       roundLengthSeconds: 90,
       winningScore: 10,
-      muted: true,
-      masterVolume: 0.25,
+      sfxMuted: true,
+      musicMuted: false,
+      sfxVolume: 0.25,
+      musicVolume: 0.5,
     };
     saveSettings(storage, next);
     expect(JSON.parse(captured)).toEqual(next);
@@ -102,8 +110,10 @@ describe("gameSettings", () => {
     expect(cycleOption(BOT_DIFFICULTY_OPTIONS, "hard")).toBe("easy");
     expect(cycleOption(WINNING_SCORE_OPTIONS, 5)).toBe(7);
     expect(cycleOption(WINNING_SCORE_OPTIONS, 10)).toBe(3);
-    expect(cycleOption(MASTER_VOLUME_OPTIONS, 0.7)).toBe(1);
-    expect(cycleOption(MASTER_VOLUME_OPTIONS, 1)).toBe(0);
+    expect(cycleOption(SFX_VOLUME_OPTIONS, 0.7)).toBe(1);
+    expect(cycleOption(SFX_VOLUME_OPTIONS, 1)).toBe(0);
+    expect(cycleOption(MUSIC_VOLUME_OPTIONS, 0.5)).toBe(0.7);
+    expect(cycleOption(MUSIC_VOLUME_OPTIONS, 1)).toBe(0);
   });
 
   it("describes modes and difficulties for UI", () => {
@@ -119,5 +129,78 @@ describe("gameSettings", () => {
     expect(describeVolume(0.25)).toBe("25%");
     expect(describeVolume(0.7)).toBe("70%");
     expect(describeVolume(1)).toBe("100%");
+  });
+
+  it("migrates legacy muted/masterVolume into sfxMuted/musicMuted/sfxVolume/musicVolume when only old fields are present", () => {
+    const storage = {
+      getItem: () => JSON.stringify({ muted: true, masterVolume: 0.5 }),
+      setItem: () => {
+        /* noop */
+      },
+    };
+    const loaded = loadSettings(storage);
+    expect(loaded.sfxMuted).toBe(true);
+    expect(loaded.musicMuted).toBe(true);
+    expect(loaded.sfxVolume).toBe(0.5);
+    expect(loaded.musicVolume).toBe(0.5);
+    // No legacy fields leak through.
+    expect((loaded as unknown as Record<string, unknown>).muted).toBeUndefined();
+    expect((loaded as unknown as Record<string, unknown>).masterVolume).toBeUndefined();
+  });
+
+  it("migrates legacy muted=false/masterVolume to unmuted + mapped volumes", () => {
+    const storage = {
+      getItem: () => JSON.stringify({ muted: false, masterVolume: 0.25 }),
+      setItem: () => {
+        /* noop */
+      },
+    };
+    const loaded = loadSettings(storage);
+    expect(loaded.sfxMuted).toBe(false);
+    expect(loaded.musicMuted).toBe(false);
+    expect(loaded.sfxVolume).toBe(0.25);
+    expect(loaded.musicVolume).toBe(0.25);
+  });
+
+  it("prefers new fields over legacy when both are present", () => {
+    const storage = {
+      getItem: () =>
+        JSON.stringify({
+          muted: true,
+          masterVolume: 0.25,
+          sfxMuted: false,
+          musicMuted: true,
+          sfxVolume: 0.7,
+          musicVolume: 0.5,
+        }),
+      setItem: () => {
+        /* noop */
+      },
+    };
+    const loaded = loadSettings(storage);
+    expect(loaded.sfxMuted).toBe(false);
+    expect(loaded.musicMuted).toBe(true);
+    expect(loaded.sfxVolume).toBe(0.7);
+    expect(loaded.musicVolume).toBe(0.5);
+  });
+
+  it("does not crash or migrate when only new fields are present (no legacy keys)", () => {
+    const storage = {
+      getItem: () =>
+        JSON.stringify({
+          sfxMuted: true,
+          musicMuted: false,
+          sfxVolume: 0.5,
+          musicVolume: 0.25,
+        }),
+      setItem: () => {
+        /* noop */
+      },
+    };
+    const loaded = loadSettings(storage);
+    expect(loaded.sfxMuted).toBe(true);
+    expect(loaded.musicMuted).toBe(false);
+    expect(loaded.sfxVolume).toBe(0.5);
+    expect(loaded.musicVolume).toBe(0.25);
   });
 });

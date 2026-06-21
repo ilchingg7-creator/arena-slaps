@@ -1,21 +1,29 @@
-import { SOUND_MANIFEST, type SoundKey } from "../assets/soundManifest";
-import { getSoundDefinition } from "../assets/soundManifest";
+import {
+  getSoundDefinition,
+  getSoundsByCategory,
+  SOUND_MANIFEST,
+  type SoundKey,
+} from "../assets/soundManifest";
 import type { IAudioBackend } from "./AudioBackend";
 
 /**
  * Settings snapshot the AudioService cares about. The service does NOT
  * own settings — it reads from this object so the caller can keep all
  * settings in one place (e.g. GameSettings in localStorage).
+ *
+ * SFX and Music have independent mute + volume controls.
  */
 export type AudioSettings = {
-  muted: boolean;
-  masterVolume: number;
+  sfxMuted: boolean;
+  musicMuted: boolean;
+  sfxVolume: number;
+  musicVolume: number;
 };
 
 /**
  * High-level audio API. Scenes should call `playSlap()`, `playWin()`, etc.
  * — never {@link IAudioBackend.play} directly — so that per-sound volume
- * scaling, mute, and future effect chains live in one place.
+ * scaling, per-category mute, and future effect chains live in one place.
  *
  * Replaceable design:
  *  - To swap the engine (e.g. to Web Audio API), pass a different
@@ -26,27 +34,57 @@ export type AudioSettings = {
 export class AudioService {
   private backend: IAudioBackend;
   private settings: AudioSettings;
+  private currentMusicKey: SoundKey | null = null;
 
   constructor(backend: IAudioBackend, settings: AudioSettings) {
     this.backend = backend;
     this.settings = { ...settings };
   }
 
-  /** Update the live settings (mute toggle, volume slider, etc.). */
+  /**
+   * Update the live settings (mute toggle, volume slider, etc.).
+   *
+   * When a category becomes muted, only the sounds in that category are
+   * stopped (so e.g. muting music keeps currently-playing SFX alive and
+   * vice-versa). Unmuting never starts playback automatically — callers
+   * decide when to fire the next sound.
+   */
   updateSettings(settings: AudioSettings): void {
+    const previous = this.settings;
     this.settings = { ...settings };
 
-    if (this.settings.muted) {
-      this.backend.stopAll();
+    if (settings.sfxMuted && !previous.sfxMuted) {
+      this.stopSfx();
+    }
+    if (settings.musicMuted && !previous.musicMuted) {
+      this.stopMusic();
     }
   }
 
-  isMuted(): boolean {
-    return this.settings.muted;
+  /** Returns true when both SFX and Music are muted (for the top-right mute button). */
+  isMasterMuted(): boolean {
+    return this.settings.sfxMuted && this.settings.musicMuted;
   }
 
-  getMasterVolume(): number {
-    return this.settings.masterVolume;
+  /** Returns the currently-playing music key, or null if no music is playing. */
+  getCurrentMusicKey(): SoundKey | null {
+    return this.currentMusicKey;
+  }
+
+  isSfxMuted(): boolean {
+    return this.settings.sfxMuted;
+  }
+
+  isMusicMuted(): boolean {
+    return this.settings.musicMuted;
+  }
+
+  getSfxVolume(): number {
+    return this.settings.sfxVolume;
+  }
+
+  getMusicVolume(): number {
+    return this.settings.musicVolume;
   }
 
   /** Pre-load every sound in the manifest. Idempotent. */
@@ -61,19 +99,52 @@ export class AudioService {
     this.backend.load(key);
   }
 
-  /** Low-level escape hatch — plays a manifest key with master volume applied. */
+  /**
+   * Low-level escape hatch — plays a manifest key with the appropriate
+   * category volume and mute applied. Music tracks loop; SFX do not.
+   *
+   * For music: if the same track is already playing, this is a no-op (prevents
+   * restarts when navigating between menu scenes). If a different track is
+   * playing, the old one is stopped first.
+   */
   play(key: SoundKey): boolean {
-    if (this.settings.muted) {
-      return false;
+    const def = getSoundDefinition(key);
+    const isMusic = def.category === "music";
+
+    if (isMusic) {
+      if (this.settings.musicMuted) {
+        return false;
+      }
+      // Don't restart the same track.
+      if (this.currentMusicKey === key) {
+        return true;
+      }
+      // Stop the previous track if one is playing.
+      if (this.currentMusicKey !== null) {
+        this.backend.stop(this.currentMusicKey);
+      }
+    } else {
+      if (this.settings.sfxMuted) {
+        return false;
+      }
     }
 
-    const def = getSoundDefinition(key);
     const perSound = def.volume ?? 1;
-    const volume = clamp01(this.settings.masterVolume * perSound);
-    return this.backend.play(key, volume);
+    const categoryVolume = isMusic
+      ? this.settings.musicVolume
+      : this.settings.sfxVolume;
+    const volume = clamp01(categoryVolume * perSound);
+    const loop = isMusic;
+    const started = this.backend.play(key, volume, loop);
+
+    if (isMusic && started) {
+      this.currentMusicKey = key;
+    }
+
+    return started;
   }
 
-  // ---------- High-level game event API ----------
+  // ---------- High-level SFX API ----------
 
   playSlapHit(): boolean {
     return this.play("slap-hit");
@@ -113,6 +184,33 @@ export class AudioService {
 
   playMenuStart(): boolean {
     return this.play("menu-start");
+  }
+
+  // ---------- High-level Music API ----------
+
+  /** Start the menu background music (loops via backend). */
+  playMenuTheme(): boolean {
+    return this.play("menu-theme");
+  }
+
+  /** Start the battle background music (loops via backend). */
+  playBattleTheme(): boolean {
+    return this.play("battle-theme");
+  }
+
+  /** Stop every currently-playing music-category sound. */
+  stopMusic(): void {
+    for (const def of getSoundsByCategory("music")) {
+      this.backend.stop(def.key);
+    }
+    this.currentMusicKey = null;
+  }
+
+  /** Stop every currently-playing sfx-category sound. */
+  stopSfx(): void {
+    for (const def of getSoundsByCategory("sfx")) {
+      this.backend.stop(def.key);
+    }
   }
 
   /** Stop everything immediately (e.g. on scene shutdown). */
