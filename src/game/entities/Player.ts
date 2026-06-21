@@ -46,6 +46,10 @@ export type ActorState = {
   shieldHitsRemaining: number;
   /** Wall-clock timestamp (ms) until which the shield can still block slaps. */
   shieldUntil: number;
+  /** Wall-clock timestamp (ms) until which the actor is frozen (cannot move). 0 = not frozen. */
+  frozenUntil: number;
+  /** Wall-clock timestamp (ms) until which the next slap hits twice. 0 = no double-slap ready. */
+  doubleSlapUntil: number;
   sprite: Phaser.GameObjects.Rectangle;
 };
 
@@ -93,6 +97,8 @@ export function createActor(
     speedMultiplier: 1,
     shieldHitsRemaining: 0,
     shieldUntil: 0,
+    frozenUntil: 0,
+    doubleSlapUntil: 0,
     sprite,
   };
 }
@@ -147,4 +153,6 @@ export function resetActor(actor: ActorState): void {
   actor.speedMultiplier = 1;
   actor.shieldHitsRemaining = 0;
   actor.shieldUntil = 0;
+  actor.frozenUntil = 0;
+  actor.doubleSlapUntil = 0;
 }

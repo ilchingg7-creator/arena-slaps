@@ -1,29 +1,15 @@
 import type { ActorState } from "../entities/Player";
+import {
+  POWERUP_DEFINITIONS,
+  getPowerUpDefinitionByIndex,
+  type PowerUpDefinition,
+  type PowerUpEffect,
+} from "../config/powerUpConfig";
+import { POWERUP_TIMINGS } from "../config/powerUpTimings";
 
-export type PowerUpEffect = "speed" | "knockback" | "shield";
-
-export type PowerUpDefinition = {
-  color: number;
-  description: string;
-  effect: PowerUpEffect;
-  label: string;
-  knockbackMultiplier?: number;
-  speedMultiplier?: number;
-};
-
-/**
- * Effect durations in milliseconds. All three power-ups are temporary so the
- * player must make use of them quickly:
- *   - Boost and Heavy Hand last 8 seconds.
- *   - Shield expires after 5 seconds even if no slap is absorbed (so the
- *     shield can't be banked indefinitely) and is also consumed after a
- *     single blocked slap.
- */
-export const powerUpDurations = {
-  speedMs: 8000,
-  knockbackMs: 8000,
-  shieldMs: 5000,
-} as const;
+// Re-export the types so existing callers (BotAI, CombatSystem, tests) can
+// still import them from "./PowerUpSystem" without churning the import graph.
+export type { PowerUpEffect, PowerUpDefinition };
 
 type PowerUpSprite = {
   destroy: () => void;
@@ -59,33 +45,12 @@ type ArenaLike = {
   top: number;
 };
 
-export const powerUpDefinitions = [
-  {
-    color: 0x81b29a,
-    description: "Move 35% faster for 8 seconds.",
-    effect: "speed",
-    label: "Boost",
-    speedMultiplier: 1.35,
-  },
-  {
-    color: 0xf2cc8f,
-    description: "Heavier slap knockback for 8 seconds.",
-    effect: "knockback",
-    label: "Heavy Hand",
-    knockbackMultiplier: 1.25,
-  },
-  {
-    color: 0x3d405b,
-    description: "Block the next slap within 5 seconds.",
-    effect: "shield",
-    label: "Shield",
-  },
-] satisfies readonly PowerUpDefinition[];
-
 type ActivePowerUp = {
   definition: PowerUpDefinition;
   sprite: PowerUpSprite;
   label: PowerUpLabel;
+  /** Wall-clock timestamp (ms) when this power-up was spawned. Used by the despawn timer. */
+  spawnedAt: number;
 };
 
 export type PowerUpState = {
@@ -100,10 +65,23 @@ export function createPowerUpState(): PowerUpState {
   };
 }
 
+/**
+ * Return the next power-up definition for the rotation. Cycles through all
+ * 6 definitions in {@link POWERUP_DEFINITIONS} forever via modulo wrap.
+ */
 export function getNextPowerUpDefinition(index: number): PowerUpDefinition {
-  return powerUpDefinitions[index % powerUpDefinitions.length];
+  return getPowerUpDefinitionByIndex(index);
 }
 
+/**
+ * Spawn the next power-up in the rotation. Picks a position from
+ * {@link POWERUP_TIMINGS.spawnSlots} (rotating through all 5 slots),
+ * derives its absolute pixel position from the arena rectangle, and
+ * records `spawnedAt = Date.now()` so the despawn timer can run.
+ *
+ * Early-returns if a power-up is already active (the caller is expected
+ * to despawn or collect the previous one first).
+ */
 export function spawnPowerUp(
   scene: SceneLike,
   state: PowerUpState,
@@ -114,33 +92,48 @@ export function spawnPowerUp(
     return;
   }
 
-  const slots = [
-    { x: arena.centerX, y: arena.centerY },
-    { x: arena.left + 100, y: arena.top + 100 },
-    { x: arena.right - 100, y: arena.bottom - 100 },
-  ];
-  const point = slots[state.spawnIndex % slots.length];
+  const slots = POWERUP_TIMINGS.spawnSlots;
+  const slot = slots[state.spawnIndex % slots.length];
+  const arenaWidth = arena.right - arena.left;
+  const arenaHeight = arena.bottom - arena.top;
+  const x = arena.left + slot.x * arenaWidth;
+  const y = arena.top + slot.y * arenaHeight;
   const definition = getNextPowerUpDefinition(state.spawnIndex);
 
-  const label = scene.add.text(
-    point.x,
-    point.y - size - 14,
-    definition.label,
-    {
+  const label = scene.add
+    .text(x, y + POWERUP_TIMINGS.labelOffsetY, definition.label, {
       color: "#f4f1de",
       fontFamily: "Arial",
       fontSize: "14px",
-    },
-  ).setOrigin(0.5, 0.5);
+    })
+    .setOrigin(0.5, 0.5);
 
   state.spawnIndex += 1;
   state.active = {
     definition,
-    sprite: scene.add.circle(point.x, point.y, size, definition.color),
+    sprite: scene.add.circle(x, y, size, definition.color),
     label,
+    spawnedAt: Date.now(),
   };
 }
 
+/**
+ * Try to collect the active power-up for `actor`. Collection succeeds iff
+ * the actor is within {@link POWERUP_TIMINGS.collectDistance} pixels of
+ * the power-up sprite. On success: applies the power-up effect, destroys
+ * the sprite + label, clears `state.active`, and returns true.
+ *
+ * Effect application dispatches on `definition.key`:
+ *   - speed          → speedMultiplier + speedBoostUntil
+ *   - knockback      → knockbackMultiplier + knockbackBoostUntil
+ *   - shield         → shieldHitsRemaining = 1, shieldUntil
+ *   - mega-knockback → knockbackMultiplier + knockbackBoostUntil (stronger)
+ *   - freeze         → frozenUntil (NEW ActorState field)
+ *   - double-slap    → doubleSlapUntil (NEW ActorState field)
+ *
+ * Each effect duration is looked up from {@link POWERUP_TIMINGS} via the
+ * definition's `durationKey`.
+ */
 export function tryCollectPowerUp(
   actor: ActorState,
   state: PowerUpState,
@@ -154,28 +147,124 @@ export function tryCollectPowerUp(
   const dy = actor.sprite.y - state.active.sprite.y;
   const distance = Math.hypot(dx, dy);
 
-  if (distance > actor.size) {
+  if (distance > POWERUP_TIMINGS.collectDistance) {
     return false;
   }
 
   const definition = state.active.definition;
+  // `durationKey` is typed as `keyof typeof POWERUP_TIMINGS` (the full union)
+  // so we narrow to a number at runtime. Every definition points at a
+  // numeric duration key — verified by `powerUpConfig.test.ts`.
+  const durationMs = POWERUP_TIMINGS[definition.durationKey] as number;
 
-  if (definition.effect === "speed") {
+  if (definition.key === "speed") {
     actor.speedMultiplier = definition.speedMultiplier ?? actor.speedMultiplier;
-    actor.speedBoostUntil = now + powerUpDurations.speedMs;
-  } else if (definition.effect === "knockback") {
+    actor.speedBoostUntil = now + durationMs;
+  } else if (definition.key === "knockback") {
     actor.knockbackMultiplier =
       definition.knockbackMultiplier ?? actor.knockbackMultiplier;
-    actor.knockbackBoostUntil = now + powerUpDurations.knockbackMs;
-  } else {
+    actor.knockbackBoostUntil = now + durationMs;
+  } else if (definition.key === "shield") {
     actor.shieldHitsRemaining = 1;
-    actor.shieldUntil = now + powerUpDurations.shieldMs;
+    actor.shieldUntil = now + durationMs;
+  } else if (definition.key === "mega-knockback") {
+    actor.knockbackMultiplier =
+      definition.knockbackMultiplier ?? actor.knockbackMultiplier;
+    actor.knockbackBoostUntil = now + durationMs;
+  } else if (definition.key === "freeze") {
+    actor.frozenUntil = now + durationMs;
+  } else if (definition.key === "double-slap") {
+    actor.doubleSlapUntil = now + durationMs;
   }
 
   state.active.sprite.destroy();
   state.active.label.destroy();
   state.active = null;
   return true;
+}
+
+/**
+ * Whether the active power-up should despawn now. Returns true iff there
+ * is an active power-up AND its age (`now - spawnedAt`) has reached
+ * {@link POWERUP_TIMINGS.despawnAfterMs}.
+ */
+export function shouldDespawnPowerUp(
+  state: PowerUpState,
+  now: number,
+): boolean {
+  if (!state.active) {
+    return false;
+  }
+  return now - state.active.spawnedAt >= POWERUP_TIMINGS.despawnAfterMs;
+}
+
+/**
+ * Whether the active power-up is in its warning window — the last
+ * {@link POWERUP_TIMINGS.despawnWarningMs} milliseconds before despawn.
+ * The renderer uses this to drive the blink animation.
+ *
+ * Concretely: `age >= (despawnAfterMs - despawnWarningMs)` AND
+ * `age < despawnAfterMs`. For the default config (8s / 2s warning) the
+ * warning window is `[6s, 8s)`.
+ */
+export function isInDespawnWarning(
+  state: PowerUpState,
+  now: number,
+): boolean {
+  if (!state.active) {
+    return false;
+  }
+  const age = now - state.active.spawnedAt;
+  const warningStart =
+    POWERUP_TIMINGS.despawnAfterMs - POWERUP_TIMINGS.despawnWarningMs;
+  return age >= warningStart && age < POWERUP_TIMINGS.despawnAfterMs;
+}
+
+/**
+ * Whether the power-up sprite should be visible *during the blink strobe*.
+ *
+ * Returns true iff the power-up is in its despawn warning window AND the
+ * current blink cycle (based on `blinkIntervalMs`) is on a "visible" beat
+ * (even cycles are visible, odd cycles are hidden).
+ *
+ * Outside the warning window this returns false — the renderer should
+ * keep the sprite visible via `!isInDespawnWarning(state, now)` and only
+ * consult `shouldBlink` to drive the strobe during the warning window.
+ * The combined visibility expression is:
+ *
+ *   `sprite.visible = !isInDespawnWarning(state, now) || shouldBlink(state, now)`
+ */
+export function shouldBlink(state: PowerUpState, now: number): boolean {
+  if (!state.active) {
+    return false;
+  }
+  if (!isInDespawnWarning(state, now)) {
+    // Outside the warning window: not blinking — caller should keep the
+    // sprite visible via the negated `isInDespawnWarning` check.
+    return false;
+  }
+  const cycle = Math.floor(
+    (now - state.active.spawnedAt) / POWERUP_TIMINGS.blinkIntervalMs,
+  );
+  // Visible on even cycles, hidden on odd cycles — produces a strobe.
+  return cycle % 2 === 0;
+}
+
+/**
+ * Despawn the active power-up: destroy its sprite + label and null out
+ * `state.active`. No-op if no power-up is currently active.
+ *
+ * This is the cleanup counterpart to {@link spawnPowerUp}. The scene's
+ * update loop should call {@link shouldDespawnPowerUp} each frame and,
+ * when it returns true, call this function to release the sprite.
+ */
+export function despawnPowerUp(state: PowerUpState): void {
+  if (!state.active) {
+    return;
+  }
+  state.active.sprite.destroy();
+  state.active.label.destroy();
+  state.active = null;
 }
 
 /**
@@ -201,11 +290,13 @@ export function consumeShieldHit(actor: ActorState): void {
 /**
  * Reset any expired power-up boosts on the actor. Called every frame from
  * `moveActor` (and from `applySlap` for the attacker) so that an expired
- * Boost / Heavy Hand reverts the actor's multiplier to its baseline of 1
- * as soon as the duration elapses.
+ * Boost / Heavy Hand / Mega Hand reverts the actor's multiplier to its
+ * baseline of 1 as soon as the duration elapses.
  *
  * We do NOT touch the shield here — shield expiry is handled by
- * `isShieldActive`, which already checks the wall-clock expiry.
+ * `isShieldActive`, which already checks the wall-clock expiry. Likewise
+ * the freeze and double-slap effects are timed via their own `frozenUntil`
+ * / `doubleSlapUntil` fields and are not "boosts" that need reverting.
  */
 export function expirePowerUpBoosts(actor: ActorState, now: number): void {
   if (actor.speedBoostUntil > 0 && now > actor.speedBoostUntil) {
@@ -216,4 +307,21 @@ export function expirePowerUpBoosts(actor: ActorState, now: number): void {
     actor.knockbackMultiplier = 1;
     actor.knockbackBoostUntil = 0;
   }
+}
+
+/**
+ * Whether the actor is currently frozen (cannot move / slap). Set by the
+ * `freeze` power-up effect for the opponent.
+ */
+export function isFrozen(actor: ActorState, now: number): boolean {
+  return actor.frozenUntil > 0 && now < actor.frozenUntil;
+}
+
+/**
+ * Whether the actor's next slap should hit twice. Set by the `double-slap`
+ * power-up effect. The CombatSystem should consult this before applying
+ * a slap and, if true, apply the slap twice and clear the field.
+ */
+export function isDoubleSlapReady(actor: ActorState, now: number): boolean {
+  return actor.doubleSlapUntil > 0 && now < actor.doubleSlapUntil;
 }
