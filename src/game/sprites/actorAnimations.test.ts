@@ -1,0 +1,318 @@
+import { describe, expect, it } from "vitest";
+import type { ActorState } from "../entities/Player";
+import {
+  EFFECT_TINTS,
+  getActorAnimationState,
+  getActorEffectTint,
+} from "./actorAnimations";
+
+/**
+ * Permissive overrides shape for {@link mockActor}. The full ActorState has
+ * many nested Phaser types (Body, Vector2, Rectangle) that we don't want
+ * to fully stub in every test. This shape lets callers override the fields
+ * the helpers actually read (timings, multipliers, and a minimal
+ * body.velocity) without TypeScript complaining that the literal isn't a
+ * complete Phaser.Physics.Arcade.Body.
+ */
+type ActorOverrides = Partial<Omit<ActorState, "body" | "sprite" | "spawn" | "facing">> & {
+  body?: { velocity: { x: number; y: number } };
+};
+
+/**
+ * Build a minimal stub ActorState for animation/tint tests. Only the
+ * fields touched by `getActorAnimationState` and `getActorEffectTint` are
+ * populated; the rest default to safe zero values. Cast through
+ * `unknown` so we don't have to fully satisfy Phaser's Arcade.Body type.
+ */
+function mockActor(overrides: ActorOverrides = {}): ActorState {
+  return {
+    body: { velocity: { x: 0, y: 0 } },
+    facing: { x: 1, y: 0 },
+    knockbackSpeed: 560,
+    knockbackMultiplier: 1,
+    knockbackBoostUntil: 0,
+    knockbackUntil: 0,
+    lastAttackAt: Number.NEGATIVE_INFINITY,
+    moveSpeed: 260,
+    size: 36,
+    slapRange: 84,
+    spawn: { x: 0, y: 0 },
+    speedBoostUntil: 0,
+    speedMultiplier: 1,
+    shieldHitsRemaining: 0,
+    shieldUntil: 0,
+    frozenUntil: 0,
+    doubleSlapUntil: 0,
+    sprite: { x: 0, y: 0 },
+    ...overrides,
+  } as unknown as ActorState;
+}
+
+describe("getActorAnimationState", () => {
+  it("returns 'idle' when velocity is zero", () => {
+    const actor = mockActor({ body: { velocity: { x: 0, y: 0 } } });
+    expect(getActorAnimationState(actor, 1000)).toBe("idle");
+  });
+
+  it("returns 'idle' when velocity is below the epsilon (~0)", () => {
+    // 0.5 px/s is well below the 1 px/s threshold — treated as idle.
+    const actor = mockActor({ body: { velocity: { x: 0.4, y: 0.3 } } });
+    expect(getActorAnimationState(actor, 1000)).toBe("idle");
+  });
+
+  it("returns 'fall' when knockbackUntil > now", () => {
+    const actor = mockActor({
+      knockbackUntil: 5000,
+      body: { velocity: { x: 0, y: 0 } },
+    });
+    expect(getActorAnimationState(actor, 1000)).toBe("fall");
+  });
+
+  it("returns 'fall' when knockback is active even if velocity is non-zero (knockback overrides movement)", () => {
+    const actor = mockActor({
+      knockbackUntil: 5000,
+      body: { velocity: { x: 300, y: -200 } },
+    });
+    expect(getActorAnimationState(actor, 1000)).toBe("fall");
+  });
+
+  it("returns 'idle' once knockbackUntil has elapsed (knockbackUntil == now)", () => {
+    const actor = mockActor({
+      knockbackUntil: 1000,
+      body: { velocity: { x: 0, y: 0 } },
+    });
+    expect(getActorAnimationState(actor, 1000)).toBe("idle");
+  });
+
+  it("returns 'run-n' when velocity.y < 0 (and |y| >= |x|)", () => {
+    const actor = mockActor({ body: { velocity: { x: 0, y: -260 } } });
+    expect(getActorAnimationState(actor, 1000)).toBe("run-n");
+  });
+
+  it("returns 'run-n' when velocity is mostly upward (|y| > |x|)", () => {
+    const actor = mockActor({ body: { velocity: { x: 50, y: -260 } } });
+    expect(getActorAnimationState(actor, 1000)).toBe("run-n");
+  });
+
+  it("returns 'run-s' when velocity.y > 0", () => {
+    const actor = mockActor({ body: { velocity: { x: 0, y: 260 } } });
+    expect(getActorAnimationState(actor, 1000)).toBe("run-s");
+  });
+
+  it("returns 'run-e' when velocity.x > 0 (and |x| > |y|)", () => {
+    const actor = mockActor({ body: { velocity: { x: 260, y: 0 } } });
+    expect(getActorAnimationState(actor, 1000)).toBe("run-e");
+  });
+
+  it("returns 'run-e' when velocity is mostly rightward (|x| > |y|)", () => {
+    const actor = mockActor({ body: { velocity: { x: 260, y: 50 } } });
+    expect(getActorAnimationState(actor, 1000)).toBe("run-e");
+  });
+
+  it("returns 'run-w' when velocity.x < 0", () => {
+    const actor = mockActor({ body: { velocity: { x: -260, y: 0 } } });
+    expect(getActorAnimationState(actor, 1000)).toBe("run-w");
+  });
+
+  it("returns 'run-n' when |y| === |x| exactly (vertical wins ties)", () => {
+    // Diagonal movement: 45 degrees upward-right. The spec says
+    // "|y| >= |x|" picks the vertical axis, so vy < 0 → run-n.
+    const actor = mockActor({ body: { velocity: { x: 100, y: -100 } } });
+    expect(getActorAnimationState(actor, 1000)).toBe("run-n");
+  });
+
+  it("returns 'run-s' when |y| === |x| exactly and vy > 0", () => {
+    const actor = mockActor({ body: { velocity: { x: 100, y: 100 } } });
+    expect(getActorAnimationState(actor, 1000)).toBe("run-s");
+  });
+});
+
+describe("getActorEffectTint", () => {
+  it("returns null when no effects are active", () => {
+    const actor = mockActor();
+    expect(getActorEffectTint(actor, 1000)).toBeNull();
+  });
+
+  it("returns frozen tint when frozenUntil > now", () => {
+    const actor = mockActor({ frozenUntil: 5000 });
+    expect(getActorEffectTint(actor, 1000)).toBe(EFFECT_TINTS.frozen);
+  });
+
+  it("returns null for frozen when frozenUntil has elapsed", () => {
+    const actor = mockActor({ frozenUntil: 1000 });
+    expect(getActorEffectTint(actor, 2000)).toBeNull();
+  });
+
+  it("returns shielded tint when shield is active (hits > 0 and shieldUntil > now)", () => {
+    const actor = mockActor({
+      shieldHitsRemaining: 1,
+      shieldUntil: 5000,
+    });
+    expect(getActorEffectTint(actor, 1000)).toBe(EFFECT_TINTS.shielded);
+  });
+
+  it("returns null for shield when shieldHitsRemaining is 0", () => {
+    const actor = mockActor({
+      shieldHitsRemaining: 0,
+      shieldUntil: 5000,
+    });
+    expect(getActorEffectTint(actor, 1000)).toBeNull();
+  });
+
+  it("returns null for shield when shieldUntil has elapsed (even if hits remain)", () => {
+    const actor = mockActor({
+      shieldHitsRemaining: 1,
+      shieldUntil: 1000,
+    });
+    expect(getActorEffectTint(actor, 2000)).toBeNull();
+  });
+
+  it("returns mega-knockback tint when knockback boost active AND multiplier > 1.5", () => {
+    const actor = mockActor({
+      knockbackBoostUntil: 5000,
+      knockbackMultiplier: 1.75,
+    });
+    expect(getActorEffectTint(actor, 1000)).toBe(EFFECT_TINTS.megaKnockback);
+  });
+
+  it("returns regular knockback tint when knockback boost active AND multiplier <= 1.5", () => {
+    const actor = mockActor({
+      knockbackBoostUntil: 5000,
+      knockbackMultiplier: 1.25,
+    });
+    expect(getActorEffectTint(actor, 1000)).toBe(EFFECT_TINTS.knockback);
+  });
+
+  it("returns null for knockback when knockbackBoostUntil has elapsed", () => {
+    const actor = mockActor({
+      knockbackBoostUntil: 1000,
+      knockbackMultiplier: 1.75,
+    });
+    expect(getActorEffectTint(actor, 2000)).toBeNull();
+  });
+
+  it("returns double-slap tint when doubleSlapUntil > now", () => {
+    const actor = mockActor({ doubleSlapUntil: 5000 });
+    expect(getActorEffectTint(actor, 1000)).toBe(EFFECT_TINTS.doubleSlap);
+  });
+
+  it("returns speed tint when speed boost active (priority lower than frozen)", () => {
+    const actor = mockActor({ speedBoostUntil: 5000 });
+    expect(getActorEffectTint(actor, 1000)).toBe(EFFECT_TINTS.speed);
+  });
+
+  // --- Priority tests ---
+  it("priority: frozen beats shielded", () => {
+    const actor = mockActor({
+      frozenUntil: 5000,
+      shieldHitsRemaining: 1,
+      shieldUntil: 5000,
+    });
+    expect(getActorEffectTint(actor, 1000)).toBe(EFFECT_TINTS.frozen);
+  });
+
+  it("priority: shielded beats mega-knockback", () => {
+    const actor = mockActor({
+      shieldHitsRemaining: 1,
+      shieldUntil: 5000,
+      knockbackBoostUntil: 5000,
+      knockbackMultiplier: 1.75,
+    });
+    expect(getActorEffectTint(actor, 1000)).toBe(EFFECT_TINTS.shielded);
+  });
+
+  it("priority: mega-knockback beats double-slap", () => {
+    const actor = mockActor({
+      knockbackBoostUntil: 5000,
+      knockbackMultiplier: 1.75,
+      doubleSlapUntil: 5000,
+    });
+    expect(getActorEffectTint(actor, 1000)).toBe(EFFECT_TINTS.megaKnockback);
+  });
+
+  it("priority: double-slap beats speed", () => {
+    const actor = mockActor({
+      doubleSlapUntil: 5000,
+      speedBoostUntil: 5000,
+    });
+    expect(getActorEffectTint(actor, 1000)).toBe(EFFECT_TINTS.doubleSlap);
+  });
+
+  it("priority: speed beats (regular) knockback", () => {
+    const actor = mockActor({
+      speedBoostUntil: 5000,
+      knockbackBoostUntil: 5000,
+      knockbackMultiplier: 1.25,
+    });
+    expect(getActorEffectTint(actor, 1000)).toBe(EFFECT_TINTS.speed);
+  });
+
+  it("priority: full stack returns frozen when every effect is active", () => {
+    const actor = mockActor({
+      frozenUntil: 5000,
+      shieldHitsRemaining: 1,
+      shieldUntil: 5000,
+      knockbackBoostUntil: 5000,
+      knockbackMultiplier: 1.75,
+      doubleSlapUntil: 5000,
+      speedBoostUntil: 5000,
+    });
+    expect(getActorEffectTint(actor, 1000)).toBe(EFFECT_TINTS.frozen);
+  });
+
+  it("priority: full stack returns shielded when only frozen is inactive", () => {
+    const actor = mockActor({
+      frozenUntil: 0,
+      shieldHitsRemaining: 1,
+      shieldUntil: 5000,
+      knockbackBoostUntil: 5000,
+      knockbackMultiplier: 1.75,
+      doubleSlapUntil: 5000,
+      speedBoostUntil: 5000,
+    });
+    expect(getActorEffectTint(actor, 1000)).toBe(EFFECT_TINTS.shielded);
+  });
+
+  it("priority: full stack returns mega-knockback when frozen+shield inactive", () => {
+    const actor = mockActor({
+      frozenUntil: 0,
+      shieldHitsRemaining: 0,
+      shieldUntil: 0,
+      knockbackBoostUntil: 5000,
+      knockbackMultiplier: 1.75,
+      doubleSlapUntil: 5000,
+      speedBoostUntil: 5000,
+    });
+    expect(getActorEffectTint(actor, 1000)).toBe(EFFECT_TINTS.megaKnockback);
+  });
+
+  it("priority: returns knockback (lowest) when only regular knockback is active", () => {
+    const actor = mockActor({
+      knockbackBoostUntil: 5000,
+      knockbackMultiplier: 1.25,
+    });
+    expect(getActorEffectTint(actor, 1000)).toBe(EFFECT_TINTS.knockback);
+  });
+});
+
+describe("EFFECT_TINTS", () => {
+  it("exposes all six documented effect tint keys", () => {
+    expect(Object.keys(EFFECT_TINTS).sort()).toEqual(
+      [
+        "frozen",
+        "shielded",
+        "megaKnockback",
+        "doubleSlap",
+        "speed",
+        "knockback",
+      ].sort(),
+    );
+  });
+
+  it("every tint value is a finite number", () => {
+    for (const value of Object.values(EFFECT_TINTS)) {
+      expect(typeof value).toBe("number");
+      expect(Number.isFinite(value)).toBe(true);
+    }
+  });
+});

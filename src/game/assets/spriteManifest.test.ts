@@ -98,8 +98,85 @@ describe("spriteManifest", () => {
     expect(keys).toContain("powerup-shield");
   });
 
-  it("has 8 total sprite definitions (5 originals + 3 backgrounds)", () => {
-    expect(SPRITE_DEFINITIONS).toHaveLength(8);
+  it("has 23 total sprite definitions (5 originals + 12 new character states + 3 new power-ups + 3 backgrounds)", () => {
+    // Breakdown:
+    //   - 5 originals: player-idle, bot-idle, powerup-speed, powerup-knockback, powerup-shield
+    //   - 12 new character states: player + bot × 6 each (run-n/s/e/w + slap + fall)
+    //   - 3 new power-ups: powerup-mega-knockback, powerup-freeze, powerup-double-slap
+    //   - 3 backgrounds: menu-bg, arena-bg, arena-platform
+    // Total = 5 + 12 + 3 + 3 = 23.
+    expect(SPRITE_DEFINITIONS).toHaveLength(23);
+  });
+
+  it("ships the 12 new character state keys (player + bot × run-n/s/e/w + slap + fall)", () => {
+    const keys = SPRITE_DEFINITIONS.map((d) => d.key);
+    const newStates = ["run-n", "run-s", "run-e", "run-w", "slap", "fall"];
+    for (const state of newStates) {
+      expect(keys).toContain(`player-${state}`);
+      expect(keys).toContain(`bot-${state}`);
+    }
+  });
+
+  it("ships the 3 new power-up keys (mega-knockback, freeze, double-slap)", () => {
+    const keys = SPRITE_DEFINITIONS.map((d) => d.key);
+    expect(keys).toContain("powerup-mega-knockback");
+    expect(keys).toContain("powerup-freeze");
+    expect(keys).toContain("powerup-double-slap");
+  });
+
+  it("every new character sprite has category 'character', rectangle fallback, and path /sprites/<key>.png", () => {
+    const newCharKeys = [
+      "player-run-n",
+      "player-run-s",
+      "player-run-e",
+      "player-run-w",
+      "player-slap",
+      "player-fall",
+      "bot-run-n",
+      "bot-run-s",
+      "bot-run-e",
+      "bot-run-w",
+      "bot-slap",
+      "bot-fall",
+    ];
+    for (const key of newCharKeys) {
+      const def = SPRITE_DEFINITIONS.find((d) => d.key === key);
+      expect(def).toBeDefined();
+      if (!def) continue;
+      expect(def.category).toBe("character");
+      expect(def.fallback).toBe("rectangle");
+      expect(def.path).toBe(`/sprites/${key}.png`);
+    }
+  });
+
+  it("every new power-up sprite has category 'effect', circle fallback, and path /sprites/<key>.png", () => {
+    const newPowerUpKeys = [
+      "powerup-mega-knockback",
+      "powerup-freeze",
+      "powerup-double-slap",
+    ];
+    for (const key of newPowerUpKeys) {
+      const def = SPRITE_DEFINITIONS.find((d) => d.key === key);
+      expect(def).toBeDefined();
+      if (!def) continue;
+      expect(def.category).toBe("effect");
+      expect(def.fallback).toBe("circle");
+      expect(def.path).toBe(`/sprites/${key}.png`);
+    }
+  });
+
+  it("getSpritesByCategory('character') returns exactly 14 entries (7 player + 7 bot)", () => {
+    const chars = getSpritesByCategory("character");
+    expect(chars).toHaveLength(14);
+    const playerStates = chars.filter((d) => d.key.startsWith("player-"));
+    const botStates = chars.filter((d) => d.key.startsWith("bot-"));
+    expect(playerStates).toHaveLength(7);
+    expect(botStates).toHaveLength(7);
+  });
+
+  it("getSpritesByCategory('effect') returns exactly 6 entries (3 original + 3 new power-ups)", () => {
+    const effects = getSpritesByCategory("effect");
+    expect(effects).toHaveLength(6);
   });
 
   it("ships the 3 background keys (menu-bg, arena-bg, arena-platform)", () => {

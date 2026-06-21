@@ -18,6 +18,7 @@ import {
 } from "./PowerUpSystem";
 import { POWERUP_DEFINITIONS } from "../config/powerUpConfig";
 import { POWERUP_TIMINGS } from "../config/powerUpTimings";
+import { POWERUP_SPRITE_KEYS } from "../sprites/PowerUpSprite";
 import type { ActorState } from "../entities/Player";
 
 function mockActor(
@@ -67,13 +68,25 @@ function spawnAt(
   (state as unknown as {
     active: {
       definition: Definition;
-      sprite: { x: number; y: number; destroy: () => void };
+      sprite: {
+        x: number;
+        y: number;
+        destroy: () => void;
+        setVisible: (visible: boolean) => void;
+        setAlpha: (alpha: number) => void;
+      };
       label: { destroy: () => void };
       spawnedAt: number;
     };
   }).active = {
     definition: def,
-    sprite: { x, y, destroy: () => void 0 },
+    sprite: {
+      x,
+      y,
+      destroy: () => void 0,
+      setVisible: () => void 0,
+      setAlpha: () => void 0,
+    },
     label: { destroy: () => void 0 },
     spawnedAt,
   };
@@ -83,8 +96,10 @@ function makeSceneAndArena() {
   return {
     scene: {
       add: {
-        circle: (x: number, y: number, _s: number, _c: number) => ({
+        image: (x: number, y: number, _key: string) => ({
           destroy: () => void 0,
+          setVisible: () => void 0,
+          setAlpha: () => void 0,
           x,
           y,
         }),
@@ -116,8 +131,8 @@ function makeSceneAndArena() {
 type TextStyle = { color?: string; fontFamily?: string; fontSize?: string };
 
 /**
- * Stub scene that records every `add.circle` / `add.text` call so tests can
- * assert how the power-up label was created.
+ * Stub scene that records every `add.image` / `add.text` call so tests can
+ * assert how the power-up sprite and label were created.
  */
 function makeRecordingSceneAndArena() {
   const textCalls: Array<{
@@ -126,20 +141,25 @@ function makeRecordingSceneAndArena() {
     value: string;
     style?: TextStyle;
   }> = [];
-  const circleCalls: Array<{
+  const imageCalls: Array<{
     x: number;
     y: number;
-    size: number;
-    color: number;
+    key: string;
   }> = [];
   return {
     textCalls,
-    circleCalls,
+    imageCalls,
     scene: {
       add: {
-        circle: (x: number, y: number, size: number, color: number) => {
-          circleCalls.push({ x, y, size, color });
-          return { destroy: () => void 0, x, y };
+        image: (x: number, y: number, key: string) => {
+          imageCalls.push({ x, y, key });
+          return {
+            destroy: () => void 0,
+            setVisible: () => void 0,
+            setAlpha: () => void 0,
+            x,
+            y,
+          };
         },
         text: (
           x: number,
@@ -431,7 +451,13 @@ describe("PowerUpSystem", () => {
       (state as unknown as {
         active: {
           definition: Definition;
-          sprite: { x: number; y: number; destroy: () => void };
+          sprite: {
+            x: number;
+            y: number;
+            destroy: () => void;
+            setVisible: (visible: boolean) => void;
+            setAlpha: (alpha: number) => void;
+          };
           label: { destroy: () => void };
           spawnedAt: number;
         };
@@ -439,7 +465,13 @@ describe("PowerUpSystem", () => {
         definition: POWERUP_DEFINITIONS.find(
           (d) => d.key === "speed",
         ) as Definition,
-        sprite: { x: 0, y: 0, destroy: () => void 0 },
+        sprite: {
+          x: 0,
+          y: 0,
+          destroy: () => void 0,
+          setVisible: () => void 0,
+          setAlpha: () => void 0,
+        },
         label: { destroy: labelDestroy },
         spawnedAt: 0,
       };
@@ -620,13 +652,25 @@ describe("PowerUpSystem", () => {
       (state as unknown as {
         active: {
           definition: Definition;
-          sprite: { x: number; y: number; destroy: () => void };
+          sprite: {
+            x: number;
+            y: number;
+            destroy: () => void;
+            setVisible: (visible: boolean) => void;
+            setAlpha: (alpha: number) => void;
+          };
           label: { destroy: () => void };
           spawnedAt: number;
         };
       }).active = {
         definition: POWERUP_DEFINITIONS[0],
-        sprite: { x: 0, y: 0, destroy: spriteDestroy },
+        sprite: {
+          x: 0,
+          y: 0,
+          destroy: spriteDestroy,
+          setVisible: () => void 0,
+          setAlpha: () => void 0,
+        },
         label: { destroy: labelDestroy },
         spawnedAt: 0,
       };
@@ -727,20 +771,20 @@ describe("PowerUpSystem", () => {
         });
       });
 
-      it("positions the label above the circle using POWERUP_TIMINGS.labelOffsetY", () => {
+      it("positions the label above the sprite using POWERUP_TIMINGS.labelOffsetY", () => {
         const state = createPowerUpState();
-        const { scene, arena, textCalls, circleCalls } =
+        const { scene, arena, textCalls, imageCalls } =
           makeRecordingSceneAndArena();
         const size = 20;
         spawnPowerUp(scene, state, arena, size);
 
-        expect(circleCalls).toHaveLength(1);
+        expect(imageCalls).toHaveLength(1);
         expect(textCalls).toHaveLength(1);
-        const { x: circleX, y: circleY } = circleCalls[0];
-        expect(textCalls[0].x).toBe(circleX);
+        const { x: imageX, y: imageY } = imageCalls[0];
+        expect(textCalls[0].x).toBe(imageX);
         // The label is offset vertically by POWERUP_TIMINGS.labelOffsetY
         // (NOT the legacy `- size - 14` formula).
-        expect(textCalls[0].y).toBe(circleY + POWERUP_TIMINGS.labelOffsetY);
+        expect(textCalls[0].y).toBe(imageY + POWERUP_TIMINGS.labelOffsetY);
       });
 
       it("sets a label field with a destroy() method on state.active after spawning", () => {
@@ -765,6 +809,61 @@ describe("PowerUpSystem", () => {
         expect(textCalls.map((c) => c.value)).toEqual(
           POWERUP_DEFINITIONS.map((d) => d.label),
         );
+      });
+    });
+
+    describe("sprite creation", () => {
+      it("calls scene.add.image (NOT scene.add.circle) to create the sprite", () => {
+        const state = createPowerUpState();
+        const { scene, arena, imageCalls } = makeRecordingSceneAndArena();
+
+        spawnPowerUp(scene, state, arena, 16);
+
+        expect(imageCalls).toHaveLength(1);
+        expect(state.active).not.toBeNull();
+        expect(state.active!.sprite).toBeDefined();
+        expect(typeof state.active!.sprite.destroy).toBe("function");
+      });
+
+      it("uses the per-type sprite key (powerup-<effect>) from POWERUP_SPRITE_KEYS", () => {
+        const state = createPowerUpState();
+        const { scene, arena, imageCalls } = makeRecordingSceneAndArena();
+
+        spawnPowerUp(scene, state, arena, 16);
+
+        // First spawn is the "speed" definition (index 0) → key "powerup-speed".
+        expect(imageCalls[0].key).toBe("powerup-speed");
+        expect(imageCalls[0].key).toBe(POWERUP_SPRITE_KEYS.speed);
+      });
+
+      it("rotates through all 6 per-type sprite keys as spawnIndex advances", () => {
+        const state = createPowerUpState();
+        const { scene, arena, imageCalls } = makeRecordingSceneAndArena();
+
+        for (let i = 0; i < 6; i++) {
+          spawnPowerUp(scene, state, arena, 16);
+          despawnPowerUp(state);
+        }
+
+        expect(imageCalls.map((c) => c.key)).toEqual([
+          "powerup-speed",
+          "powerup-knockback",
+          "powerup-shield",
+          "powerup-mega-knockback",
+          "powerup-freeze",
+          "powerup-double-slap",
+        ]);
+      });
+
+      it("the sprite has setVisible + setAlpha methods (for blink / collected flash)", () => {
+        const state = createPowerUpState();
+        const { scene, arena } = makeSceneAndArena();
+
+        spawnPowerUp(scene, state, arena, 16);
+
+        expect(state.active).not.toBeNull();
+        expect(typeof state.active!.sprite.setVisible).toBe("function");
+        expect(typeof state.active!.sprite.setAlpha).toBe("function");
       });
     });
   });

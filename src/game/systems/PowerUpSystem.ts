@@ -6,13 +6,26 @@ import {
   type PowerUpEffect,
 } from "../config/powerUpConfig";
 import { POWERUP_TIMINGS } from "../config/powerUpTimings";
+import { POWERUP_SPRITE_KEYS } from "../sprites/PowerUpSprite";
 
 // Re-export the types so existing callers (BotAI, CombatSystem, tests) can
 // still import them from "./PowerUpSystem" without churning the import graph.
 export type { PowerUpEffect, PowerUpDefinition };
 
+/**
+ * Duck-typed view of the power-up sprite. Real Phaser scenes return a
+ * `Phaser.GameObjects.Image` from `scene.add.image(...)`, which satisfies
+ * this shape. Tests pass a minimal stub.
+ *
+ * The `setVisible` / `setAlpha` methods are required so BattleScene can
+ * drive the despawn blink strobe and so the pickup collection can hide
+ * the sprite (the "collected" flash — full tween-based animation is a
+ * Phase 3C enhancement).
+ */
 type PowerUpSprite = {
   destroy: () => void;
+  setVisible: (visible: boolean) => void;
+  setAlpha: (alpha: number) => void;
   x: number;
   y: number;
 };
@@ -23,7 +36,13 @@ type PowerUpLabel = {
 
 type SceneLike = {
   add: {
-    circle: (x: number, y: number, size: number, color: number) => PowerUpSprite;
+    /**
+     * Create the sprite image for a power-up. The `key` is the manifest
+     * key (e.g. "powerup-speed") — see {@link POWERUP_SPRITE_KEYS} for the
+     * effect → key mapping. The returned object must satisfy the
+     * {@link PowerUpSprite} duck type.
+     */
+    image: (x: number, y: number, key: string) => PowerUpSprite;
     text: (
       x: number,
       y: number,
@@ -111,7 +130,11 @@ export function spawnPowerUp(
   state.spawnIndex += 1;
   state.active = {
     definition,
-    sprite: scene.add.circle(x, y, size, definition.color),
+    // Look up the per-type PNG key from the central map (e.g. "powerup-speed").
+    // The `size` arg is intentionally not applied to the image — PNGs render
+    // at their natural size; the previous circle primitive used `size` as its
+    // radius, but the new sprite art is authored at the correct pixel size.
+    sprite: scene.add.image(x, y, POWERUP_SPRITE_KEYS[definition.key]),
     label,
     spawnedAt: Date.now(),
   };

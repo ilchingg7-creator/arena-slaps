@@ -66,6 +66,7 @@ function png(name: string): string {
 }
 
 export const SPRITE_DEFINITIONS: readonly SpriteDefinition[] = [
+  // --- Player character sprites (7 states: idle + 4 run directions + slap + fall) ---
   {
     key: "player-idle",
     path: png("player-idle"),
@@ -74,12 +75,100 @@ export const SPRITE_DEFINITIONS: readonly SpriteDefinition[] = [
     fallbackColor: 0x3d405b,
   },
   {
+    key: "player-run-n",
+    path: png("player-run-n"),
+    category: "character",
+    fallback: "rectangle",
+    fallbackColor: 0x3d405b,
+  },
+  {
+    key: "player-run-s",
+    path: png("player-run-s"),
+    category: "character",
+    fallback: "rectangle",
+    fallbackColor: 0x3d405b,
+  },
+  {
+    key: "player-run-e",
+    path: png("player-run-e"),
+    category: "character",
+    fallback: "rectangle",
+    fallbackColor: 0x3d405b,
+  },
+  {
+    key: "player-run-w",
+    path: png("player-run-w"),
+    category: "character",
+    fallback: "rectangle",
+    fallbackColor: 0x3d405b,
+  },
+  {
+    key: "player-slap",
+    path: png("player-slap"),
+    category: "character",
+    fallback: "rectangle",
+    fallbackColor: 0x3d405b,
+  },
+  {
+    key: "player-fall",
+    path: png("player-fall"),
+    category: "character",
+    fallback: "rectangle",
+    fallbackColor: 0x3d405b,
+  },
+
+  // --- Bot character sprites (7 states, same shape as player) ---
+  {
     key: "bot-idle",
     path: png("bot-idle"),
     category: "character",
     fallback: "rectangle",
     fallbackColor: 0xe07a5f,
   },
+  {
+    key: "bot-run-n",
+    path: png("bot-run-n"),
+    category: "character",
+    fallback: "rectangle",
+    fallbackColor: 0xe07a5f,
+  },
+  {
+    key: "bot-run-s",
+    path: png("bot-run-s"),
+    category: "character",
+    fallback: "rectangle",
+    fallbackColor: 0xe07a5f,
+  },
+  {
+    key: "bot-run-e",
+    path: png("bot-run-e"),
+    category: "character",
+    fallback: "rectangle",
+    fallbackColor: 0xe07a5f,
+  },
+  {
+    key: "bot-run-w",
+    path: png("bot-run-w"),
+    category: "character",
+    fallback: "rectangle",
+    fallbackColor: 0xe07a5f,
+  },
+  {
+    key: "bot-slap",
+    path: png("bot-slap"),
+    category: "character",
+    fallback: "rectangle",
+    fallbackColor: 0xe07a5f,
+  },
+  {
+    key: "bot-fall",
+    path: png("bot-fall"),
+    category: "character",
+    fallback: "rectangle",
+    fallbackColor: 0xe07a5f,
+  },
+
+  // --- Original 3 power-ups (Phase 1) ---
   {
     key: "powerup-speed",
     path: png("powerup-speed"),
@@ -101,6 +190,31 @@ export const SPRITE_DEFINITIONS: readonly SpriteDefinition[] = [
     fallback: "circle",
     fallbackColor: 0x3d405b,
   },
+
+  // --- New power-ups (Phase 2A — added for the new freeze / mega / double-slap effects) ---
+  {
+    key: "powerup-mega-knockback",
+    path: png("powerup-mega-knockback"),
+    category: "effect",
+    fallback: "circle",
+    fallbackColor: 0xe07a5f,
+  },
+  {
+    key: "powerup-freeze",
+    path: png("powerup-freeze"),
+    category: "effect",
+    fallback: "circle",
+    fallbackColor: 0x88ccff,
+  },
+  {
+    key: "powerup-double-slap",
+    path: png("powerup-double-slap"),
+    category: "effect",
+    fallback: "circle",
+    fallbackColor: 0x9b5de5,
+  },
+
+  // --- Backgrounds (Phase 1) ---
   {
     key: "menu-bg",
     path: png("menu-bg"),

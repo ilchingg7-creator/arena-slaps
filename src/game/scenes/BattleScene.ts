@@ -30,17 +30,27 @@ import {
   createPowerUpState,
   spawnPowerUp,
   tryCollectPowerUp,
+  shouldDespawnPowerUp,
+  isInDespawnWarning,
+  shouldBlink,
+  despawnPowerUp,
   type PowerUpState,
 } from "../systems/PowerUpSystem";
 import { getAudioService } from "../audio/getAudioService";
 import type { AudioService } from "../audio/AudioService";
 import { createBackground } from "../ui/Background";
+import { createPauseMenu, type PauseMenu } from "../ui/PauseMenu";
 import {
   computeBotDirection,
   createBotAI,
   shouldBotSlap,
   type BotAIState,
 } from "../systems/BotAI";
+import { createAnimatedSprite, type AnimatedSprite } from "../sprites/AnimatedSprite";
+import {
+  getActorAnimationState,
+  getActorEffectTint,
+} from "../sprites/actorAnimations";
 
 type Opponent =
   | { kind: "bot"; bot: Bot; ai: BotAIState }
@@ -63,8 +73,21 @@ type BattleRuntime = {
   audio: AudioService;
   botAI: BotAIState | null;
   cursors: Phaser.Types.Input.Keyboard.CursorKeys;
+  /**
+   * Visual sprite wrapper for the opponent actor. Sits on top of the
+   * (hidden) physics rectangle and swaps textures based on the opponent's
+   * animation state. Prefix is "bot" in 1P-vs-bot mode and "player" in
+   * 2P-local mode (the only two character texture sets that exist today).
+   */
+  opponentAnim: AnimatedSprite;
   opponent: Opponent;
   player: Player;
+  /**
+   * Visual sprite wrapper for the human player. Sits on top of the (hidden)
+   * physics rectangle and swaps textures based on the player's animation
+   * state. Prefix is always "player".
+   */
+  playerAnim: AnimatedSprite;
   powerUp: PowerUpState;
   powerUpsCollected: {
     bots: number;
@@ -316,6 +339,7 @@ function createDisabledKey(): Phaser.Input.Keyboard.Key {
 
 export class BattleScene extends Phaser.Scene {
   private runtime: BattleRuntime | null = null;
+  private pauseMenu: PauseMenu | null = null;
 
   constructor() {
     super("BattleScene");
@@ -379,6 +403,19 @@ export class BattleScene extends Phaser.Scene {
       battleConfig.player,
     );
 
+    // --- AnimatedSprite (Task 2a): wrap the player's rectangle with a
+    // texture-swapping visual sprite. The rectangle continues to own the
+    // physics body and drive collisions; the AnimatedSprite is purely
+    // visual and is repositioned every frame to track the rectangle.
+    // Hiding the rectangle keeps the AnimatedSprite as the only visible
+    // representation of the player.
+    const playerAnim = createAnimatedSprite(this, {
+      prefix: "player",
+      x: arena.left + 160,
+      y: arena.centerY,
+    });
+    player.sprite.setVisible(false);
+
     const opponent: Opponent =
       settings.mode === "2p-local"
         ? {
@@ -404,8 +441,21 @@ export class BattleScene extends Phaser.Scene {
             ai: createBotAI(settings.botDifficulty),
           };
 
+    // --- AnimatedSprite for the opponent. In 1P-vs-bot mode the prefix is
+    // "bot" (uses the bot-* texture set); in 2P-local mode the prefix is
+    // "player" (only two character texture sets exist today, so P2 shares
+    // the player-* set with P1). The future-2B agent may add a player2-*
+    // set and switch the prefix.
+    const opponentPrefix = opponent.kind === "bot" ? "bot" : "player";
     const opponentSprite =
       opponent.kind === "bot" ? opponent.bot.sprite : opponent.player.sprite;
+    const opponentAnim = createAnimatedSprite(this, {
+      prefix: opponentPrefix,
+      x: arena.right - 160,
+      y: arena.centerY,
+    });
+    opponentSprite.setVisible(false);
+
     this.physics.add.collider(player.sprite, opponentSprite);
 
     const keyboard = this.input.keyboard;
@@ -437,8 +487,10 @@ export class BattleScene extends Phaser.Scene {
       audio: getAudioService(this, settings),
       botAI: opponent.kind === "bot" ? opponent.ai : null,
       cursors,
+      opponentAnim,
       opponent,
       player,
+      playerAnim,
       powerUp: createPowerUpState(),
       powerUpsCollected: {
         bots: 0,
@@ -625,6 +677,45 @@ export class BattleScene extends Phaser.Scene {
 
     // Start battle background music (loops via AudioService).
     this.runtime.audio.playBattleTheme();
+
+    // --- Pause menu (Task 2c) ---
+    // Esc toggles the pause overlay. While the menu is visible the battle
+    // scene is paused (this.scene.pause() halts update() + physics). The
+    // menu's onResume/onSettings/onQuit callbacks drive the scene-level
+    // resume / settings-toggle / quit-to-main-menu behaviour.
+    const pauseMenu = createPauseMenu(this, {
+      battleSceneKey: "BattleScene",
+      onResume: () => {
+        this.scene.resume();
+      },
+      onSettings: () => {
+        pauseMenu.toggleSettings();
+      },
+      onQuit: () => {
+        this.scene.stop();
+        this.scene.start("MainMenuScene");
+      },
+    });
+    this.pauseMenu = pauseMenu;
+
+    this.input.keyboard?.on("keydown-ESC", () => {
+      if (!this.pauseMenu) {
+        return;
+      }
+      // Don't toggle the pause menu once the round is complete — the
+      // results transition is already in flight and pausing would freeze
+      // the ResultsScene handoff.
+      if (this.runtime?.round.isComplete) {
+        return;
+      }
+      if (this.pauseMenu.isVisible()) {
+        this.pauseMenu.hide();
+        this.scene.resume();
+      } else {
+        this.pauseMenu.show();
+        this.scene.pause();
+      }
+    });
   }
 
   private opponentActor() {
@@ -659,6 +750,9 @@ export class BattleScene extends Phaser.Scene {
               : "Bot wins",
       );
       updateHud(runtime);
+      // Sync the animated sprites one last time so they settle on the
+      // actors' final positions before the scene transitions out.
+      this.syncAnimatedSprites();
 
       if (!runtime.resultsShown) {
         runtime.resultsShown = true;
@@ -772,7 +866,33 @@ export class BattleScene extends Phaser.Scene {
       }
     }
 
-    // --- Power-up spawn + collect ---
+    // --- Power-up despawn + blink + spawn + collect ---
+    // 1) If a power-up is currently active, drive its despawn timer + the
+    //    blink strobe during the warning window (last 2s before despawn).
+    //    The blink visibility is computed from `shouldBlink` — outside the
+    //    warning window the sprite stays fully visible.
+    // 2) If no power-up is active (either because none has spawned yet OR
+    //    the despawn / collect logic just cleared it), spawn the next one.
+    // 3) Try to collect the active power-up for both the player and the
+    //    opponent. tryCollectPowerUp is a no-op when no power-up is active
+    //    or when the actor is out of pickup range.
+    if (runtime.powerUp.active) {
+      const now = this.time.now;
+      // Blink during the warning window; otherwise keep the sprite visible.
+      if (isInDespawnWarning(runtime.powerUp, now)) {
+        runtime.powerUp.active.sprite.setVisible(shouldBlink(runtime.powerUp, now));
+      } else {
+        runtime.powerUp.active.sprite.setVisible(true);
+      }
+      // Despawn after the 8s lifetime elapses.
+      if (shouldDespawnPowerUp(runtime.powerUp, now)) {
+        // Use the ring-out sound as the despawn cue for now — a dedicated
+        // despawn sound can be added in a future audio pass.
+        runtime.audio.playRingOut();
+        despawnPowerUp(runtime.powerUp);
+      }
+    }
+
     if (!runtime.powerUp.active) {
       spawnPowerUp(this, runtime.powerUp, runtime.arena, battleConfig.powerUp.size);
     }
@@ -817,6 +937,52 @@ export class BattleScene extends Phaser.Scene {
     }
     runtime.lastTickInt = tickInt;
 
+    // --- AnimatedSprite sync (Task 2a) ---
+    // The animated sprites are visual mirrors of the (hidden) physics
+    // rectangles. Update their texture state, effect tint, and position
+    // once per frame AFTER all movement / slap / ring-out logic has
+    // settled so they reflect the actors' final state for this tick.
+    this.syncAnimatedSprites();
+
     updateHud(runtime);
+  }
+
+  /**
+   * Synchronize both actors' {@link AnimatedSprite} wrappers with their
+   * underlying physics rectangles for the current frame. Reads the actors'
+   * velocity + power-up state via the pure helpers in `actorAnimations`
+   * and pushes the resulting (state, tint, position) triple into each
+   * sprite. The sprites themselves no-op when nothing has changed, so
+   * calling this every frame is cheap.
+   *
+   * This is a method rather than a free function so it can read
+   * `this.runtime` + `this.time.now` without the caller having to thread
+   * them through. Safe to call whenever `this.runtime` is non-null.
+   */
+  private syncAnimatedSprites(): void {
+    const runtime = this.runtime;
+    if (!runtime) {
+      return;
+    }
+    const now = this.time.now;
+
+    const playerState = getActorAnimationState(runtime.player, now);
+    const playerTint = getActorEffectTint(runtime.player, now);
+    runtime.playerAnim.setState(playerState);
+    runtime.playerAnim.setEffectTint(playerTint);
+    runtime.playerAnim.setPosition(
+      runtime.player.sprite.x,
+      runtime.player.sprite.y,
+    );
+
+    const opponentActorState = this.opponentActor();
+    const opponentState = getActorAnimationState(opponentActorState, now);
+    const opponentTint = getActorEffectTint(opponentActorState, now);
+    runtime.opponentAnim.setState(opponentState);
+    runtime.opponentAnim.setEffectTint(opponentTint);
+    runtime.opponentAnim.setPosition(
+      opponentActorState.sprite.x,
+      opponentActorState.sprite.y,
+    );
   }
 }
