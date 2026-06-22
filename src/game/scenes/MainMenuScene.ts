@@ -55,7 +55,7 @@ export class MainMenuScene extends Phaser.Scene {
         musicVolume: settings.musicVolume,
       });
       if (storage) saveSettings(storage, settings);
-      if (!next.musicMuted && audio.getCurrentMusicKey() === null) audio.playMenuTheme();
+      if (!next.musicMuted) { audio.hardStopMusic(); audio.playMenuTheme(); }
     }, {
       soundLabel: i18n.t("mute.sound"),
       mutedLabel: i18n.t("mute.muted"),

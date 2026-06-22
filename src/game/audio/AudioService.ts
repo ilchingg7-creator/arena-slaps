@@ -77,6 +77,22 @@ export class AudioService {
     }
   }
 
+  /**
+   * Stop the currently-playing music track COMPLETELY and reset the
+   * currentMusicKey tracker. Use this before restarting a track to
+   * guarantee no duplicate audio instances linger.
+   *
+   * The per-key `backend.stop()` can be unreliable if Phaser's
+   * SoundManager has already lost track of the sound instance. This
+   * method calls `backend.stopAll()` (which stops every sound Phaser
+   * knows about) and then resets the tracker — so the next `play()`
+   * call always starts from a clean slate.
+   */
+  hardStopMusic(): void {
+    this.backend.stopAll();
+    this.currentMusicKey = null;
+  }
+
   /** Returns true when both SFX and Music are muted (for the top-right mute button). */
   isMasterMuted(): boolean {
     return this.settings.sfxMuted && this.settings.musicMuted;

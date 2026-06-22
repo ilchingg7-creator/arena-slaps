@@ -79,9 +79,10 @@ export class AudioSettingsScene extends Phaser.Scene {
         musicVolume: settings.musicVolume,
       });
       if (storage) saveSettings(storage, settings);
-      // Only restart music if transitioning from muted → unmuted AND no
-      // music is currently playing (avoids duplicate tracks).
-      if (!next.musicMuted && wasMusicMuted && audio.getCurrentMusicKey() === null) {
+      // When unmuting music, hard-stop any lingering instances first,
+      // then start the theme fresh — guarantees no duplicate tracks.
+      if (!next.musicMuted && wasMusicMuted) {
+        audio.hardStopMusic();
         audio.playMenuTheme();
       }
       sfxMuteButton.setText(settings.sfxMuted ? i18n.t("audio.muted") : i18n.t("audio.on"));
@@ -163,7 +164,12 @@ export class AudioSettingsScene extends Phaser.Scene {
           sfxVolume: settings.sfxVolume,
           musicVolume: settings.musicVolume,
         });
-        if (!next) audio.playMenuClick();
+        // Play a click sound after unmuting so the user hears immediate
+        // feedback that SFX is working. The updateSettings call above
+        // already cleared sfxMuted, so playMenuClick will be audible.
+        if (!next) {
+          audio.playMenuClick();
+        }
         if (storage) saveSettings(storage, settings);
       },
     });
@@ -213,9 +219,11 @@ export class AudioSettingsScene extends Phaser.Scene {
           sfxVolume: settings.sfxVolume,
           musicVolume: settings.musicVolume,
         });
-        // Only restart music if transitioning muted → unmuted AND no
-        // music is currently playing (avoids duplicate tracks).
-        if (!next && wasMusicMuted && audio.getCurrentMusicKey() === null) {
+        // When unmuting, hard-stop any lingering audio instances first,
+        // then start the theme fresh. This guarantees no duplicate tracks
+        // even if Phaser's per-key stop() missed an instance.
+        if (!next && wasMusicMuted) {
+          audio.hardStopMusic();
           audio.playMenuTheme();
         }
         if (storage) saveSettings(storage, settings);
