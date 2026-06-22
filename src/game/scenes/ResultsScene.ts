@@ -34,7 +34,7 @@ export class ResultsScene extends Phaser.Scene {
     audio.playMenuTheme();
     const results = storage ? loadBattleResults(storage) : null;
     const summary = results
-      ? createBattleResultsSummary(results)
+      ? createBattleResultsSummary(results, (key) => i18n.t(key as never))
       : [i18n.t("results.noResult")];
 
     // --- Background ---

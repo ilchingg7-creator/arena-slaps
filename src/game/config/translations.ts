@@ -119,6 +119,11 @@ export const TRANSLATIONS = {
   "results.score": { ru: "Счёт", en: "Score" },
   "results.rounds": { ru: "Раундов", en: "Rounds" },
   "results.powerUps": { ru: "Усилений", en: "Power-ups" },
+  "results.wins": { ru: "победил", en: "wins" },
+  "battle.player": { ru: "Игрок", en: "Player" },
+  "battle.bot": { ru: "Бот", en: "Bot" },
+  "battle.p1": { ru: "И1", en: "P1" },
+  "battle.p2": { ru: "И2", en: "P2" },
 
   // --- Pause menu ---
   "pause.title": { ru: "Пауза", en: "Paused" },
