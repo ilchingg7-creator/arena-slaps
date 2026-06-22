@@ -64,4 +64,31 @@ describe("translations config", () => {
       expect(TRANSLATIONS[key].en).toBeDefined();
     }
   });
+
+  it("provides a translated label for every power-up effect key (M3)", () => {
+    // ProfileScene maps raw power-up keys ("speed", "knockback", ...) to
+    // "powerup.<key>" translation keys. Every effect must have an entry
+    // so the favorite power-up row never falls back to the raw key.
+    const powerupKeys: TranslationKey[] = [
+      "powerup.speed",
+      "powerup.knockback",
+      "powerup.shield",
+      "powerup.mega-knockback",
+      "powerup.freeze",
+      "powerup.double-slap",
+    ];
+    for (const key of powerupKeys) {
+      const entry = TRANSLATIONS[key];
+      expect(entry).toBeDefined();
+      expect(entry.ru.length).toBeGreaterThan(0);
+      expect(entry.en.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("provides a banned-nickname rejection message (MINOR-4)", () => {
+    const entry = TRANSLATIONS["profile.nicknameBanned"];
+    expect(entry).toBeDefined();
+    expect(entry.ru.length).toBeGreaterThan(0);
+    expect(entry.en.length).toBeGreaterThan(0);
+  });
 });

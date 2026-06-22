@@ -22,6 +22,8 @@ const { buttonStubs, sliderStubs } = vi.hoisted(() => ({
   }>,
   sliderStubs: [] as Array<{
     destroyed: boolean;
+    initialValue: number;
+    onChange: (nextVolume: number) => void;
     setValue: ReturnType<typeof vi.fn>;
     getValue: ReturnType<typeof vi.fn>;
     handlePointerMove: ReturnType<typeof vi.fn>;
@@ -59,20 +61,25 @@ vi.mock("./StyledButton", () => ({
 }));
 
 vi.mock("./VolumeSlider", () => ({
-  createVolumeSlider: vi.fn(() => {
-    const stub = {
-      destroyed: false,
-      setValue: vi.fn(),
-      getValue: vi.fn(() => 0.5),
-      handlePointerMove: vi.fn(),
-      endDrag: vi.fn(),
-      destroy: vi.fn(() => {
-        stub.destroyed = true;
-      }),
-    };
-    sliderStubs.push(stub);
-    return stub;
-  }),
+  createVolumeSlider: vi.fn(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (_scene: unknown, _x: number, _y: number, _w: number, initialValue: number, onChange: any) => {
+      const stub = {
+        destroyed: false,
+        initialValue,
+        onChange: onChange as (nextVolume: number) => void,
+        setValue: vi.fn(),
+        getValue: vi.fn(() => initialValue),
+        handlePointerMove: vi.fn(),
+        endDrag: vi.fn(),
+        destroy: vi.fn(() => {
+          stub.destroyed = true;
+        }),
+      };
+      sliderStubs.push(stub);
+      return stub;
+    },
+  ),
 }));
 
 import { createPauseMenu, type PauseMenu } from "./PauseMenu";
@@ -251,6 +258,41 @@ beforeEach(() => {
   buttonStubs.length = 0;
   sliderStubs.length = 0;
 });
+
+// --- Helpers for the M1 slider-wiring tests -----------------------------
+// The audio + storage stubs model the slice of the real AudioService +
+// localStorage surface that PauseMenu touches via its PauseMenuConfig.
+
+function makeAudioStub() {
+  return {
+    updateSettings: vi.fn(),
+  };
+}
+
+function makeSettingsStub(opts: {
+  sfxVolume?: number;
+  musicVolume?: number;
+  sfxMuted?: boolean;
+  musicMuted?: boolean;
+} = {}) {
+  return {
+    mode: "1p-vs-bot" as const,
+    botDifficulty: "medium" as const,
+    roundLengthSeconds: 60,
+    winningScore: 5,
+    sfxMuted: opts.sfxMuted ?? false,
+    musicMuted: opts.musicMuted ?? false,
+    sfxVolume: opts.sfxVolume ?? 0.7,
+    musicVolume: opts.musicVolume ?? 0.5,
+  };
+}
+
+function makeStorageStub() {
+  return {
+    setItem: vi.fn(),
+    getItem: vi.fn(() => null),
+  };
+}
 
 // --- Construction -------------------------------------------------------
 
@@ -639,5 +681,221 @@ describe("PauseMenu - type contract", () => {
     expect(typeof menu.destroy).toBe("function");
     expect(typeof menu.toggleSettings).toBe("function");
     expect(typeof menu.isSettingsVisible).toBe("function");
+    // M1: pointer-forwarding methods exposed so the owning scene can
+    // wire global pointermove/up events through to the sliders.
+    expect(typeof menu.handlePointerMove).toBe("function");
+    expect(typeof menu.endDrag).toBe("function");
+  });
+});
+
+// --- M1: slider onChange wiring -----------------------------------------
+// The inline SFX/Music sliders previously had `onChange: () => void 0` —
+// dragging them did nothing. The fix routes the slider's value through
+// `audio.updateSettings(...)` so the player hears the change immediately,
+// and persists it to `storage` so it survives a page reload.
+
+describe("PauseMenu - M1 slider wiring", () => {
+  it("creates the SFX slider with the current settings.sfxVolume as the initial value", () => {
+    const scene = makeScene();
+    const settings = makeSettingsStub({ sfxVolume: 0.3 });
+    createPauseMenu(
+      scene as unknown as Parameters<typeof createPauseMenu>[0],
+      {
+        ...makeConfig({}),
+        settings,
+      },
+    );
+    // sliderStubs[0] is the SFX slider (created first in the panel build).
+    expect(sliderStubs[0].initialValue).toBeCloseTo(0.3, 5);
+  });
+
+  it("creates the Music slider with the current settings.musicVolume as the initial value", () => {
+    const scene = makeScene();
+    const settings = makeSettingsStub({ musicVolume: 0.8 });
+    createPauseMenu(
+      scene as unknown as Parameters<typeof createPauseMenu>[0],
+      {
+        ...makeConfig({}),
+        settings,
+      },
+    );
+    // sliderStubs[1] is the Music slider.
+    expect(sliderStubs[1].initialValue).toBeCloseTo(0.8, 5);
+  });
+
+  it("SFX slider onChange pushes the new volume through audio.updateSettings", () => {
+    const scene = makeScene();
+    const audio = makeAudioStub();
+    const settings = makeSettingsStub({ sfxVolume: 0.7 });
+    createPauseMenu(
+      scene as unknown as Parameters<typeof createPauseMenu>[0],
+      {
+        ...makeConfig({}),
+        audio,
+        settings,
+      },
+    );
+    sliderStubs[0].onChange(0.42);
+    expect(audio.updateSettings).toHaveBeenCalledTimes(1);
+    expect(audio.updateSettings).toHaveBeenCalledWith({
+      sfxMuted: false,
+      musicMuted: false,
+      sfxVolume: 0.42,
+      musicVolume: 0.5,
+    });
+  });
+
+  it("Music slider onChange pushes the new volume through audio.updateSettings", () => {
+    const scene = makeScene();
+    const audio = makeAudioStub();
+    const settings = makeSettingsStub({ musicVolume: 0.5 });
+    createPauseMenu(
+      scene as unknown as Parameters<typeof createPauseMenu>[0],
+      {
+        ...makeConfig({}),
+        audio,
+        settings,
+      },
+    );
+    sliderStubs[1].onChange(0.9);
+    expect(audio.updateSettings).toHaveBeenCalledTimes(1);
+    expect(audio.updateSettings).toHaveBeenCalledWith({
+      sfxMuted: false,
+      musicMuted: false,
+      sfxVolume: 0.7,
+      musicVolume: 0.9,
+    });
+  });
+
+  it("SFX slider onChange mutates the shared settings object", () => {
+    const scene = makeScene();
+    const audio = makeAudioStub();
+    const settings = makeSettingsStub({ sfxVolume: 0.7 });
+    createPauseMenu(
+      scene as unknown as Parameters<typeof createPauseMenu>[0],
+      {
+        ...makeConfig({}),
+        audio,
+        settings,
+      },
+    );
+    sliderStubs[0].onChange(0.25);
+    expect(settings.sfxVolume).toBeCloseTo(0.25, 5);
+    // Music volume is untouched.
+    expect(settings.musicVolume).toBeCloseTo(0.5, 5);
+  });
+
+  it("Music slider onChange mutates the shared settings object", () => {
+    const scene = makeScene();
+    const audio = makeAudioStub();
+    const settings = makeSettingsStub({ musicVolume: 0.5 });
+    createPauseMenu(
+      scene as unknown as Parameters<typeof createPauseMenu>[0],
+      {
+        ...makeConfig({}),
+        audio,
+        settings,
+      },
+    );
+    sliderStubs[1].onChange(0.65);
+    expect(settings.musicVolume).toBeCloseTo(0.65, 5);
+    expect(settings.sfxVolume).toBeCloseTo(0.7, 5);
+  });
+
+  it("persists the new volume to storage when provided (SFX)", () => {
+    const scene = makeScene();
+    const audio = makeAudioStub();
+    const storage = makeStorageStub();
+    const settings = makeSettingsStub({ sfxVolume: 0.7 });
+    createPauseMenu(
+      scene as unknown as Parameters<typeof createPauseMenu>[0],
+      {
+        ...makeConfig({}),
+        audio,
+        settings,
+        storage,
+      },
+    );
+    sliderStubs[0].onChange(0.42);
+    expect(storage.setItem).toHaveBeenCalledTimes(1);
+    // The payload is a JSON blob containing the new sfxVolume.
+    const payload = storage.setItem.mock.calls[0][1] as string;
+    const parsed = JSON.parse(payload) as { sfxVolume: number };
+    expect(parsed.sfxVolume).toBeCloseTo(0.42, 5);
+  });
+
+  it("persists the new volume to storage when provided (Music)", () => {
+    const scene = makeScene();
+    const audio = makeAudioStub();
+    const storage = makeStorageStub();
+    const settings = makeSettingsStub({ musicVolume: 0.5 });
+    createPauseMenu(
+      scene as unknown as Parameters<typeof createPauseMenu>[0],
+      {
+        ...makeConfig({}),
+        audio,
+        settings,
+        storage,
+      },
+    );
+    sliderStubs[1].onChange(0.85);
+    expect(storage.setItem).toHaveBeenCalledTimes(1);
+    const payload = storage.setItem.mock.calls[0][1] as string;
+    const parsed = JSON.parse(payload) as { musicVolume: number };
+    expect(parsed.musicVolume).toBeCloseTo(0.85, 5);
+  });
+
+  it("does NOT call audio.updateSettings when audio is not provided (legacy)", () => {
+    // Without audio in the config, slider drags should silently no-op.
+    // This preserves backward-compat with the original unit tests that
+    // don't construct an AudioService.
+    const scene = makeScene();
+    const settings = makeSettingsStub({ sfxVolume: 0.7 });
+    createPauseMenu(
+      scene as unknown as Parameters<typeof createPauseMenu>[0],
+      {
+        ...makeConfig({}),
+        settings,
+      },
+    );
+    expect(() => sliderStubs[0].onChange(0.42)).not.toThrow();
+    // Settings should still be mutated (the slider's contract is
+    // "write into settings if provided").
+    expect(settings.sfxVolume).toBeCloseTo(0.42, 5);
+  });
+
+  it("does NOT throw when neither audio nor settings is provided (legacy)", () => {
+    const scene = makeScene();
+    createPauseMenu(
+      scene as unknown as Parameters<typeof createPauseMenu>[0],
+      makeConfig({}),
+    );
+    expect(() => sliderStubs[0].onChange(0.42)).not.toThrow();
+    expect(() => sliderStubs[1].onChange(0.42)).not.toThrow();
+  });
+
+  it("handlePointerMove forwards to both sliders", () => {
+    const scene = makeScene();
+    const menu = createPauseMenu(
+      scene as unknown as Parameters<typeof createPauseMenu>[0],
+      makeConfig({}),
+    );
+    const pointer = { x: 100, y: 200, isDown: true };
+    menu.handlePointerMove(pointer);
+    expect(sliderStubs[0].handlePointerMove).toHaveBeenCalledTimes(1);
+    expect(sliderStubs[0].handlePointerMove).toHaveBeenCalledWith(pointer);
+    expect(sliderStubs[1].handlePointerMove).toHaveBeenCalledTimes(1);
+    expect(sliderStubs[1].handlePointerMove).toHaveBeenCalledWith(pointer);
+  });
+
+  it("endDrag forwards to both sliders", () => {
+    const scene = makeScene();
+    const menu = createPauseMenu(
+      scene as unknown as Parameters<typeof createPauseMenu>[0],
+      makeConfig({}),
+    );
+    menu.endDrag();
+    expect(sliderStubs[0].endDrag).toHaveBeenCalledTimes(1);
+    expect(sliderStubs[1].endDrag).toHaveBeenCalledTimes(1);
   });
 });

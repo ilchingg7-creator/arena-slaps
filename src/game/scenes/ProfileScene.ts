@@ -16,6 +16,7 @@ import {
   type GameSettings,
   type GameMode,
 } from "../config/gameSettings";
+import { validateNickname } from "../config/nicknames";
 import { I18nService } from "../i18n/I18nService";
 import type { TranslationKey } from "../config/translations";
 
@@ -25,6 +26,26 @@ import type { TranslationKey } from "../config/translations";
 const MODE_KEYS: Record<GameMode, TranslationKey> = {
   "1p-vs-bot": "mode.1p-vs-bot",
   "2p-local": "mode.2p-local",
+};
+
+/**
+ * M3: map raw power-up effect keys (as stored in `profile.powerUpStats`)
+ * to the translation keys that produce their localized display labels.
+ * `service.getFavoritePowerUp()` returns the raw key — without this map
+ * the profile row would show "speed" / "knockback" / etc. instead of
+ * "Boost" / "Heavy Hand" / etc.
+ *
+ * The "speed" fallback below is defensive: if a future power-up key
+ * somehow isn't in the map we'd rather show the "Boost" label than
+ * crash on `i18n.t(undefined)`.
+ */
+const POWERUP_LABEL_KEYS: Record<string, TranslationKey> = {
+  "speed": "powerup.speed",
+  "knockback": "powerup.knockback",
+  "shield": "powerup.shield",
+  "mega-knockback": "powerup.mega-knockback",
+  "freeze": "powerup.freeze",
+  "double-slap": "powerup.double-slap",
 };
 
 /**
@@ -131,8 +152,14 @@ export class ProfileScene extends Phaser.Scene {
     addRow(i18n.t("profile.ringOutsInflicted"), String(profile.ringOutsInflicted), 6);
     addRow(i18n.t("profile.ringOutsSuffered"), String(profile.ringOutsSuffered), 7);
     addRow(i18n.t("profile.powerUpsCollected"), String(profile.powerUpsCollected), 8);
+    // M3: translate the raw favorite power-up key (e.g. "speed") into the
+    // localized display label (e.g. "Boost" / "Ускорение"). When no
+    // power-ups have been collected yet, show an em dash.
     const favPu = service.getFavoritePowerUp();
-    addRow(i18n.t("profile.favoritePowerUp"), favPu ?? "—", 9);
+    const favPuLabel = favPu
+      ? i18n.t(POWERUP_LABEL_KEYS[favPu] ?? "powerup.speed")
+      : "\u2014";
+    addRow(i18n.t("profile.favoritePowerUp"), favPuLabel, 9);
     addRow(
       i18n.t("profile.favoriteMode"),
       i18n.t(MODE_KEYS[service.getFavoriteMode()]),
@@ -163,8 +190,20 @@ export class ProfileScene extends Phaser.Scene {
             newName.trim().length > 0 &&
             newName.trim().length <= 20
           ) {
-            profile = { ...profile, nickname: newName.trim() };
-            service.setNickname(newName.trim());
+            const trimmed = newName.trim();
+            // MINOR-4: reject banned words (profanity / hate speech /
+            // sexual terms). The full blocklist lives in nicknames.ts.
+            // A browser alert is used for the rejection message — the
+            // game has no rich modal system, and prompt() already
+            // blocks the page so an alert() is consistent with that UX.
+            if (!validateNickname(trimmed)) {
+              if (typeof window !== "undefined") {
+                window.alert(i18n.t("profile.nicknameBanned"));
+              }
+              return;
+            }
+            profile = { ...profile, nickname: trimmed };
+            service.setNickname(trimmed);
             if (storage) saveProfile(storage, profile);
             // Restart scene to refresh display.
             this.scene.restart();

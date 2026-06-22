@@ -124,6 +124,14 @@ type BattleRuntime = {
     bots: number;
     player: number;
   };
+  /**
+   * Per-effect keys of every power-up the human player has collected this
+   * round (e.g. ["speed", "shield", "speed"]). Mirrored into the profile
+   * via `recordGameResult({ powerUpTypes })` so ProfileService can derive
+   * the favorite power-up (M2 fix). Only player collections are tracked —
+   * the bot/P2 collections aren't part of the player's profile.
+   */
+  powerUpTypesCollected: string[];
   resultsShown: boolean;
   round: RoundState;
   settings: GameSettings;
@@ -315,6 +323,16 @@ export function applyBotSlap(
   now: number,
 ): void {
   if (runtime.opponent.kind !== "bot") {
+    return;
+  }
+  // C2: frozen actors cannot slap. The freeze power-up blocks ALL actions,
+  // including slapping. `shouldBotSlap` itself doesn't check frozen state
+  // (it only looks at distance + cooldown + dodge), so without this gate a
+  // frozen bot would still attempt a slap and `applySlap` would happily
+  // land the knockback. We early-return silently — no slap-hit / slap-miss
+  // audio — to match the player paths, which are also gated on `isFrozen`
+  // in `update()` and play no audio when frozen.
+  if (isFrozen(runtime.opponent.bot, now)) {
     return;
   }
   if (
@@ -585,6 +603,7 @@ export class BattleScene extends Phaser.Scene {
         bots: 0,
         player: 0,
       },
+      powerUpTypesCollected: [],
       resultsShown: false,
       round: createRoundState(settings.roundLengthSeconds),
       settings,
@@ -772,9 +791,19 @@ export class BattleScene extends Phaser.Scene {
     // scene is paused (this.scene.pause() halts update() + physics). The
     // menu's onResume/onSettings/onQuit callbacks drive the scene-level
     // resume / settings-toggle / quit-to-main-menu behaviour.
+    //
+    // M1: pass the shared audio + settings + storage so the inline
+    // VolumeSliders can push live updates through `audio.updateSettings`
+    // and persist to localStorage. The scene also forwards global
+    // pointermove/up events to the menu so the slider drag stays alive
+    // when the pointer leaves the slider's hit zone (mirroring the
+    // AudioSettingsScene pattern).
     const pauseMenu = createPauseMenu(this, {
       battleSceneKey: "BattleScene",
       i18n,
+      audio: this.runtime.audio,
+      settings,
+      storage: typeof window !== "undefined" ? window.localStorage : null,
       onResume: () => {
         this.scene.resume();
       },
@@ -787,6 +816,22 @@ export class BattleScene extends Phaser.Scene {
       },
     });
     this.pauseMenu = pauseMenu;
+
+    // Forward global pointer events to the pause menu so the inline
+    // VolumeSliders keep tracking the drag while the pointer is outside
+    // their hit zones (M1). Safe to forward every frame: the slider's
+    // handlePointerMove is a no-op when not dragging, and endDrag is
+    // idempotent.
+    this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
+      if (this.pauseMenu) {
+        this.pauseMenu.handlePointerMove(pointer);
+      }
+    });
+    this.input.on("pointerup", () => {
+      if (this.pauseMenu) {
+        this.pauseMenu.endDrag();
+      }
+    });
 
     this.input.keyboard?.on("keydown-ESC", () => {
       if (!this.pauseMenu) {
@@ -855,6 +900,11 @@ export class BattleScene extends Phaser.Scene {
 
       if (!runtime.resultsShown) {
         runtime.resultsShown = true;
+        // MINOR-10: hide the floating nickname labels so they don't
+        // overlap the winner banner. They're not needed once the round
+        // has settled — the results scene shows its own summary.
+        runtime.playerNameLabel.setVisible(false);
+        runtime.opponentNameLabel.setVisible(false);
         const storage = getStorage();
         const results = createBattleResults({
           botScore: runtime.round.score.bots,
@@ -891,7 +941,9 @@ export class BattleScene extends Phaser.Scene {
               ringOutsInflicted: runtime.round.score.player,
               ringOutsSuffered: runtime.round.score.bots,
               powerUpsCollected: runtime.powerUpsCollected.player,
-              powerUpTypes: [], // not tracked per-type yet — future enhancement
+              // M2: pass the per-effect keys collected this round so
+              // ProfileService can derive the favorite power-up.
+              powerUpTypes: runtime.powerUpTypesCollected,
             });
             saveProfile(storage, service.getProfile());
           } catch {
@@ -964,7 +1016,7 @@ export class BattleScene extends Phaser.Scene {
         );
       }
 
-      if (Phaser.Input.Keyboard.JustDown(runtime.slapKeyP2)) {
+      if (Phaser.Input.Keyboard.JustDown(runtime.slapKeyP2) && !isFrozen(runtime.opponent.player, this.time.now)) {
         const hit = applySlap(
           runtime.opponent.player,
           runtime.player,
@@ -979,7 +1031,11 @@ export class BattleScene extends Phaser.Scene {
     }
 
     // --- Player 1 slap ---
-    if (Phaser.Input.Keyboard.JustDown(runtime.slapKeyP1)) {
+    // C2: frozen actors cannot slap. The freeze power-up was previously
+    // checked before `moveActor` but NOT before the three slap paths, so a
+    // frozen P1 could still slap. The `isFrozen` gate here (and the matching
+    // gates on P2 + `applyBotSlap`) make freeze block ALL actions.
+    if (Phaser.Input.Keyboard.JustDown(runtime.slapKeyP1) && !isFrozen(runtime.player, this.time.now)) {
       const hit = applySlap(
         runtime.player,
         opponentActor,
@@ -1011,10 +1067,13 @@ export class BattleScene extends Phaser.Scene {
         runtime.powerUp.active.sprite.setVisible(true);
       }
       // Despawn after the 8s lifetime elapses.
+      // MINOR-2: previously this called `playRingOut()` as the despawn cue —
+      // but the ring-out sound is a loud "out of bounds" cue that confused
+      // players (sounded like someone rang out when nothing happened). The
+      // despawn is silent now; the blinking warning strobe during the last
+      // 2s already signals the upcoming despawn visually. A dedicated
+      // "powerup-despawn" sound can be added in a future audio pass.
       if (shouldDespawnPowerUp(runtime.powerUp, now)) {
-        // Use the ring-out sound as the despawn cue for now — a dedicated
-        // despawn sound can be added in a future audio pass.
-        runtime.audio.playRingOut();
         despawnPowerUp(runtime.powerUp);
       }
     }
@@ -1023,8 +1082,19 @@ export class BattleScene extends Phaser.Scene {
       spawnPowerUp(this, runtime.powerUp, runtime.arena, battleConfig.powerUp.size);
     }
 
+    // M2: capture the active power-up's effect key BEFORE calling
+    // tryCollectPowerUp — `tryCollectPowerUp` nulls `state.active` as
+    // part of the collect (it kicks off the collected animation and
+    // defers sprite destruction, but the active slot is cleared
+    // immediately so subsequent calls during the 250ms animation window
+    // return false). Reading `active?.definition.key` after the call
+    // would always be undefined.
+    const collectedKey = runtime.powerUp.active?.definition.key;
     if (tryCollectPowerUp(runtime.player, runtime.powerUp, this.time.now, opponentActor)) {
       runtime.powerUpsCollected.player += 1;
+      if (collectedKey) {
+        runtime.powerUpTypesCollected.push(collectedKey);
+      }
       runtime.audio.playPowerUpCollect();
     }
 
