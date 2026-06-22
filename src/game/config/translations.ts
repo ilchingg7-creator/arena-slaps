@@ -76,8 +76,8 @@ export const TRANSLATIONS = {
 
   // --- Battle HUD ---
   "battle.time": { ru: "Время", en: "Time" },
-  "battle.controls.1p": { ru: "Движение: WASD / Стрелки   Шлёпок: Пробел, клик по арене, или тап SLAP", en: "Move: WASD / Arrows   Slap: Space, click arena, or tap SLAP" },
-  "battle.controls.2p": { ru: "И1: WASD + Пробел   |   И2: Стрелки + Enter   |   Шлёпок или тап SLAP", en: "P1: WASD + Space   |   P2: Arrows + Enter   |   Slap or tap SLAP" },
+  "battle.controls.1p": { ru: "Движение: WASD / Стрелки   |   Шлёпок: Пробел или клик   |   Пауза: Esc", en: "Move: WASD / Arrows   |   Slap: Space or click   |   Pause: Esc" },
+  "battle.controls.2p": { ru: "И1: WASD + Пробел   |   И2: Стрелки + Enter   |   Пауза: Esc", en: "P1: WASD + Space   |   P2: Arrows + Enter   |   Pause: Esc" },
   "battle.draw": { ru: "Ничья", en: "Draw" },
   "battle.playerWins": { ru: "Победил игрок", en: "Player wins" },
   "battle.botWins": { ru: "Бот победил", en: "Bot wins" },

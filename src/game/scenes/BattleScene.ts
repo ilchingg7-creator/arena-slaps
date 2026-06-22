@@ -642,13 +642,23 @@ export class BattleScene extends Phaser.Scene {
       settings.mode === "2p-local"
         ? i18n.t("battle.controls.2p")
         : i18n.t("battle.controls.1p");
+    // Semi-transparent background pill behind the hint for readability
+    const hintY = arena.bottom + 38;
     this.add
-      .text(width / 2, arena.bottom + 24, controlsHint, {
+      .rectangle(width / 2, hintY, 720, 32, 0x000000, 0.5)
+      .setOrigin(0.5, 0.5)
+      .setDepth(5);
+    this.add
+      .text(width / 2, hintY, controlsHint, {
         color: "#f4f1de",
         fontFamily: "Arial",
-        fontSize: "18px",
+        fontSize: "16px",
+        stroke: "#000000",
+        strokeThickness: 3,
+        shadow: { offsetX: 0, offsetY: 1, color: "#000000", blur: 2, fill: true },
       })
-      .setOrigin(0.5, 0);
+      .setOrigin(0.5, 0.5)
+      .setDepth(6);
 
     const slapP1 = () => {
       const rt = this.runtime;
