@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { battleConfig } from "../config/battleConfig";
 import { YandexSDK } from "../yandex/SDK";
+import { computeArenaDimensions } from "../config/responsive";
 import {
   DEFAULT_SETTINGS,
   type GameSettings,
@@ -535,11 +536,12 @@ export class BattleScene extends Phaser.Scene {
     const height = this.scale.height || 720;
     const storage = typeof window !== "undefined" ? window.localStorage : null;
     const i18n = I18nService.load(storage);
+    const arenaDims = computeArenaDimensions({ width, height });
     const arena = new Phaser.Geom.Rectangle(
-      (width - battleConfig.arena.width) / 2,
-      (height - battleConfig.arena.height) / 2,
-      battleConfig.arena.width,
-      battleConfig.arena.height,
+      arenaDims.offsetX,
+      arenaDims.offsetY,
+      arenaDims.width,
+      arenaDims.height,
     );
 
     this.cameras.main.setBackgroundColor("#101820");
@@ -567,14 +569,14 @@ export class BattleScene extends Phaser.Scene {
     // rectangle with the manifest's fallbackColor when the texture is missing.
     if (this.textures.exists(platformKey)) {
       this.add.image(arena.centerX, arena.centerY, platformKey)
-        .setDisplaySize(battleConfig.arena.width, battleConfig.arena.height)
+        .setDisplaySize(arena.width, arena.height)
         .setDepth(-50);
     } else {
       this.add.rectangle(
         arena.centerX,
         arena.centerY,
-        battleConfig.arena.width,
-        battleConfig.arena.height,
+        arena.width,
+        arena.height,
         0x2a2d44,
       ).setDepth(-50);
     }

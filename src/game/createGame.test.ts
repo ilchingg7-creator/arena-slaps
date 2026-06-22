@@ -44,7 +44,7 @@ describe("gameConfig", () => {
     // `mode: 3` is FIT in Phaser 3.90 (NONE=0, FIT=3, RESIZE=5). We assert
     // against the named constant rather than a literal so the test documents
     // the actual semantic and survives Phaser renumbering the enum.
-    expect(gameConfig.scale.mode).toBe(Phaser.Scale.FIT);
+    expect(gameConfig.scale.mode).toBe(Phaser.Scale.RESIZE);
     expect(gameConfig.scale.autoCenter).toBe(Phaser.Scale.CENTER_BOTH);
   });
 });

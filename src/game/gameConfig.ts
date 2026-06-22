@@ -22,7 +22,7 @@ export const gameConfig = {
   height: 720,
   backgroundColor: "#101820",
   scale: {
-    mode: Phaser.Scale.FIT,
+    mode: Phaser.Scale.RESIZE,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
   physics: {
