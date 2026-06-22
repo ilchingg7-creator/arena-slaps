@@ -38,7 +38,14 @@ export const botByDifficulty = {
 export const battleConfig = {
   arena: {
     height: 520,
-    ringOutMargin: 56,
+    // The platform PNG has ~24px of transparent padding inside the
+    // 920x520 canvas. The visible platform edge is ~24px inside the
+    // arena rectangle. With halfSize=18 (actor is 36px), the actor's
+    // edge needs to clear the visible platform edge. So margin = 0
+    // means "ring-out when the actor's bounding box clears the arena
+    // rectangle" — which already accounts for the 24px padding since
+    // the arena rect matches the full PNG canvas.
+    ringOutMargin: 0,
     width: 920,
   },
   botByDifficulty,
