@@ -96,12 +96,31 @@ class YandexSDKImpl {
     return this.sdk !== null;
   }
 
-  /** Show a fullscreen interstitial ad. No-op if SDK unavailable. */
+  /** Timestamp of the last shown interstitial ad (for frequency capping). */
+  private lastInterstitialAt = 0;
+  /** Minimum gap between interstitial ads (Rule 4.4: ads at logical pauses). */
+  private static readonly INTERSTITIAL_COOLDOWN_MS = 120_000; // 2 minutes
+
+  /**
+   * Show a fullscreen interstitial ad. Frequency-capped to 1 per 2 min.
+   * No-op if SDK unavailable (calls onClose immediately in dev mode).
+   */
   showFullscreenAd(onClose?: () => void): void {
     if (!this.sdk?.adv?.showFullscreenAdv) {
+      // Dev mode — no ad, transition immediately
       onClose?.();
       return;
     }
+
+    // Frequency cap: skip if last ad was < 2 min ago
+    const now = Date.now();
+    if (now - this.lastInterstitialAt < YandexSDKImpl.INTERSTITIAL_COOLDOWN_MS) {
+      console.log("[YandexSDK] Interstitial skipped (cooldown)");
+      onClose?.();
+      return;
+    }
+
+    this.lastInterstitialAt = now;
     this.sdk.adv.showFullscreenAdv({
       callbacks: {
         onClose: () => onClose?.(),

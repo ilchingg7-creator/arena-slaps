@@ -114,6 +114,7 @@ export const TRANSLATIONS = {
   // --- Results ---
   "results.title": { ru: "Результаты матча", en: "Match Results" },
   "results.back": { ru: "В главное меню", en: "Back to menu" },
+  "results.doubleXp": { ru: "×2 Опыт (Реклама)", en: "×2 XP (Watch Ad)" },
   "results.noResult": { ru: "Результатов пока нет.", en: "No result stored yet." },
   "results.score": { ru: "Счёт", en: "Score" },
   "results.rounds": { ru: "Раундов", en: "Rounds" },

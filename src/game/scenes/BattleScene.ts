@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { battleConfig } from "../config/battleConfig";
+import { YandexSDK } from "../yandex/SDK";
 import {
   DEFAULT_SETTINGS,
   type GameSettings,
@@ -1067,7 +1068,12 @@ export class BattleScene extends Phaser.Scene {
         // Stop battle music before leaving the battle scene.
         runtime.audio.stopMusic();
 
-        this.scene.start("ResultsScene");
+        // Show interstitial ad before ResultsScene (Rule 4.4: ads at
+        // logical pauses). Frequency-capped: no more than 1 ad per 2 min.
+        // In local dev (no SDK), transitions immediately.
+        YandexSDK.showFullscreenAd(() => {
+          this.scene.start("ResultsScene");
+        });
       }
 
       return;
