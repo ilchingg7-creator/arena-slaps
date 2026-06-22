@@ -68,6 +68,7 @@ type PhaserLike = {
 export class PhaserAudioBackend implements IAudioBackend {
   private scene: PhaserLike;
   private loaded = new Set<SoundKey>();
+  private playingSounds = new Map<string, PhaserSound>();
 
   constructor(scene: PhaserLike) {
     this.scene = scene;
@@ -97,7 +98,14 @@ export class PhaserAudioBackend implements IAudioBackend {
     }
 
     try {
-      this.scene.sound?.play(key, config);
+      const result = this.scene.sound?.play(key, config);
+      // Phaser's SoundManager.play() returns the BaseSound instance.
+      // Store it so setVolume() can use the direct reference instead of
+      // relying on sound.get(key), which can be unreliable after
+      // stopAll()/stop() cycles.
+      if (result) {
+        this.playingSounds.set(key, result as unknown as PhaserSound);
+      }
       return true;
     } catch {
       return false;
@@ -106,24 +114,32 @@ export class PhaserAudioBackend implements IAudioBackend {
 
   stop(key: SoundKey): void {
     try {
-      const sound = this.scene.sound?.get?.(key);
+      const sound = this.playingSounds.get(key) ?? this.scene.sound?.get?.(key);
       sound?.stop?.();
     } catch {
-      // Best-effort: if Phaser can't find/stop the sound, no-op.
+      // Best-effort
     }
+    this.playingSounds.delete(key);
   }
 
   setVolume(key: SoundKey, volume: number): void {
+    const v = clamp01(volume);
     try {
-      const sound = this.scene.sound?.get?.(key);
-      sound?.setVolume?.(clamp01(volume));
+      // Use the stored direct reference first (most reliable).
+      const sound = this.playingSounds.get(key) ?? this.scene.sound?.get?.(key);
+      if (sound) {
+        if (typeof sound.setVolume === "function") {
+          sound.setVolume(v);
+        }
+      }
     } catch {
-      // Best-effort: if Phaser can't find the sound, no-op.
+      // Best-effort
     }
   }
 
   stopAll(): void {
     this.scene.sound?.stopAll?.();
+    this.playingSounds.clear();
   }
 }
 
