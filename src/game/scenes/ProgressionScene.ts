@@ -172,8 +172,8 @@ export class ProgressionScene extends Phaser.Scene {
     const unlockedKeys = new Set(
       getAllUnlocksUpTo(currentLevel).map((u: Unlock) => u.key),
     );
-    const listTopY = height * 0.48;
-    const rowStep = 28;
+    const listTopY = height * 0.44;
+    const rowStep = 24;
     const labelX = width * 0.18;
 
     // Small section header.

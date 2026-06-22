@@ -11,6 +11,7 @@ export type PowerUpEffect =
 export type PowerUpDefinition = {
   key: PowerUpEffect;
   label: string;
+  labelKey: string; // translation key, e.g. "powerup.speed"
   description: string;
   color: number;
   /** Duration in ms (looked up from POWERUP_TIMINGS by effect). */
@@ -25,6 +26,7 @@ export const POWERUP_DEFINITIONS: readonly PowerUpDefinition[] = [
   {
     key: "speed",
     label: "Boost",
+    labelKey: "powerup.speed",
     description: "Move 35% faster for 8 seconds.",
     color: 0x81b29a,
     durationKey: "speedBoostMs",
@@ -33,6 +35,7 @@ export const POWERUP_DEFINITIONS: readonly PowerUpDefinition[] = [
   {
     key: "knockback",
     label: "Heavy Hand",
+    labelKey: "powerup.knockback",
     description: "Heavier slap knockback for 8 seconds.",
     color: 0xf2cc8f,
     durationKey: "knockbackBoostMs",
@@ -41,6 +44,7 @@ export const POWERUP_DEFINITIONS: readonly PowerUpDefinition[] = [
   {
     key: "shield",
     label: "Shield",
+    labelKey: "powerup.shield",
     description: "Block the next slap within 5 seconds.",
     color: 0x3d405b,
     durationKey: "shieldMs",
@@ -48,6 +52,7 @@ export const POWERUP_DEFINITIONS: readonly PowerUpDefinition[] = [
   {
     key: "mega-knockback",
     label: "Mega Hand",
+    labelKey: "powerup.mega-knockback",
     description: "Massive slap knockback for 4 seconds.",
     color: 0xe07a5f,
     durationKey: "megaKnockbackBoostMs",
@@ -56,6 +61,7 @@ export const POWERUP_DEFINITIONS: readonly PowerUpDefinition[] = [
   {
     key: "freeze",
     label: "Freeze",
+    labelKey: "powerup.freeze",
     description: "Freeze the opponent for 1.5 seconds.",
     color: 0x00f5ff,
     durationKey: "freezeMs",
@@ -63,6 +69,7 @@ export const POWERUP_DEFINITIONS: readonly PowerUpDefinition[] = [
   {
     key: "double-slap",
     label: "Double Slap",
+    labelKey: "powerup.double-slap",
     description: "Next slap hits twice within 5 seconds.",
     color: 0x9b5de5,
     durationKey: "doubleSlapMs",

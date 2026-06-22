@@ -268,6 +268,24 @@ export const SPRITE_DEFINITIONS: readonly SpriteDefinition[] = [
     fallbackColor: 0xe07a5f,
   },
 
+  // --- SFX/Music mute toggle sprites ---
+  {
+    key: "sfx-on", path: png("sfx-on"), category: "ui",
+    fallback: "rectangle", fallbackColor: 0x81b29a,
+  },
+  {
+    key: "sfx-muted", path: png("sfx-muted"), category: "ui",
+    fallback: "rectangle", fallbackColor: 0xe07a5f,
+  },
+  {
+    key: "music-on", path: png("music-on"), category: "ui",
+    fallback: "rectangle", fallbackColor: 0x81b29a,
+  },
+  {
+    key: "music-muted", path: png("music-muted"), category: "ui",
+    fallback: "rectangle", fallbackColor: 0xe07a5f,
+  },
+
   // --- New map backgrounds + platforms (5 maps × 2 = 10) ---
   {
     key: "arena-bg-neon", path: png("arena-bg-neon"), category: "background",

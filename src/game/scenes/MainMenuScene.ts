@@ -80,7 +80,7 @@ export class MainMenuScene extends Phaser.Scene {
 
     // --- Logo (image instead of text — can be used as a brand logo) ---
     if (this.textures.exists("logo")) {
-      this.add.image(width / 2, height * 0.25, "logo").setOrigin(0.5).setScale(0.5);
+      this.add.image(width / 2, height * 0.22, "logo").setOrigin(0.5).setScale(0.35);
     } else {
       // Fallback: text with glow shadow for readability
       this.add
@@ -97,7 +97,7 @@ export class MainMenuScene extends Phaser.Scene {
     }
 
     this.add
-      .text(width / 2, height * 0.35, i18n.t("mainmenu.tagline"), {
+      .text(width / 2, height * 0.33, i18n.t("mainmenu.tagline"), {
         color: "#81b29a",
         fontFamily: "Arial",
         fontSize: "20px",
@@ -168,7 +168,17 @@ export class MainMenuScene extends Phaser.Scene {
         const maxProfile = { ...profile, xp: maxDef.xpRequired, level: maxDef.level };
         if (storage) saveProfile(storage, maxProfile);
         console.log(`[Debug] Profile set to max level ${maxDef.level} (XP: ${maxDef.xpRequired})`);
-        // Restart scene to refresh any level-dependent UI
+        this.scene.restart();
+      }
+    });
+
+    // --- Debug: Shift+U → reset level to 1 (for testing progression) ---
+    this.input.keyboard?.on("keydown-U", () => {
+      if (shiftKey?.isDown) {
+        const profile = loadProfile(storage);
+        const resetProfile = { ...profile, xp: 0, level: 1 };
+        if (storage) saveProfile(storage, resetProfile);
+        console.log(`[Debug] Profile reset to level 1 (XP: 0)`);
         this.scene.restart();
       }
     });

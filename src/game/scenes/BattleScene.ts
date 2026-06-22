@@ -837,6 +837,7 @@ export class BattleScene extends Phaser.Scene {
       this.runtime.powerUp,
       this.runtime.arena,
       battleConfig.powerUp.size,
+      (key: string) => this.runtime?.i18n?.t(key as never) ?? key,
     );
     updateHud(this.runtime);
 
@@ -1262,7 +1263,7 @@ export class BattleScene extends Phaser.Scene {
     }
 
     if (!runtime.powerUp.active) {
-      spawnPowerUp(this, runtime.powerUp, runtime.arena, battleConfig.powerUp.size);
+      spawnPowerUp(this, runtime.powerUp, runtime.arena, battleConfig.powerUp.size, (key: string) => runtime.i18n?.t(key as never) ?? key);
     }
 
     // M2: capture the active power-up's effect key BEFORE calling

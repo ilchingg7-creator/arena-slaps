@@ -51,8 +51,8 @@ export class AudioSettingsScene extends Phaser.Scene {
     // --- i18n (RU/EN) ---
     const i18n = I18nService.load(storage);
 
-    let sfxMuteButton: StyledButton;
-    let musicMuteButton: StyledButton;
+    let updateSfxMuteVisual: () => void = () => {};
+    let updateMusicMuteVisual: () => void = () => {};
 
     const mutedLabel = settings.sfxMuted ? i18n.t("audio.muted") : i18n.t("audio.on");
     const mutedLabelMusic = settings.musicMuted ? i18n.t("audio.muted") : i18n.t("audio.on");
@@ -83,8 +83,8 @@ export class AudioSettingsScene extends Phaser.Scene {
         audio.hardStopMusic();
         audio.playMenuTheme();
       }
-      sfxMuteButton.setText(settings.sfxMuted ? i18n.t("audio.muted") : i18n.t("audio.on"));
-      musicMuteButton.setText(settings.musicMuted ? i18n.t("audio.muted") : i18n.t("audio.on"));
+      updateSfxMuteVisual();
+      updateMusicMuteVisual();
     }, {
       soundLabel: i18n.t("mute.sound"),
       mutedLabel: i18n.t("mute.muted"),
@@ -130,7 +130,7 @@ export class AudioSettingsScene extends Phaser.Scene {
       settings = { ...settings, sfxVolume: nextVolume };
       if (nextVolume > 0 && settings.sfxMuted) {
         settings = { ...settings, sfxMuted: false };
-        sfxMuteButton.setText(i18n.t("audio.on"));
+        updateSfxMuteVisual();
       }
       audio.updateSettings({
         sfxMuted: settings.sfxMuted,
@@ -150,30 +150,29 @@ export class AudioSettingsScene extends Phaser.Scene {
     this.add
       .text(labelX, rowStartY + 30, i18n.t("audio.sfxMute"), rowStyle())
       .setOrigin(0, 0.5);
-    sfxMuteButton = createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
-      x: sliderX + 130,
-      y: rowStartY + 30,
-      text: mutedLabel,
-      ...muteButtonConfig,
-      onClick: () => {
-        const next = !settings.sfxMuted;
-        settings = { ...settings, sfxMuted: next };
-        sfxMuteButton.setText(next ? i18n.t("audio.muted") : i18n.t("audio.on"));
-        audio.updateSettings({
-          sfxMuted: settings.sfxMuted,
-          musicMuted: settings.musicMuted,
-          sfxVolume: settings.sfxVolume,
-          musicVolume: settings.musicVolume,
-        });
-        // Play a click sound after unmuting so the user hears immediate
-        // feedback that SFX is working. The updateSettings call above
-        // already cleared sfxMuted, so playMenuClick will be audible.
-        if (!next) {
-          audio.playMenuClick();
-        }
-        if (storage) saveSettings(storage, settings);
-      },
-    });
+    // SFX mute toggle as sprite-based button (like global mute)
+    const sfxOnImg = this.add.image(sliderX + 130, rowStartY + 30, "sfx-on").setOrigin(0.5).setInteractive({ useHandCursor: true });
+    const sfxMutedImg = this.add.image(sliderX + 130, rowStartY + 30, "sfx-muted").setOrigin(0.5).setInteractive({ useHandCursor: true });
+    updateSfxMuteVisual = () => {
+      sfxOnImg.setVisible(!settings.sfxMuted);
+      sfxMutedImg.setVisible(settings.sfxMuted);
+    };
+    updateSfxMuteVisual();
+    const sfxMuteToggle = () => {
+      const next = !settings.sfxMuted;
+      settings = { ...settings, sfxMuted: next };
+      updateSfxMuteVisual();
+      audio.updateSettings({
+        sfxMuted: settings.sfxMuted,
+        musicMuted: settings.musicMuted,
+        sfxVolume: settings.sfxVolume,
+        musicVolume: settings.musicVolume,
+      });
+      if (!next) audio.playMenuClick();
+      if (storage) saveSettings(storage, settings);
+    };
+    sfxOnImg.on("pointerup", sfxMuteToggle);
+    sfxMutedImg.on("pointerup", sfxMuteToggle);
 
     // --- Music row ---
     this.add
@@ -184,7 +183,7 @@ export class AudioSettingsScene extends Phaser.Scene {
       settings = { ...settings, musicVolume: nextVolume };
       if (nextVolume > 0 && settings.musicMuted) {
         settings = { ...settings, musicMuted: false };
-        musicMuteButton.setText(i18n.t("audio.on"));
+        updateMusicMuteVisual();
       }
       audio.updateSettings({
         sfxMuted: settings.sfxMuted,
@@ -204,32 +203,34 @@ export class AudioSettingsScene extends Phaser.Scene {
     this.add
       .text(labelX, rowStartY + rowStep + 30, i18n.t("audio.musicMute"), rowStyle())
       .setOrigin(0, 0.5);
-    musicMuteButton = createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
-      x: sliderX + 130,
-      y: rowStartY + rowStep + 30,
-      text: mutedLabelMusic,
-      ...muteButtonConfig,
-      onClick: () => {
-        const next = !settings.musicMuted;
-        settings = { ...settings, musicMuted: next };
-        musicMuteButton.setText(next ? i18n.t("audio.muted") : i18n.t("audio.on"));
-        audio.updateSettings({
-          sfxMuted: settings.sfxMuted,
-          musicMuted: settings.musicMuted,
-          sfxVolume: settings.sfxVolume,
-          musicVolume: settings.musicVolume,
-        });
-        if (next) {
-          // Mute: stop all sounds to guarantee music is silenced.
-          audio.stopAll();
-        } else {
-          // Unmute: hard-stop + restart music fresh.
-          audio.hardStopMusic();
-          audio.playMenuTheme();
-        }
-        if (storage) saveSettings(storage, settings);
-      },
-    });
+    // Music mute toggle as sprite-based button
+    const musicOnImg = this.add.image(sliderX + 130, rowStartY + rowStep + 30, "music-on").setOrigin(0.5).setInteractive({ useHandCursor: true });
+    const musicMutedImg = this.add.image(sliderX + 130, rowStartY + rowStep + 30, "music-muted").setOrigin(0.5).setInteractive({ useHandCursor: true });
+    updateMusicMuteVisual = () => {
+      musicOnImg.setVisible(!settings.musicMuted);
+      musicMutedImg.setVisible(settings.musicMuted);
+    };
+    updateMusicMuteVisual();
+    const musicMuteToggle = () => {
+      const next = !settings.musicMuted;
+      settings = { ...settings, musicMuted: next };
+      updateMusicMuteVisual();
+      audio.updateSettings({
+        sfxMuted: settings.sfxMuted,
+        musicMuted: settings.musicMuted,
+        sfxVolume: settings.sfxVolume,
+        musicVolume: settings.musicVolume,
+      });
+      if (next) {
+        audio.stopAll();
+      } else {
+        audio.hardStopMusic();
+        audio.playMenuTheme();
+      }
+      if (storage) saveSettings(storage, settings);
+    };
+    musicOnImg.on("pointerup", musicMuteToggle);
+    musicMutedImg.on("pointerup", musicMuteToggle);
 
     // --- Back button ---
     const goBack = () => {

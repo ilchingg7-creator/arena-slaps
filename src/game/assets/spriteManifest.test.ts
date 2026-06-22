@@ -105,7 +105,7 @@ describe("spriteManifest", () => {
     //   - 3 new power-ups: powerup-mega-knockback, powerup-freeze, powerup-double-slap
     //   - 3 backgrounds: menu-bg, arena-bg, arena-platform
     // Total = 5 + 12 + 3 + 3 = 23.
-    expect(SPRITE_DEFINITIONS).toHaveLength(36);
+    expect(SPRITE_DEFINITIONS).toHaveLength(40);
   });
 
   it("ships the 12 new character state keys (player + bot × run-n/s/e/w + slap + fall)", () => {

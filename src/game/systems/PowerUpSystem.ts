@@ -143,6 +143,7 @@ export function spawnPowerUp(
   state: PowerUpState,
   arena: ArenaLike,
   size: number,
+  translator?: (key: string) => string,
 ): void {
   if (state.active) {
     return;
@@ -155,9 +156,10 @@ export function spawnPowerUp(
   const x = arena.left + slot.x * arenaWidth;
   const y = arena.top + slot.y * arenaHeight;
   const definition = getNextPowerUpDefinition(state.spawnIndex);
+  const labelText = translator ? translator(definition.labelKey) : definition.label;
 
   const label = scene.add
-    .text(x, y + POWERUP_TIMINGS.labelOffsetY, definition.label, {
+    .text(x, y + POWERUP_TIMINGS.labelOffsetY, labelText, {
       color: "#f4f1de",
       fontFamily: "Arial",
       fontSize: "14px",
