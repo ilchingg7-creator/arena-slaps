@@ -66,7 +66,6 @@ export class AudioSettingsScene extends Phaser.Scene {
       sfxMuted: settings.sfxMuted,
       musicMuted: settings.musicMuted,
     }, (next) => {
-      const wasMusicMuted = settings.musicMuted;
       settings = {
         ...settings,
         sfxMuted: next.sfxMuted,
@@ -79,9 +78,12 @@ export class AudioSettingsScene extends Phaser.Scene {
         musicVolume: settings.musicVolume,
       });
       if (storage) saveSettings(storage, settings);
-      // When unmuting music, hard-stop any lingering instances first,
-      // then start the theme fresh — guarantees no duplicate tracks.
-      if (!next.musicMuted && wasMusicMuted) {
+
+      if (next.sfxMuted && next.musicMuted) {
+        // Mute: stop ALL sounds immediately (guaranteed clean slate).
+        audio.stopAll();
+      } else if (!next.musicMuted) {
+        // Unmute: hard-stop any lingering instances, then restart music.
         audio.hardStopMusic();
         audio.playMenuTheme();
       }
@@ -209,7 +211,6 @@ export class AudioSettingsScene extends Phaser.Scene {
       text: mutedLabelMusic,
       ...muteButtonConfig,
       onClick: () => {
-        const wasMusicMuted = settings.musicMuted;
         const next = !settings.musicMuted;
         settings = { ...settings, musicMuted: next };
         musicMuteButton.setText(next ? i18n.t("audio.muted") : i18n.t("audio.on"));
@@ -219,10 +220,11 @@ export class AudioSettingsScene extends Phaser.Scene {
           sfxVolume: settings.sfxVolume,
           musicVolume: settings.musicVolume,
         });
-        // When unmuting, hard-stop any lingering audio instances first,
-        // then start the theme fresh. This guarantees no duplicate tracks
-        // even if Phaser's per-key stop() missed an instance.
-        if (!next && wasMusicMuted) {
+        if (next) {
+          // Mute: stop all sounds to guarantee music is silenced.
+          audio.stopAll();
+        } else {
+          // Unmute: hard-stop + restart music fresh.
           audio.hardStopMusic();
           audio.playMenuTheme();
         }

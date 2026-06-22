@@ -248,6 +248,7 @@ export class AudioService {
   /** Stop everything immediately (e.g. on scene shutdown). */
   stopAll(): void {
     this.backend.stopAll();
+    this.currentMusicKey = null;
   }
 }
 
