@@ -24,8 +24,8 @@ export const TRANSLATIONS = {
   // --- BattleSetup ---
   "battlesetup.title": { ru: "Настройка боя", en: "Battle Setup" },
   "battlesetup.mode": { ru: "Режим", en: "Mode" },
-  "battlesetup.mode.1p": { ru: "1П против бота", en: "1P vs Bot" },
-  "battlesetup.mode.2p": { ru: "2П локально", en: "2P Local" },
+  "battlesetup.mode.1p": { ru: "1И против бота", en: "1P vs Bot" },
+  "battlesetup.mode.2p": { ru: "2И локально", en: "2P Local" },
   "battlesetup.botDifficulty": { ru: "Сложность бота", en: "Bot Difficulty" },
   "battlesetup.difficulty.easy": { ru: "Лёгкий", en: "Easy" },
   "battlesetup.difficulty.medium": { ru: "Средний", en: "Medium" },
@@ -68,12 +68,12 @@ export const TRANSLATIONS = {
   // --- Battle HUD ---
   "battle.time": { ru: "Время", en: "Time" },
   "battle.controls.1p": { ru: "Движение: WASD / Стрелки   Шлёпок: Пробел, клик по арене, или тап SLAP", en: "Move: WASD / Arrows   Slap: Space, click arena, or tap SLAP" },
-  "battle.controls.2p": { ru: "P1: WASD + Пробел   |   P2: Стрелки + Enter   |   Шлёпок или тап SLAP", en: "P1: WASD + Space   |   P2: Arrows + Enter   |   Slap or tap SLAP" },
+  "battle.controls.2p": { ru: "И1: WASD + Пробел   |   И2: Стрелки + Enter   |   Шлёпок или тап SLAP", en: "P1: WASD + Space   |   P2: Arrows + Enter   |   Slap or tap SLAP" },
   "battle.draw": { ru: "Ничья", en: "Draw" },
   "battle.playerWins": { ru: "Победил игрок", en: "Player wins" },
   "battle.botWins": { ru: "Бот победил", en: "Bot wins" },
-  "battle.p1Wins": { ru: "P1 победил", en: "P1 wins" },
-  "battle.p2Wins": { ru: "P2 победил", en: "P2 wins" },
+  "battle.p1Wins": { ru: "И1 победил", en: "P1 wins" },
+  "battle.p2Wins": { ru: "И2 победил", en: "P2 wins" },
 
   // --- Results ---
   "results.title": { ru: "Результаты матча", en: "Match Results" },
