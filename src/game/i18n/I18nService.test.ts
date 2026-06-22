@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import { I18nService } from "./I18nService";
 import { DEFAULT_LANGUAGE, type Language } from "../config/translations";
 
@@ -35,20 +35,30 @@ describe("I18nService - construction", () => {
 });
 
 describe("I18nService.load", () => {
-  it("returns default when storage is null", () => {
+  // Mock navigator.language to "ru" so detectLanguage() returns the
+  // default language in tests that don't specifically test auto-detection.
+  const originalNavigator = (globalThis as { navigator?: Navigator }).navigator;
+  beforeEach(() => {
+    vi.stubGlobal("navigator", { language: "ru-RU" });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("returns auto-detected language when storage is null", () => {
     const svc = I18nService.load(null);
-    expect(svc.getLanguage()).toBe(DEFAULT_LANGUAGE);
+    expect(svc.getLanguage()).toBe("ru"); // navigator.language mocked to "ru-RU"
   });
 
-  it("returns default when storage is undefined", () => {
+  it("returns auto-detected language when storage is undefined", () => {
     const svc = I18nService.load(undefined);
-    expect(svc.getLanguage()).toBe(DEFAULT_LANGUAGE);
+    expect(svc.getLanguage()).toBe("ru");
   });
 
-  it("returns default when storage has no entry", () => {
+  it("returns auto-detected language when storage has no entry", () => {
     const { storage } = makeStorage({});
     const svc = I18nService.load(storage);
-    expect(svc.getLanguage()).toBe(DEFAULT_LANGUAGE);
+    expect(svc.getLanguage()).toBe("ru");
   });
 
   it("returns 'ru' when 'ru' is stored", () => {
@@ -63,16 +73,37 @@ describe("I18nService.load", () => {
     expect(svc.getLanguage()).toBe("en");
   });
 
-  it("ignores invalid stored values and falls back to default", () => {
+  it("ignores invalid stored values and auto-detects", () => {
     const { storage } = makeStorage({ "arena-slaps:language": "fr" });
     const svc = I18nService.load(storage);
-    expect(svc.getLanguage()).toBe(DEFAULT_LANGUAGE);
+    expect(svc.getLanguage()).toBe("ru"); // auto-detected from navigator
   });
 
-  it("ignores non-string junk stored under the key", () => {
+  it("ignores non-string junk stored under the key and auto-detects", () => {
     const { storage } = makeStorage({ "arena-slaps:language": "[object Object]" });
     const svc = I18nService.load(storage);
-    expect(svc.getLanguage()).toBe(DEFAULT_LANGUAGE);
+    expect(svc.getLanguage()).toBe("ru"); // auto-detected
+  });
+
+  it("auto-detects 'en' when browser language is English", () => {
+    vi.stubGlobal("navigator", { language: "en-US" });
+    const { storage } = makeStorage({});
+    const svc = I18nService.load(storage);
+    expect(svc.getLanguage()).toBe("en");
+  });
+
+  it("auto-detects 'ru' when browser language is Russian", () => {
+    vi.stubGlobal("navigator", { language: "ru" });
+    const { storage } = makeStorage({});
+    const svc = I18nService.load(storage);
+    expect(svc.getLanguage()).toBe("ru");
+  });
+
+  it("saved preference overrides auto-detection", () => {
+    vi.stubGlobal("navigator", { language: "en-US" });
+    const { storage } = makeStorage({ "arena-slaps:language": "ru" });
+    const svc = I18nService.load(storage);
+    expect(svc.getLanguage()).toBe("ru"); // saved preference wins
   });
 });
 

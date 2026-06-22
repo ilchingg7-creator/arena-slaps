@@ -13,6 +13,8 @@ import { I18nService } from "../i18n/I18nService";
 import { createLanguageToggle } from "../ui/LanguageToggle";
 import { loadProfile, saveProfile } from "../config/profile";
 import { LEVELS } from "../config/progression";
+import { FEEDBACK_EMAIL } from "../config/gameInfo";
+import { YandexSDK } from "../yandex/SDK";
 
 /**
  * Main menu scene — title screen with "Начать", "Профиль", and
@@ -157,30 +159,49 @@ export class MainMenuScene extends Phaser.Scene {
       onClick: goAudio,
     });
 
+    // --- Feedback email (Rule 6.1) ---
+    this.add
+      .text(width / 2, height * 0.93, FEEDBACK_EMAIL, {
+        color: "#81b29a",
+        fontFamily: "Arial",
+        fontSize: "14px",
+        stroke: "#000000",
+        strokeThickness: 2,
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true })
+      .on("pointerup", () => {
+        if (typeof window !== "undefined") {
+          window.open(`mailto:${FEEDBACK_EMAIL}`, "_blank");
+        }
+      });
+
     this.input.keyboard?.on("keydown-ENTER", goStart);
 
-    // --- Debug: Shift+Y → max level (for testing unlocks) ---
-    const shiftKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
-    this.input.keyboard?.on("keydown-Y", () => {
-      if (shiftKey?.isDown) {
-        const profile = loadProfile(storage);
-        const maxDef = LEVELS[LEVELS.length - 1];
-        const maxProfile = { ...profile, xp: maxDef.xpRequired, level: maxDef.level };
-        if (storage) saveProfile(storage, maxProfile);
-        console.log(`[Debug] Profile set to max level ${maxDef.level} (XP: ${maxDef.xpRequired})`);
-        this.scene.restart();
-      }
-    });
-
-    // --- Debug: Shift+U → reset level to 1 (for testing progression) ---
-    this.input.keyboard?.on("keydown-U", () => {
-      if (shiftKey?.isDown) {
-        const profile = loadProfile(storage);
-        const resetProfile = { ...profile, xp: 0, level: 1 };
-        if (storage) saveProfile(storage, resetProfile);
-        console.log(`[Debug] Profile reset to level 1 (XP: 0)`);
-        this.scene.restart();
-      }
-    });
+    // --- Debug combos (disabled in production via SDK availability check) ---
+    // Shift+Y → max level, Shift+U → reset level. Only active when the
+    // Yandex SDK is NOT available (i.e. local dev mode). This satisfies
+    // Rule 1.15 (no test/debug features in published builds) while
+    // keeping the combos for local development.
+    if (!YandexSDK.isAvailable()) {
+      const shiftKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
+      this.input.keyboard?.on("keydown-Y", () => {
+        if (shiftKey?.isDown) {
+          const profile = loadProfile(storage);
+          const maxDef = LEVELS[LEVELS.length - 1];
+          const maxProfile = { ...profile, xp: maxDef.xpRequired, level: maxDef.level };
+          if (storage) saveProfile(storage, maxProfile);
+          this.scene.restart();
+        }
+      });
+      this.input.keyboard?.on("keydown-U", () => {
+        if (shiftKey?.isDown) {
+          const profile = loadProfile(storage);
+          const resetProfile = { ...profile, xp: 0, level: 1 };
+          if (storage) saveProfile(storage, resetProfile);
+          this.scene.restart();
+        }
+      });
+    }
   }
 }

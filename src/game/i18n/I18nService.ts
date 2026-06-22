@@ -42,16 +42,52 @@ export class I18nService {
   }
 
   /**
-   * Load the saved language from localStorage, or return a new instance
-   * with the default language when storage is unavailable or empty.
+   * Load the saved language from localStorage, or auto-detect from
+   * the browser/SDK when no preference is saved.
+   *
+   * Detection priority:
+   *   1. Saved preference in localStorage (explicit user choice)
+   *   2. Yandex SDK environment language (ysdk.environment.i18n.lang)
+   *   3. Browser language (navigator.language)
+   *   4. DEFAULT_LANGUAGE ("ru")
    */
   static load(storage: StorageLike | null | undefined): I18nService {
-    if (!storage) return new I18nService();
+    if (!storage) return new I18nService(I18nService.detectLanguage());
     const raw = storage.getItem?.(STORAGE_KEY);
     if (raw === "ru" || raw === "en") {
       return new I18nService(raw);
     }
-    return new I18nService();
+    // No saved preference — auto-detect
+    return new I18nService(I18nService.detectLanguage());
+  }
+
+  /**
+   * Auto-detect the user's language from the Yandex SDK or browser.
+   * Falls back to DEFAULT_LANGUAGE if detection fails.
+   */
+  private static detectLanguage(): Language {
+    // Try Yandex SDK first (if available)
+    if (typeof window !== "undefined") {
+      const yaSdk = (window as unknown as { __yaSdkLang?: string }).__yaSdkLang;
+      if (yaSdk === "ru" || yaSdk === "en") {
+        return yaSdk;
+      }
+    }
+    // Try browser language
+    if (typeof navigator !== "undefined" && navigator.language) {
+      const browserLang = navigator.language.toLowerCase();
+      // Russian and other Cyrillic-language speakers → RU
+      if (browserLang.startsWith("ru") ||
+          browserLang.startsWith("be") ||
+          browserLang.startsWith("uk") ||
+          browserLang.startsWith("kk") ||
+          browserLang.startsWith("uz")) {
+        return "ru";
+      }
+      // Everything else → EN
+      return "en";
+    }
+    return DEFAULT_LANGUAGE;
   }
 
   /** Save the current language to localStorage. */
