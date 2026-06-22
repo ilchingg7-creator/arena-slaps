@@ -11,6 +11,13 @@ import {
   type GameMode,
   type GameSettings,
 } from "../config/gameSettings";
+import {
+  DEFAULT_MAP_KEY,
+  getAvailableMaps,
+  getMapByKey,
+  getRandomMap,
+} from "../config/mapManifest";
+import { ProgressionService } from "../services/ProgressionService";
 import { getAudioService } from "../audio/getAudioService";
 import type { AudioService } from "../audio/AudioService";
 import { createTopRightMuteButton } from "../ui/TopRightMuteButton";
@@ -209,6 +216,62 @@ export class BattleSetupScene extends Phaser.Scene {
         const next = cycleOption(WINNING_SCORE_OPTIONS, settings.winningScore);
         settings = { ...settings, winningScore: next };
         scoreButton.setText(String(next));
+        persist();
+      },
+    });
+
+    // --- Map row (Task 3b) ---
+    // Cycles through the player's currently unlocked maps. The "all-maps"
+    // special unlock (granted at level 10) opens every map regardless of
+    // each map's individual unlockKey. The 🎲 button picks a random map
+    // from the available set — handy when the player has many unlocks.
+    const profile = loadProfile(storage);
+    const unlockedKeys = ProgressionService.getUnlockedFeatures(profile)
+      .filter((u) => u.type === "map")
+      .map((u) => u.key);
+    if (ProgressionService.isFeatureUnlocked(profile, "all-maps")) {
+      unlockedKeys.push("all-maps");
+    }
+
+    this.add
+      .text(labelX, rowStartY + rowStep * 4, i18n.t("battlesetup.map"), rowStyle())
+      .setOrigin(0, 0.5);
+
+    const mapButton = createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
+      x: valueX,
+      y: rowStartY + rowStep * 4,
+      text: i18n.t(getMapByKey(settings.mapKey)?.nameKey ?? "map.default"),
+      ...valueButtonConfig,
+      onClick: () => {
+        clickPlay();
+        // Cycle to next AVAILABLE map (skip locked ones). When the current
+        // mapKey is missing from the available list (e.g. an older save
+        // references a map the player no longer has unlocked), findIndex
+        // returns -1 and the wrap-around lands on index 0 — the first
+        // available map — which gracefully repairs the stale selection.
+        const available = getAvailableMaps(unlockedKeys);
+        const currentIdx = available.findIndex((m) => m.key === settings.mapKey);
+        const nextIdx = (currentIdx + 1) % available.length;
+        settings = { ...settings, mapKey: available[nextIdx].key };
+        mapButton.setText(i18n.t(available[nextIdx].nameKey));
+        persist();
+      },
+    });
+
+    // Random map button (small, sits next to the map cycle button).
+    createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
+      x: valueX + 110,
+      y: rowStartY + rowStep * 4,
+      text: "🎲",
+      variant: "secondary",
+      width: 50,
+      height: 40,
+      fontSize: 18,
+      onClick: () => {
+        clickPlay();
+        const random = getRandomMap(unlockedKeys);
+        settings = { ...settings, mapKey: random.key };
+        mapButton.setText(i18n.t(random.nameKey));
         persist();
       },
     });

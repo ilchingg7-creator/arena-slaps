@@ -267,6 +267,48 @@ export const SPRITE_DEFINITIONS: readonly SpriteDefinition[] = [
     fallback: "rectangle",
     fallbackColor: 0xe07a5f,
   },
+
+  // --- New map backgrounds + platforms (5 maps × 2 = 10) ---
+  {
+    key: "arena-bg-neon", path: png("arena-bg-neon"), category: "background",
+    width: 1280, height: 720, fallback: "rectangle", fallbackColor: 0x1a0b2e,
+  },
+  {
+    key: "arena-platform-neon", path: png("arena-platform-neon"), category: "background",
+    width: 920, height: 520, fallback: "rectangle", fallbackColor: 0x3c1450,
+  },
+  {
+    key: "arena-bg-cosmic", path: png("arena-bg-cosmic"), category: "background",
+    width: 1280, height: 720, fallback: "rectangle", fallbackColor: 0x0a0a32,
+  },
+  {
+    key: "arena-platform-cosmic", path: png("arena-platform-cosmic"), category: "background",
+    width: 920, height: 520, fallback: "rectangle", fallbackColor: 0x191e46,
+  },
+  {
+    key: "arena-bg-volcano", path: png("arena-bg-volcano"), category: "background",
+    width: 1280, height: 720, fallback: "rectangle", fallbackColor: 0x280a05,
+  },
+  {
+    key: "arena-platform-volcano", path: png("arena-platform-volcano"), category: "background",
+    width: 920, height: 520, fallback: "rectangle", fallbackColor: 0x501e0a,
+  },
+  {
+    key: "arena-bg-ice", path: png("arena-bg-ice"), category: "background",
+    width: 1280, height: 720, fallback: "rectangle", fallbackColor: 0x0a1e32,
+  },
+  {
+    key: "arena-platform-ice", path: png("arena-platform-ice"), category: "background",
+    width: 920, height: 520, fallback: "rectangle", fallbackColor: 0x285078,
+  },
+  {
+    key: "arena-bg-grass", path: png("arena-bg-grass"), category: "background",
+    width: 1280, height: 720, fallback: "rectangle", fallbackColor: 0x0a280f,
+  },
+  {
+    key: "arena-platform-grass", path: png("arena-platform-grass"), category: "background",
+    width: 920, height: 520, fallback: "rectangle", fallbackColor: 0x28501e,
+  },
 ];
 
 export const SPRITE_ATLASES: readonly AtlasDefinition[] = [

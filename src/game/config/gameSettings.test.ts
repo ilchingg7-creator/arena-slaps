@@ -20,6 +20,7 @@ describe("gameSettings", () => {
     expect(DEFAULT_SETTINGS.botDifficulty).toBe("medium");
     expect(DEFAULT_SETTINGS.roundLengthSeconds).toBe(60);
     expect(DEFAULT_SETTINGS.winningScore).toBe(5);
+    expect(DEFAULT_SETTINGS.mapKey).toBe("arena-default");
     expect(DEFAULT_SETTINGS.sfxMuted).toBe(false);
     expect(DEFAULT_SETTINGS.musicMuted).toBe(false);
     expect(DEFAULT_SETTINGS.sfxVolume).toBe(0.7);
@@ -71,6 +72,7 @@ describe("gameSettings", () => {
     expect(loaded.winningScore).toBe(7);
     expect(loaded.botDifficulty).toBe(DEFAULT_SETTINGS.botDifficulty);
     expect(loaded.roundLengthSeconds).toBe(DEFAULT_SETTINGS.roundLengthSeconds);
+    expect(loaded.mapKey).toBe(DEFAULT_SETTINGS.mapKey);
     expect(loaded.sfxMuted).toBe(DEFAULT_SETTINGS.sfxMuted);
     expect(loaded.musicMuted).toBe(DEFAULT_SETTINGS.musicMuted);
     expect(loaded.sfxVolume).toBe(DEFAULT_SETTINGS.sfxVolume);
@@ -90,6 +92,7 @@ describe("gameSettings", () => {
       botDifficulty: "hard",
       roundLengthSeconds: 90,
       winningScore: 10,
+      mapKey: "arena-neon",
       sfxMuted: true,
       musicMuted: false,
       sfxVolume: 0.25,

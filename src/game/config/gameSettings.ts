@@ -6,6 +6,11 @@ export type GameSettings = {
   botDifficulty: BotDifficulty;
   roundLengthSeconds: number;
   winningScore: number;
+  /**
+   * Selected map key (must exist in mapManifest.MAPS). Migrated forward to
+   * the default map when an older persisted payload is missing this field.
+   */
+  mapKey: string;
   sfxMuted: boolean;
   musicMuted: boolean;
   sfxVolume: number; // 0..1
@@ -17,6 +22,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   botDifficulty: "medium",
   roundLengthSeconds: 60,
   winningScore: 5,
+  mapKey: "arena-default",
   sfxMuted: false,
   musicMuted: false,
   sfxVolume: 0.7,
@@ -74,6 +80,9 @@ function migrateSettings(parsed: Record<string, unknown>): GameSettings {
   }
   if (typeof parsed.winningScore === "number") {
     base.winningScore = parsed.winningScore;
+  }
+  if (typeof parsed.mapKey === "string" && parsed.mapKey.length > 0) {
+    base.mapKey = parsed.mapKey;
   }
 
   if (hasNewFields) {

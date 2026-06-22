@@ -250,6 +250,7 @@ const settings1p: GameSettings = {
   botDifficulty: "medium",
   roundLengthSeconds: 60,
   winningScore: 5,
+  mapKey: "arena-default",
   sfxMuted: false,
   musicMuted: false,
   sfxVolume: 0.7,

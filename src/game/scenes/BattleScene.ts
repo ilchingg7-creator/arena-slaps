@@ -51,6 +51,7 @@ import { createBackground } from "../ui/Background";
 import { createPauseMenu, type PauseMenu } from "../ui/PauseMenu";
 import { loadProfile, saveProfile } from "../config/profile";
 import { ProfileService } from "../services/ProfileService";
+import { ProgressionService } from "../services/ProgressionService";
 import {
   computeBotDirection,
   createBotAI,
@@ -64,6 +65,7 @@ import {
 } from "../sprites/actorAnimations";
 import { resolveNicknames, type NicknamePair } from "./nicknameHelpers";
 import { I18nService } from "../i18n/I18nService";
+import { DEFAULT_MAP_KEY, getMapByKey } from "../config/mapManifest";
 
 type Opponent =
   | { kind: "bot"; bot: Bot; ai: BotAIState }
@@ -507,18 +509,29 @@ export class BattleScene extends Phaser.Scene {
 
     this.cameras.main.setBackgroundColor("#101820");
 
+    // --- Map selection (Task 3b) ---
+    // Resolve the player's chosen map (persisted in settings.mapKey by
+    // BattleSetupScene). Falls back to DEFAULT_MAP_KEY when the key is
+    // missing or unknown — never throws, so a corrupt save can't break
+    // the battle. The map's bgKey + platformKey replace the previously
+    // hardcoded "arena-bg" / "arena-platform" sprite keys below.
+    const mapKey = settings.mapKey ?? DEFAULT_MAP_KEY;
+    const map = getMapByKey(mapKey) ?? getMapByKey(DEFAULT_MAP_KEY)!;
+    const bgKey = map.bgKey ?? "arena-bg";
+    const platformKey = map.platformKey ?? "arena-platform";
+
     // --- Cosmic sky background (arena-bg.png) ---
     // Rendered at depth -100 so all gameplay objects sit on top.
     // Uses createBackground for consistency with the other scenes — the
     // component handles the missing-texture fallback automatically.
-    createBackground(this as unknown as Phaser.Scene, { key: "arena-bg" });
+    createBackground(this as unknown as Phaser.Scene, { key: bgKey });
 
     // --- Levitating arena platform (arena-platform.png) ---
     // Drawn behind the arena boundary stroke so the neon platform edge is
     // visible underneath the white boundary line. Falls back to a
     // rectangle with the manifest's fallbackColor when the texture is missing.
-    if (this.textures.exists("arena-platform")) {
-      this.add.image(arena.centerX, arena.centerY, "arena-platform")
+    if (this.textures.exists(platformKey)) {
+      this.add.image(arena.centerX, arena.centerY, platformKey)
         .setDisplaySize(battleConfig.arena.width, battleConfig.arena.height)
         .setDepth(-50);
     } else {
@@ -971,7 +984,9 @@ export class BattleScene extends Phaser.Scene {
 
         // Record game result to the player's profile (1P-vs-bot only —
         // in 2P-local mode both players are human, so "win/loss" doesn't
-        // apply to a single profile).
+        // apply to a single profile). Also apply XP gained from this round
+        // via ProgressionService so the player can level up and unlock new
+        // bots / maps / titles (Task 3c).
         if (storage && runtime.settings.mode === "1p-vs-bot") {
           try {
             const profile = loadProfile(storage);
@@ -992,7 +1007,32 @@ export class BattleScene extends Phaser.Scene {
               // ProfileService can derive the favorite power-up.
               powerUpTypes: runtime.powerUpTypesCollected,
             });
-            saveProfile(storage, service.getProfile());
+            const savedProfile = service.getProfile();
+
+            // 3c: calculate + apply XP from this round. XP gain is derived
+            // from the same outcome / ring-outs / power-ups that were just
+            // recorded. applyXp returns the new (xp, level) and, when the
+            // player crossed a level boundary, the list of new unlocks.
+            const xpGained = ProgressionService.calculateXp({
+              outcome,
+              ringOutsInflicted: runtime.round.score.player,
+              powerUpsCollected: runtime.powerUpsCollected.player,
+            });
+            const { profile: updatedProfile, levelUp } =
+              ProgressionService.applyXp(savedProfile, xpGained);
+
+            saveProfile(storage, updatedProfile);
+
+            // Log level-ups for debugging. Future work: surface a
+            // level-up notification in the Results scene.
+            if (levelUp.leveledUp) {
+              const unlockKeys = levelUp.newUnlocks
+                .map((u) => u.key)
+                .join(", ");
+              console.log(
+                `[Progression] Level up! ${levelUp.newLevel}. New unlocks: ${unlockKeys}`,
+              );
+            }
           } catch {
             // Profile recording is non-critical — don't crash the round-end flow.
           }

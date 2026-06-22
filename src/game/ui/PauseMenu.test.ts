@@ -284,6 +284,7 @@ function makeSettingsStub(opts: {
     botDifficulty: "medium" as const,
     roundLengthSeconds: 60,
     winningScore: 5,
+    mapKey: "arena-default",
     sfxMuted: opts.sfxMuted ?? false,
     musicMuted: opts.musicMuted ?? false,
     sfxVolume: opts.sfxVolume ?? 0.7,

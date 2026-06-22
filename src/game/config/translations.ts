@@ -20,6 +20,15 @@ export const TRANSLATIONS = {
   "mainmenu.start": { ru: "Начать", en: "Start" },
   "mainmenu.profile": { ru: "Профиль", en: "Profile" },
   "mainmenu.audioSettings": { ru: "Настройки звука", en: "Audio Settings" },
+  "mainmenu.progression": { ru: "Прогрессия", en: "Progression" },
+
+  // --- Progression ---
+  "progression.title": { ru: "Прогрессия", en: "Progression" },
+  "progression.level": { ru: "Уровень", en: "Level" },
+  "progression.xp": { ru: "Опыт", en: "XP" },
+  "progression.unlocks": { ru: "Открыто", en: "Unlocks" },
+  "progression.maxLevel": { ru: "Максимальный уровень!", en: "Max level!" },
+  "progression.back": { ru: "Назад", en: "Back" },
 
   // --- BattleSetup ---
   "battlesetup.title": { ru: "Настройка боя", en: "Battle Setup" },
@@ -32,6 +41,7 @@ export const TRANSLATIONS = {
   "battlesetup.difficulty.hard": { ru: "Сложный", en: "Hard" },
   "battlesetup.roundLength": { ru: "Длина раунда", en: "Round Length" },
   "battlesetup.winScore": { ru: "Очки для победы", en: "Win Score" },
+  "battlesetup.map": { ru: "Карта", en: "Map" },
   "battlesetup.startBattle": { ru: "Начать бой", en: "Start Battle" },
   "battlesetup.back": { ru: "Назад", en: "Back" },
   "battlesetup.loading": { ru: "Загрузка...", en: "Loading..." },

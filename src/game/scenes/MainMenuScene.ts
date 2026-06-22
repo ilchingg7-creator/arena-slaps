@@ -114,6 +114,10 @@ export class MainMenuScene extends Phaser.Scene {
       audio.playMenuClick();
       this.scene.start("ProfileScene");
     };
+    const goProgression = () => {
+      audio.playMenuClick();
+      this.scene.start("ProgressionScene");
+    };
     const goAudio = () => {
       audio.playMenuClick();
       this.scene.start("AudioSettingsScene");
@@ -121,7 +125,7 @@ export class MainMenuScene extends Phaser.Scene {
 
     createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
       x: width / 2,
-      y: height * 0.45,
+      y: height * 0.40,
       text: i18n.t("mainmenu.start"),
       variant: "primary",
       onClick: goStart,
@@ -129,7 +133,7 @@ export class MainMenuScene extends Phaser.Scene {
 
     createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
       x: width / 2,
-      y: height * 0.58,
+      y: height * 0.52,
       text: i18n.t("mainmenu.profile"),
       variant: "secondary",
       onClick: goProfile,
@@ -137,7 +141,15 @@ export class MainMenuScene extends Phaser.Scene {
 
     createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
       x: width / 2,
-      y: height * 0.71,
+      y: height * 0.64,
+      text: i18n.t("mainmenu.progression"),
+      variant: "secondary",
+      onClick: goProgression,
+    });
+
+    createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
+      x: width / 2,
+      y: height * 0.76,
       text: i18n.t("mainmenu.audioSettings"),
       variant: "secondary",
       onClick: goAudio,
