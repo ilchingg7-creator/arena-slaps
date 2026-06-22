@@ -49,6 +49,8 @@ export type StyledButton = {
   setVariant: (variant: ButtonVariant) => void;
   /** Show/hide the button. */
   setVisible: (visible: boolean) => void;
+  /** Set the depth of both the graphics + text. */
+  setDepth: (depth: number) => void;
   /** Enable/disable interaction. When disabled, dims the button. */
   setEnabled: (enabled: boolean) => void;
   /** Clean up listeners. */
@@ -327,6 +329,10 @@ export function createStyledButton(
     setVisible(v: boolean) {
       graphics.setVisible(v);
       label.setVisible(v);
+    },
+    setDepth(d: number) {
+      graphics.setDepth(d);
+      label.setDepth(d);
     },
     setEnabled(e: boolean) {
       enabled = e;

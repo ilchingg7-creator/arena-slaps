@@ -122,12 +122,14 @@ export function createVolumeSlider(
     .setOrigin(0.5, 0.5)
     .setDepth(1);
 
-  // Fill (left-anchored) — hidden by default. The green fill was visually
+  // Fill (left-anchored) — removed entirely. The green fill was visually
   // distracting during drag; the handle position + percentage label are
-  // sufficient indicators. Set fill.setVisible(true) to re-enable.
+  // sufficient indicators. We create a zero-width invisible rectangle
+  // so the applyValue() code still works (it sets fill.width / fill.x),
+  // but the rectangle is never rendered.
   const trackLeft = centerX - trackWidth / 2;
   const fill = scene.add
-    .rectangle(centerX, centerY, 0, TRACK_HEIGHT, FILL_COLOR)
+    .rectangle(centerX, centerY, 0, 0, FILL_COLOR)
     .setOrigin(0.5, 0.5)
     .setDepth(2)
     .setVisible(false);

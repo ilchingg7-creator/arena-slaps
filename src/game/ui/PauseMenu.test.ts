@@ -44,8 +44,12 @@ vi.mock("./StyledButton", () => ({
         },
         visible: false,
         destroyed: false,
+        depth: 0,
         setVisible(v: boolean) {
           stub.visible = v;
+        },
+        setDepth(d: number) {
+          stub.depth = d;
         },
         destroy() {
           stub.destroyed = true;

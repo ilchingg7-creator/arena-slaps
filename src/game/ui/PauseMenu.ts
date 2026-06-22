@@ -270,6 +270,7 @@ export function createPauseMenu(
     },
   );
   resumeButton.setVisible(false);
+  resumeButton.setDepth(CONTENT_DEPTH);
   mainButtons.push(resumeButton);
 
   const settingsButton = createStyledButton(
@@ -288,6 +289,7 @@ export function createPauseMenu(
     },
   );
   settingsButton.setVisible(false);
+  settingsButton.setDepth(CONTENT_DEPTH);
   mainButtons.push(settingsButton);
 
   const quitButton = createStyledButton(
@@ -304,6 +306,7 @@ export function createPauseMenu(
     },
   );
   quitButton.setVisible(false);
+  quitButton.setDepth(CONTENT_DEPTH);
   mainButtons.push(quitButton);
 
   // --- Inline settings panel -------------------------------------------
@@ -421,6 +424,7 @@ export function createPauseMenu(
     },
   });
   backButton.setVisible(false);
+  backButton.setDepth(CONTENT_DEPTH);
   settingsComposites.push(backButton);
 
   // --- State + methods -------------------------------------------------
