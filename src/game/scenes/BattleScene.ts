@@ -487,6 +487,15 @@ export class BattleScene extends Phaser.Scene {
   }
 
   create(): void {
+    // Reset per-battle state. Phaser reuses scene instances across
+    // stop()/start() cycles, so class fields are NOT re-initialized by
+    // the constructor. Without this reset, ringOutFxInProgress can
+    // stay true from a previous battle (if onComplete never fired
+    // because the scene transitioned to ResultsScene mid-FX), which
+    // would permanently freeze bot movement.
+    this.ringOutFxInProgress = { player: false, opponent: false };
+    this.pauseMenu = null;
+
     const settings: GameSettings =
       this.registry.get("settings") ?? DEFAULT_SETTINGS;
     // Nicknames were resolved in `init` and stashed in the registry. The
