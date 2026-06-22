@@ -66,6 +66,7 @@ export class AudioSettingsScene extends Phaser.Scene {
       sfxMuted: settings.sfxMuted,
       musicMuted: settings.musicMuted,
     }, (next) => {
+      const wasMusicMuted = settings.musicMuted;
       settings = {
         ...settings,
         sfxMuted: next.sfxMuted,
@@ -78,7 +79,11 @@ export class AudioSettingsScene extends Phaser.Scene {
         musicVolume: settings.musicVolume,
       });
       if (storage) saveSettings(storage, settings);
-      if (!next.musicMuted) audio.playMenuTheme();
+      // Only restart music if transitioning from muted → unmuted AND no
+      // music is currently playing (avoids duplicate tracks).
+      if (!next.musicMuted && wasMusicMuted && audio.getCurrentMusicKey() === null) {
+        audio.playMenuTheme();
+      }
       sfxMuteButton.setText(settings.sfxMuted ? i18n.t("audio.muted") : i18n.t("audio.on"));
       musicMuteButton.setText(settings.musicMuted ? i18n.t("audio.muted") : i18n.t("audio.on"));
     }, {
@@ -114,6 +119,11 @@ export class AudioSettingsScene extends Phaser.Scene {
       .text(labelX, rowStartY - 30, i18n.t("audio.sfxVolume"), rowStyle())
       .setOrigin(0, 0.5);
 
+    // Track the last SFX volume percentage that triggered a click sound.
+    // Only play the click when the percentage actually changes (not on
+    // every pointermove event while dragging).
+    let lastSfxClickPercent = Math.round(settings.sfxVolume * 100);
+
     const sfxSlider = createVolumeSlider(this as unknown as Parameters<typeof createVolumeSlider>[0], sliderX, rowStartY, 240, settings.sfxVolume, (nextVolume) => {
       settings = { ...settings, sfxVolume: nextVolume };
       if (nextVolume > 0 && settings.sfxMuted) {
@@ -126,7 +136,12 @@ export class AudioSettingsScene extends Phaser.Scene {
         sfxVolume: settings.sfxVolume,
         musicVolume: settings.musicVolume,
       });
-      audio.playMenuClick();
+      // Play click sound ONLY when the rounded percentage changes.
+      const newPercent = Math.round(nextVolume * 100);
+      if (newPercent !== lastSfxClickPercent) {
+        lastSfxClickPercent = newPercent;
+        audio.playMenuClick();
+      }
       if (storage) saveSettings(storage, settings);
     });
 
@@ -170,7 +185,12 @@ export class AudioSettingsScene extends Phaser.Scene {
         sfxVolume: settings.sfxVolume,
         musicVolume: settings.musicVolume,
       });
-      audio.playMenuTheme();
+      // No need to call playMenuTheme() — updateSettings() live-adjusts
+      // the playing track's volume via backend.setVolume(). If music was
+      // unmuted by raising the volume above 0, restart the theme.
+      if (nextVolume > 0 && !settings.musicMuted && audio.getCurrentMusicKey() === null) {
+        audio.playMenuTheme();
+      }
       if (storage) saveSettings(storage, settings);
     });
 
@@ -183,6 +203,7 @@ export class AudioSettingsScene extends Phaser.Scene {
       text: mutedLabelMusic,
       ...muteButtonConfig,
       onClick: () => {
+        const wasMusicMuted = settings.musicMuted;
         const next = !settings.musicMuted;
         settings = { ...settings, musicMuted: next };
         musicMuteButton.setText(next ? i18n.t("audio.muted") : i18n.t("audio.on"));
@@ -192,7 +213,11 @@ export class AudioSettingsScene extends Phaser.Scene {
           sfxVolume: settings.sfxVolume,
           musicVolume: settings.musicVolume,
         });
-        if (!next) audio.playMenuTheme();
+        // Only restart music if transitioning muted → unmuted AND no
+        // music is currently playing (avoids duplicate tracks).
+        if (!next && wasMusicMuted && audio.getCurrentMusicKey() === null) {
+          audio.playMenuTheme();
+        }
         if (storage) saveSettings(storage, settings);
       },
     });

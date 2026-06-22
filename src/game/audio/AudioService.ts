@@ -48,6 +48,10 @@ export class AudioService {
    * stopped (so e.g. muting music keeps currently-playing SFX alive and
    * vice-versa). Unmuting never starts playback automatically — callers
    * decide when to fire the next sound.
+   *
+   * When the music volume changes, the volume of the currently-playing
+   * music track is updated in real-time via `backend.setVolume` — no
+   * need to restart the track.
    */
   updateSettings(settings: AudioSettings): void {
     const previous = this.settings;
@@ -58,6 +62,18 @@ export class AudioService {
     }
     if (settings.musicMuted && !previous.musicMuted) {
       this.stopMusic();
+    }
+
+    // Live-adjust the playing music track's volume without restarting it.
+    if (
+      !settings.musicMuted &&
+      settings.musicVolume !== previous.musicVolume &&
+      this.currentMusicKey !== null
+    ) {
+      const def = getSoundDefinition(this.currentMusicKey);
+      const perSound = def.volume ?? 1;
+      const volume = clamp01(settings.musicVolume * perSound);
+      this.backend.setVolume(this.currentMusicKey, volume);
     }
   }
 
