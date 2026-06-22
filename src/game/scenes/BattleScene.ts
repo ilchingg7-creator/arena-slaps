@@ -148,6 +148,7 @@ type BattleRuntime = {
   timerText: Phaser.GameObjects.Text;
   winnerText: Phaser.GameObjects.Text;
   lastTickInt: number;
+  isPaused: boolean;
 };
 
 /**
@@ -496,7 +497,9 @@ export class BattleScene extends Phaser.Scene {
       x: arena.left + 160,
       y: arena.centerY,
     });
-    player.sprite.setVisible(false);
+    // Hide the physics rectangle — keep alpha at 0 so the physics body
+    // still works but only the AnimatedSprite is visible.
+    player.sprite.setAlpha(0);
 
     const opponent: Opponent =
       settings.mode === "2p-local"
@@ -536,7 +539,7 @@ export class BattleScene extends Phaser.Scene {
       x: arena.right - 160,
       y: arena.centerY,
     });
-    opponentSprite.setVisible(false);
+    opponentSprite.setAlpha(0);
 
     this.physics.add.collider(player.sprite, opponentSprite);
 
@@ -636,6 +639,7 @@ export class BattleScene extends Phaser.Scene {
         })
         .setOrigin(0.5),
       lastTickInt: Math.ceil(settings.roundLengthSeconds),
+      isPaused: false,
     };
 
     const controlsHint =
@@ -697,79 +701,14 @@ export class BattleScene extends Phaser.Scene {
       }
     };
 
-    const createTouchButton = (
-      x: number,
-      y: number,
-      label: string,
-      onDown: () => void,
-      onUp?: () => void,
-    ) =>
-      this.add
-        .text(x, y, label, {
-          align: "center",
-          backgroundColor: "#f4f1de",
-          color: "#101820",
-          fontFamily: "Arial",
-          fontSize: "22px",
-          padding: {
-            x: 16,
-            y: 10,
-          },
-        })
-        .setOrigin(0.5)
-        .setInteractive()
-        .on("pointerdown", onDown)
-        .on("pointerup", onUp ?? (() => void 0))
-        .on("pointerout", onUp ?? (() => void 0));
-
-    const touchState = this.runtime.touchMovement;
+    // Touch controls removed — the on-screen buttons (LEFT/UP/DOWN/RIGHT/
+    // SLAP) were visually inconsistent with the game's neon style and
+    // cluttered the bottom of the arena. Keyboard + click/tap on the
+    // arena are sufficient for all platforms. If mobile support is needed
+    // later, a proper touch joystick + slap button can be added as styled
+    // sprites in a future iteration.
     const controlsY = arena.bottom + 82;
-
-    createTouchButton(
-      arena.left + 78,
-      controlsY,
-      "LEFT",
-      () => {
-        touchState.left = true;
-      },
-      () => {
-        touchState.left = false;
-      },
-    );
-    createTouchButton(
-      arena.left + 158,
-      controlsY - 48,
-      "UP",
-      () => {
-        touchState.up = true;
-      },
-      () => {
-        touchState.up = false;
-      },
-    );
-    createTouchButton(
-      arena.left + 158,
-      controlsY + 48,
-      "DOWN",
-      () => {
-        touchState.down = true;
-      },
-      () => {
-        touchState.down = false;
-      },
-    );
-    createTouchButton(
-      arena.left + 238,
-      controlsY,
-      "RIGHT",
-      () => {
-        touchState.right = true;
-      },
-      () => {
-        touchState.right = false;
-      },
-    );
-    createTouchButton(arena.right - 92, controlsY, "SLAP", slapP1);
+    void controlsY; // reserved for future touch controls
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       if (
@@ -815,7 +754,7 @@ export class BattleScene extends Phaser.Scene {
       settings,
       storage: typeof window !== "undefined" ? window.localStorage : null,
       onResume: () => {
-        this.scene.resume();
+        if (this.runtime) this.runtime.isPaused = false;
       },
       onSettings: () => {
         pauseMenu.toggleSettings();
@@ -843,22 +782,24 @@ export class BattleScene extends Phaser.Scene {
       }
     });
 
+    // Esc toggles the pause overlay. We DON'T use scene.pause() because
+    // it freezes the scene's input — making it impossible to resume via
+    // Esc or click the pause menu buttons. Instead, we set a soft-pause
+    // flag that update() checks. The scene keeps running (input + render
+    // work), but all game logic is skipped while paused.
     this.input.keyboard?.on("keydown-ESC", () => {
       if (!this.pauseMenu) {
         return;
       }
-      // Don't toggle the pause menu once the round is complete — the
-      // results transition is already in flight and pausing would freeze
-      // the ResultsScene handoff.
       if (this.runtime?.round.isComplete) {
         return;
       }
       if (this.pauseMenu.isVisible()) {
         this.pauseMenu.hide();
-        this.scene.resume();
+        if (this.runtime) this.runtime.isPaused = false;
       } else {
         this.pauseMenu.show();
-        this.scene.pause();
+        if (this.runtime) this.runtime.isPaused = true;
       }
     });
 
@@ -887,6 +828,15 @@ export class BattleScene extends Phaser.Scene {
     }
 
     const runtime = this.runtime;
+
+    // Soft-pause: skip ALL game logic while the pause menu is visible.
+    // Input + render still work (so Esc + pause menu buttons are active).
+    if (runtime.isPaused) {
+      // Zero out velocities so actors don't drift during pause.
+      runtime.player.body.setVelocity(0, 0);
+      this.opponentActor().body.setVelocity(0, 0);
+      return;
+    }
 
     if (runtime.round.isComplete) {
       runtime.player.body.setVelocity(0, 0);
