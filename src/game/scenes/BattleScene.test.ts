@@ -590,9 +590,9 @@ describe("getComboMultiplier (Task 2ac)", () => {
     expect(getComboMultiplier(actor, 1000)).toBe(1.5);
   });
 
-  it("returns 3.0 when comboStacks is 5 (mega-launch)", () => {
+  it("returns 2.5 when comboStacks is 5 (mega-launch)", () => {
     const actor = mockActor({ comboStacks: 5, lastSlapAt: 1000 });
-    expect(getComboMultiplier(actor, 1000)).toBe(3.0);
+    expect(getComboMultiplier(actor, 1000)).toBe(2.5);
   });
 
   it("resets stale combo (returns 1.0 + clears comboStacks) after 3000ms", () => {

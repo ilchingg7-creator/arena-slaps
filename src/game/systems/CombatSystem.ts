@@ -33,7 +33,7 @@ const COMBO_KNOCKBACK_TIER2 = 5;
 const COMBO_CAP = 5;
 const COMBO_MULT_BASE = 1.0;
 const COMBO_MULT_TIER1 = 1.5;
-const COMBO_MULT_TIER2 = 3.0;
+const COMBO_MULT_TIER2 = 2.5;
 
 /**
  * Resolve the combo multiplier for `attacker` at wall-clock time `now`.

@@ -365,6 +365,10 @@ export class BattleSetupScene extends Phaser.Scene {
       battleSceneReady = true;
       startButton.setText(i18n.t("battlesetup.startBattle"));
       if (queuedStart) startBattle();
+    }).catch((err) => {
+      console.error("[BattleSetupScene] Failed to load battle scenes:", err);
+      startButton.setText("Load failed — retry");
+      queuedStart = false;
     });
 
     this.input.keyboard?.on("keydown-ENTER", startBattle);

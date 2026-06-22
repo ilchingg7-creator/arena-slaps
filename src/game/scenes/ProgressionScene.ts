@@ -213,7 +213,6 @@ export class ProgressionScene extends Phaser.Scene {
     // The unlockedKeys set is computed for clarity / future use (e.g. a
     // summary row). Reference it here so tsc doesn't flag it as unused —
     // and to make the intent of the set explicit to future readers.
-    void unlockedKeys;
 
     // --- Back button ---
     createStyledButton(

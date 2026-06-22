@@ -808,7 +808,6 @@ export class BattleScene extends Phaser.Scene {
     // later, a proper touch joystick + slap button can be added as styled
     // sprites in a future iteration.
     const controlsY = arena.bottom + 82;
-    void controlsY; // reserved for future touch controls
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       if (
@@ -1075,6 +1074,7 @@ export class BattleScene extends Phaser.Scene {
     // constant for the 200ms window.
     const now = this.time.now;
     const playerDodging = isDodging(runtime.player, now);
+    let dodgeTriggeredThisFrame = false;
     if (
       Phaser.Input.Keyboard.JustDown(runtime.dodgeKeyP1) &&
       canDodge(runtime.player, now)
@@ -1082,6 +1082,7 @@ export class BattleScene extends Phaser.Scene {
       const dir = getDirection(runtime);
       if (dir.lengthSq() > 0) {
         startDodge(runtime.player, { x: dir.x, y: dir.y }, now);
+        dodgeTriggeredThisFrame = true;
         // Apply the dodge velocity immediately. The caller (not startDodge)
         // owns the physics write per the DodgeSystem contract.
         runtime.player.body.setVelocity(
@@ -1096,10 +1097,10 @@ export class BattleScene extends Phaser.Scene {
         );
       }
     }
-    if (playerDodging) {
-      // Mid-dodge: leave the dodge velocity intact (don't call moveActor).
-      // i-frames are active — applySlap will short-circuit if the bot/P2
-      // swings at us this frame.
+    if (playerDodging || dodgeTriggeredThisFrame) {
+      // Mid-dodge or just triggered: leave the dodge velocity intact (don't
+      // call moveActor). i-frames are active — applySlap will short-circuit
+      // if the bot/P2 swings at us this frame.
     } else if (
       !isKnockedBack(runtime.player, now) &&
       !isFrozen(runtime.player, now)
@@ -1108,9 +1109,16 @@ export class BattleScene extends Phaser.Scene {
     }
 
     // --- Opponent logic ---
+    // Freeze bot movement during the player's ring-out FX so the bot
+    // doesn't chase the off-screen physics body (m3 fix).
     const opponentActor = this.opponentActor();
+    const playerRingingOut = this.ringOutFxInProgress.player;
     if (runtime.opponent.kind === "bot") {
-      if (!isKnockedBack(runtime.opponent.bot, this.time.now) && !isFrozen(runtime.opponent.bot, this.time.now)) {
+      if (
+        !isKnockedBack(runtime.opponent.bot, this.time.now) &&
+        !isFrozen(runtime.opponent.bot, this.time.now) &&
+        !playerRingingOut
+      ) {
         const dir = computeBotDirection(
           runtime.opponent.bot,
           runtime.player,
@@ -1184,40 +1192,34 @@ export class BattleScene extends Phaser.Scene {
     getComboMultiplier(runtime.player, this.time.now);
     getComboMultiplier(opponentActor, this.time.now);
 
-    // --- Comeback mechanic (Task 2ac) ---
-    // If a side is losing by 3+ score, give that side a "Rage" buff:
-    // +15% speed AND +15% knockback. The buff uses Math.max so it never
-    // tramples an active power-up boost (Boost = 1.35x, Heavy Hand = 1.25x
-    // — both > 1.15x, so the rage buff is a no-op when those are active).
-    //
-    // Reversion: the buff is "sticky" — when the gap closes, the multipliers
-    // revert on the next `expirePowerUpBoosts` call (via moveActor for a
-    // moving actor, or via applySlap for the attacker). If NO power-up is
-    // active when the gap closes, the buff persists until the actor picks
-    // up a power-up (whose expiry will reset the multiplier to 1.0). This
-    // is a known limitation accepted by the spec — see worklog 2ac.
+    // --- Comeback mechanic (Rage buff) ---
+    // If a side is losing by 3+ score, give that side +15% speed AND
+    // +15% knockback. When the gap closes (< 3), the buff is REMOVED
+    // — but only if no power-up boost is active (speedBoostUntil /
+    // knockbackBoostUntil > now means a power-up owns the multiplier
+    // and we must not touch it). This prevents the sticky-buff issue
+    // where the 1.15x persisted indefinitely after the gap closed.
     const scoreGap = runtime.round.score.player - runtime.round.score.bots;
-    if (scoreGap <= -3) {
-      // Player is losing by 3+: rage buff on the player.
-      runtime.player.speedMultiplier = Math.max(
-        runtime.player.speedMultiplier,
-        1.15,
-      );
-      runtime.player.knockbackMultiplier = Math.max(
-        runtime.player.knockbackMultiplier,
-        1.15,
-      );
+    const playerLosing = scoreGap <= -3;
+    const opponentLosing = scoreGap >= 3;
+    const playerHasBoost = runtime.player.speedBoostUntil > this.time.now;
+    const opponentHasBoost = opponentActor.speedBoostUntil > this.time.now;
+
+    if (playerLosing) {
+      runtime.player.speedMultiplier = Math.max(runtime.player.speedMultiplier, 1.15);
+      runtime.player.knockbackMultiplier = Math.max(runtime.player.knockbackMultiplier, 1.15);
+    } else if (!playerHasBoost) {
+      // Gap closed + no active boost → revert to baseline 1.0.
+      runtime.player.speedMultiplier = 1;
+      runtime.player.knockbackMultiplier = 1;
     }
-    if (scoreGap >= 3) {
-      // Opponent is losing by 3+: rage buff on the opponent (bot or P2).
-      opponentActor.speedMultiplier = Math.max(
-        opponentActor.speedMultiplier,
-        1.15,
-      );
-      opponentActor.knockbackMultiplier = Math.max(
-        opponentActor.knockbackMultiplier,
-        1.15,
-      );
+
+    if (opponentLosing) {
+      opponentActor.speedMultiplier = Math.max(opponentActor.speedMultiplier, 1.15);
+      opponentActor.knockbackMultiplier = Math.max(opponentActor.knockbackMultiplier, 1.15);
+    } else if (!opponentHasBoost) {
+      opponentActor.speedMultiplier = 1;
+      opponentActor.knockbackMultiplier = 1;
     }
 
     // --- Power-up despawn + blink + spawn + collect ---
@@ -1393,23 +1395,31 @@ export class BattleScene extends Phaser.Scene {
     }
     const now = this.time.now;
 
+    // Player: skip position sync during ring-out FX so the FX tween
+    // owns the sprite's position (camera shake + fall + drift).
+    // State + tint are still updated so the "fall" texture shows.
     const playerState = getActorAnimationState(runtime.player, now);
     const playerTint = getActorEffectTint(runtime.player, now);
     runtime.playerAnim.setState(playerState);
     runtime.playerAnim.setEffectTint(playerTint);
-    runtime.playerAnim.setPosition(
-      runtime.player.sprite.x,
-      runtime.player.sprite.y,
-    );
+    if (!this.ringOutFxInProgress.player) {
+      runtime.playerAnim.setPosition(
+        runtime.player.sprite.x,
+        runtime.player.sprite.y,
+      );
+    }
 
+    // Opponent: same pattern.
     const opponentActorState = this.opponentActor();
     const opponentState = getActorAnimationState(opponentActorState, now);
     const opponentTint = getActorEffectTint(opponentActorState, now);
     runtime.opponentAnim.setState(opponentState);
     runtime.opponentAnim.setEffectTint(opponentTint);
-    runtime.opponentAnim.setPosition(
-      opponentActorState.sprite.x,
-      opponentActorState.sprite.y,
-    );
+    if (!this.ringOutFxInProgress.opponent) {
+      runtime.opponentAnim.setPosition(
+        opponentActorState.sprite.x,
+        opponentActorState.sprite.y,
+      );
+    }
   }
 }
