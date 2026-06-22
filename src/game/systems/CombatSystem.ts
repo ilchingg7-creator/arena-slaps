@@ -29,6 +29,14 @@ export function applySlap(
   defender: ActorState,
   now: number,
 ): boolean {
+  // Stamp the attempt timestamp BEFORE any cooldown / range / shield gates
+  // fire. `lastAttackAt` (stamped below on a successful hit) only fires on a
+  // clean slap, which means the bot's dodge logic (keyed off the player's
+  // attack) would only trigger ~280ms AFTER the bot was already knocked back.
+  // `lastSlapAttemptAt` fires on EVERY attempt so the bot can react to the
+  // swing windup — see `BotAI.computeRawBotDirection`.
+  attacker.lastSlapAttemptAt = now;
+
   if (now - attacker.lastAttackAt < SLAP_COOLDOWN_MS) {
     return false;
   }

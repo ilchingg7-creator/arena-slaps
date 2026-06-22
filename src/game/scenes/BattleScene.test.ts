@@ -391,7 +391,14 @@ describe("applyBotSlap (B9)", () => {
     expect(runtime.audio.playSlapHit).not.toHaveBeenCalled();
   });
 
-  it("plays slap-miss when the bot's slap is blocked by shield", () => {
+  it("does NOT slap (no audio) when the player's shield is active (Fix E)", () => {
+    // Fix E: the bot must respect the player's shield. Previously the bot
+    // would slap into the shield, get blocked (no cooldown consumed for the
+    // attacker), but STILL pay the bot-side `slapIntervalMs` (800ms on easy
+    // = a long self-stun). Now `shouldBotSlap` returns false when the player
+    // is shielded — so applyBotSlap never reaches applySlap, and neither
+    // slap-hit NOR slap-miss audio fires. This is the new correct behavior;
+    // the previous "plays slap-miss on shield block" expectation is obsolete.
     const now = 1000;
     const runtime = makeBotSlapRuntime({
       bot: { lastAttackAt: Number.NEGATIVE_INFINITY },
@@ -401,8 +408,13 @@ describe("applyBotSlap (B9)", () => {
       },
     });
     applyBotSlap(runtime, now);
-    expect(runtime.audio.playSlapMiss).toHaveBeenCalledTimes(1);
+    expect(runtime.audio.playSlapMiss).not.toHaveBeenCalled();
     expect(runtime.audio.playSlapHit).not.toHaveBeenCalled();
+    // The bot did NOT consume its slap-interval timer.
+    expect(runtime.opponent.kind).toBe("bot");
+    if (runtime.opponent.kind === "bot") {
+      expect(runtime.opponent.ai.lastSlapAttemptAt).toBe(0);
+    }
   });
 
   it("plays slap-hit when the bot's slap succeeds", () => {

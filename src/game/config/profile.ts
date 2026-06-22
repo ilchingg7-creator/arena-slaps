@@ -14,6 +14,8 @@ export type Profile = {
   favoriteMode: GameMode;
   createdAt: number; // set on first creation
   lastPlayedAt: number;
+  xp: number; // total XP accumulated across all games
+  level: number; // current progression level (1..MAX_LEVEL)
 };
 
 export const DEFAULT_PROFILE: Profile = {
@@ -30,6 +32,8 @@ export const DEFAULT_PROFILE: Profile = {
   favoriteMode: "1p-vs-bot",
   createdAt: 0,
   lastPlayedAt: 0,
+  xp: 0,
+  level: 1,
 };
 
 const STORAGE_KEY = "arena-slaps:profile";
@@ -114,6 +118,16 @@ function migrateProfile(parsed: Record<string, unknown>): Profile {
   if (typeof parsed.lastPlayedAt === "number") {
     base.lastPlayedAt = parsed.lastPlayedAt;
   }
+  if (typeof parsed.xp === "number" && Number.isFinite(parsed.xp)) {
+    base.xp = Math.max(0, parsed.xp);
+  }
+  if (
+    typeof parsed.level === "number" &&
+    Number.isFinite(parsed.level) &&
+    Number.isInteger(parsed.level)
+  ) {
+    base.level = Math.max(1, Math.floor(parsed.level));
+  }
 
   return base;
 }
@@ -171,7 +185,9 @@ export function createDefaultProfile(): Profile {
  * Returns a NEW profile with all gameplay stats zeroed. Preserves the
  * player's identity fields (`nickname`, `avatar`, `createdAt`) — `createdAt`
  * reflects when the profile was first created, not when stats were last
- * reset, so it survives a stats wipe. Does NOT mutate the input.
+ * reset, so it survives a stats wipe. Progression fields (`xp`, `level`) are
+ * also preserved — a stats reset only wipes per-game counters, not the
+ * player's long-term level progression. Does NOT mutate the input.
  */
 export function resetProfileStats(profile: Profile): Profile {
   return {
@@ -180,5 +196,7 @@ export function resetProfileStats(profile: Profile): Profile {
     nickname: profile.nickname,
     avatar: profile.avatar,
     createdAt: profile.createdAt,
+    xp: profile.xp,
+    level: profile.level,
   };
 }

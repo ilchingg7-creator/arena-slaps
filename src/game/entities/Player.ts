@@ -35,6 +35,16 @@ export type ActorState = {
   knockbackBoostUntil: number;
   knockbackUntil: number;
   lastAttackAt: number;
+  /**
+   * Wall-clock timestamp (ms) of the most recent slap ATTEMPT — stamped at
+   * the top of `applySlap` before any cooldown / range / shield gates fire.
+   * Unlike `lastAttackAt` (which only stamps on a successful hit), this fires
+   * on EVERY attempt (cooldown miss, out-of-range, shield block, hit). Used
+   * by `BotAI.computeRawBotDirection` to key the dodge trigger so the bot
+   * can react to the player's swing windup instead of waiting for the
+   * knockback to actually land (which only happens on a clean hit).
+   */
+  lastSlapAttemptAt: number;
   moveSpeed: number;
   size: number;
   slapRange: number;
@@ -89,6 +99,7 @@ export function createActor(
     knockbackBoostUntil: 0,
     knockbackUntil: 0,
     lastAttackAt: Number.NEGATIVE_INFINITY,
+    lastSlapAttemptAt: Number.NEGATIVE_INFINITY,
     moveSpeed: config.speed,
     size: config.size,
     slapRange: config.slapRange,
@@ -149,6 +160,7 @@ export function resetActor(actor: ActorState): void {
   actor.knockbackMultiplier = 1;
   actor.knockbackBoostUntil = 0;
   actor.knockbackUntil = 0;
+  actor.lastSlapAttemptAt = Number.NEGATIVE_INFINITY;
   actor.speedBoostUntil = 0;
   actor.speedMultiplier = 1;
   actor.shieldHitsRemaining = 0;

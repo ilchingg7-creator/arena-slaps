@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MAPS } from "./mapManifest";
 import {
   DEFAULT_LANGUAGE,
   LANGUAGES,
@@ -90,5 +91,25 @@ describe("translations config", () => {
     expect(entry).toBeDefined();
     expect(entry.ru.length).toBeGreaterThan(0);
     expect(entry.en.length).toBeGreaterThan(0);
+  });
+
+  it("all map keys have ru + en translations", () => {
+    // Iterate over every map in MAPS and assert that both its nameKey and
+    // descriptionKey resolve to a TRANSLATIONS entry with non-empty ru + en.
+    for (const map of MAPS) {
+      const nameEntry = TRANSLATIONS[map.nameKey];
+      expect(nameEntry).toBeDefined();
+      expect(typeof nameEntry.ru).toBe("string");
+      expect(nameEntry.ru.length).toBeGreaterThan(0);
+      expect(typeof nameEntry.en).toBe("string");
+      expect(nameEntry.en.length).toBeGreaterThan(0);
+
+      const descEntry = TRANSLATIONS[map.descriptionKey];
+      expect(descEntry).toBeDefined();
+      expect(typeof descEntry.ru).toBe("string");
+      expect(descEntry.ru.length).toBeGreaterThan(0);
+      expect(typeof descEntry.en).toBe("string");
+      expect(descEntry.en.length).toBeGreaterThan(0);
+    }
   });
 });

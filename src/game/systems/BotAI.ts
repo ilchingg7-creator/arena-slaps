@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import type { ActorState } from "../entities/Player";
 import type { PowerUpState } from "./PowerUpSystem";
+import { isShieldActive } from "./PowerUpSystem";
 import type { BotDifficulty } from "../config/gameSettings";
 import { AI_CONFIG } from "../config/aiConfig";
 
@@ -98,8 +99,8 @@ export function computeRawBotDirection(
 ): Vec2 {
   const params = DIFFICULTY_PARAMS[ai.difficulty];
 
-  if (player.lastAttackAt > ai.lastPlayerAttackSeenAt) {
-    ai.lastPlayerAttackSeenAt = player.lastAttackAt;
+  if (player.lastSlapAttemptAt > ai.lastPlayerAttackSeenAt) {
+    ai.lastPlayerAttackSeenAt = player.lastSlapAttemptAt;
 
     if (now - ai.lastDodgeAt > params.reactionMs) {
       const dist = distance(
@@ -231,6 +232,15 @@ export function shouldBotSlap(
   const params = DIFFICULTY_PARAMS[ai.difficulty];
 
   if (now - ai.lastSlapAttemptAt < params.slapIntervalMs) {
+    return false;
+  }
+
+  // Fix E: don't waste a slap attempt on a shielded player. Without this
+  // gate the bot swings into the shield, gets blocked (no cooldown consumed
+  // for the attacker), but STILL pays the bot-side `slapIntervalMs` (800ms
+  // on easy = a long self-stun). Holding the slap until the shield drops
+  // lets the bot keep its swing cadence.
+  if (isShieldActive(player, now)) {
     return false;
   }
 

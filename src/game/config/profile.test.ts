@@ -97,6 +97,8 @@ describe("profile", () => {
       favoriteMode: "2p-local",
       createdAt: 12345,
       lastPlayedAt: 67890,
+      xp: 750,
+      level: 4,
     };
     saveProfile(storage, profile);
     expect(capturedKey).toBe("arena-slaps:profile");
@@ -139,6 +141,8 @@ describe("profile", () => {
       favoriteMode: "2p-local",
       createdAt: 1234567890,
       lastPlayedAt: 9876543210,
+      xp: 1200,
+      level: 5,
     };
     const reset = resetProfileStats(profile);
     expect(reset.nickname).toBe("Alice");
@@ -153,6 +157,9 @@ describe("profile", () => {
     expect(reset.powerUpStats).toEqual({});
     expect(reset.favoriteMode).toBe(DEFAULT_PROFILE.favoriteMode);
     expect(reset.lastPlayedAt).toBe(0);
+    // Progression is preserved across a stats reset.
+    expect(reset.xp).toBe(1200);
+    expect(reset.level).toBe(5);
   });
 
   it("resetProfileStats creates a NEW object (doesn't mutate input)", () => {
@@ -170,6 +177,8 @@ describe("profile", () => {
       favoriteMode: "2p-local",
       createdAt: 111,
       lastPlayedAt: 222,
+      xp: 500,
+      level: 4,
     };
     const snapshot: Profile = {
       ...original,
@@ -182,5 +191,57 @@ describe("profile", () => {
     expect(original).toEqual(snapshot);
     expect(original.totalGames).toBe(7);
     expect(original.powerUpStats).toEqual({ speed: 2, shield: 1 });
+    expect(original.xp).toBe(500);
+    expect(original.level).toBe(4);
+  });
+
+  it("loadProfile migrates xp and level from a stored profile", () => {
+    const storage = {
+      getItem: () =>
+        JSON.stringify({ nickname: "Alice", xp: 750, level: 4 }),
+      setItem: () => {
+        /* noop */
+      },
+    };
+    const loaded = loadProfile(storage);
+    expect(loaded.xp).toBe(750);
+    expect(loaded.level).toBe(4);
+  });
+
+  it("loadProfile rejects malformed xp/level and falls back to defaults", () => {
+    const storage = {
+      getItem: () =>
+        JSON.stringify({
+          nickname: "Alice",
+          xp: -50,
+          level: 0,
+        }),
+      setItem: () => {
+        /* noop */
+      },
+    };
+    const loaded = loadProfile(storage);
+    // Negative xp is clamped to 0; level is clamped to 1.
+    expect(loaded.xp).toBe(0);
+    expect(loaded.level).toBe(1);
+  });
+
+  it("resetProfileStats preserves xp + level when wiping gameplay stats", () => {
+    const profile: Profile = {
+      ...DEFAULT_PROFILE,
+      powerUpStats: { speed: 2 },
+      nickname: "Bob",
+      totalGames: 7,
+      wins: 5,
+      xp: 300,
+      level: 3,
+    };
+    const reset = resetProfileStats(profile);
+    expect(reset.xp).toBe(300);
+    expect(reset.level).toBe(3);
+    // Gameplay stats still wiped.
+    expect(reset.totalGames).toBe(0);
+    expect(reset.wins).toBe(0);
+    expect(reset.powerUpStats).toEqual({});
   });
 });

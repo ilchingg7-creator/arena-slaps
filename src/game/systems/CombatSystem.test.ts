@@ -52,6 +52,7 @@ function mockActor(
     knockbackBoostUntil: 0,
     knockbackUntil: 0,
     lastAttackAt: Number.NEGATIVE_INFINITY,
+    lastSlapAttemptAt: Number.NEGATIVE_INFINITY,
     moveSpeed: 260,
     size: 36,
     slapRange: 84,
@@ -198,5 +199,61 @@ describe("applySlap", () => {
     expect(hit).toBe(false);
     // Boost is preserved — not consumed by a miss.
     expect(attacker.doubleSlapUntil).toBe(5000);
+  });
+
+  // --- Fix A: lastSlapAttemptAt is stamped on EVERY slap attempt ---
+  // `lastAttackAt` is only stamped on a successful hit (after the cooldown /
+  // range / shield gates), so the bot's dodge logic — which used to key off
+  // `player.lastAttackAt` — only fired AFTER the bot was already knocked
+  // back (~280ms too late). `lastSlapAttemptAt` fires on EVERY attempt so
+  // the bot can react to the swing windup. The tests below verify the stamp
+  // happens on all 4 outcomes: cooldown miss, out-of-range, shield block,
+  // and successful hit.
+
+  it("Fix A: stamps lastSlapAttemptAt on a successful slap", () => {
+    const attacker = mockActor(0, 0);
+    const defender = mockActor(40, 0);
+    const hit = applySlap(attacker, defender, 1000);
+    expect(hit).toBe(true);
+    // Both timestamps advance: lastSlapAttemptAt (any attempt) AND
+    // lastAttackAt (successful hit only).
+    expect(attacker.lastSlapAttemptAt).toBe(1000);
+    expect(attacker.lastAttackAt).toBe(1000);
+  });
+
+  it("Fix A: stamps lastSlapAttemptAt on a cooldown miss (returns false)", () => {
+    const attacker = mockActor(0, 0, { lastAttackAt: 1000 });
+    const defender = mockActor(40, 0);
+    const hit = applySlap(attacker, defender, 1100);
+    expect(hit).toBe(false);
+    // The attempt timestamp fires EVEN THOUGH the cooldown gate rejected the
+    // slap. lastAttackAt is NOT advanced (no successful hit).
+    expect(attacker.lastSlapAttemptAt).toBe(1100);
+    expect(attacker.lastAttackAt).toBe(1000);
+  });
+
+  it("Fix A: stamps lastSlapAttemptAt when out of range (returns false)", () => {
+    const attacker = mockActor(0, 0, { slapRange: 50 });
+    const defender = mockActor(200, 0);
+    const hit = applySlap(attacker, defender, 1000);
+    expect(hit).toBe(false);
+    expect(attacker.lastSlapAttemptAt).toBe(1000);
+    // Out-of-range miss does NOT consume the attacker's cooldown — lastAttackAt stays at -Infinity.
+    expect(attacker.lastAttackAt).toBe(Number.NEGATIVE_INFINITY);
+  });
+
+  it("Fix A: stamps lastSlapAttemptAt when the defender's shield blocks (returns false)", () => {
+    const attacker = mockActor(0, 0);
+    const defender = mockActor(40, 0, {
+      shieldHitsRemaining: 1,
+      shieldUntil: 5000,
+    });
+    const hit = applySlap(attacker, defender, 1000);
+    expect(hit).toBe(false);
+    expect(attacker.lastSlapAttemptAt).toBe(1000);
+    // Shield block does NOT consume the attacker's cooldown — lastAttackAt stays at -Infinity.
+    expect(attacker.lastAttackAt).toBe(Number.NEGATIVE_INFINITY);
+    // The shield IS consumed.
+    expect(defender.shieldHitsRemaining).toBe(0);
   });
 });

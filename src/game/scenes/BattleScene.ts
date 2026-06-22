@@ -521,7 +521,10 @@ export class BattleScene extends Phaser.Scene {
               this,
               arena.right - 160,
               arena.centerY,
-              battleConfig.bot,
+              // Fix B: pick per-difficulty bot stats so Hard has parity with
+              // the player (260/84/560) instead of always being weaker.
+              battleConfig.botByDifficulty[settings.botDifficulty] ??
+                battleConfig.botByDifficulty.medium,
             ),
             ai: createBotAI(settings.botDifficulty),
           };
