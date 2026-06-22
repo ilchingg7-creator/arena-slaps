@@ -82,6 +82,7 @@ export type BattleRuntimeLike = {
   opponent:
     | { kind: "bot"; bot: ActorState }
     | { kind: "player2"; player: ActorState };
+  arena?: Phaser.Geom.Rectangle;
 };
 
 type BattleRuntime = {
@@ -295,13 +296,36 @@ export function resetOffender(
   runtime: BattleRuntimeLike,
   who: "player" | "opponent",
 ): void {
+  const arena = runtime.arena;
   if (who === "player") {
+    // Random respawn in the LEFT half of the arena.
+    if (arena) {
+      const halfWidth = (arena.right - arena.left) / 2;
+      const margin = 80;
+      const x = arena.left + margin + Math.random() * (halfWidth - margin * 2);
+      const y = arena.top + margin + Math.random() * ((arena.bottom - arena.top) - margin * 2);
+      runtime.player.spawn.set(x, y);
+    }
     resetActor(runtime.player);
     return;
   }
   if (runtime.opponent.kind === "bot") {
+    if (arena) {
+      const halfWidth = (arena.right - arena.left) / 2;
+      const margin = 80;
+      const x = arena.left + halfWidth + margin + Math.random() * (halfWidth - margin * 2);
+      const y = arena.top + margin + Math.random() * ((arena.bottom - arena.top) - margin * 2);
+      runtime.opponent.bot.spawn.set(x, y);
+    }
     resetActor(runtime.opponent.bot);
   } else {
+    if (arena) {
+      const halfWidth = (arena.right - arena.left) / 2;
+      const margin = 80;
+      const x = arena.left + halfWidth + margin + Math.random() * (halfWidth - margin * 2);
+      const y = arena.top + margin + Math.random() * ((arena.bottom - arena.top) - margin * 2);
+      runtime.opponent.player.spawn.set(x, y);
+    }
     resetActor(runtime.opponent.player);
   }
 }

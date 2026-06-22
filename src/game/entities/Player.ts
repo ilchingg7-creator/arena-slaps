@@ -189,6 +189,9 @@ export function moveActor(
 }
 
 export function resetActor(actor: ActorState): void {
+  // Use the spawn point (set at creation time). The caller (BattleScene)
+  // updates actor.spawn to a random position within their half of the
+  // arena before calling resetActor, so each respawn is random.
   actor.sprite.setPosition(actor.spawn.x, actor.spawn.y);
   actor.body.setVelocity(0, 0);
   actor.facing.set(1, 0);

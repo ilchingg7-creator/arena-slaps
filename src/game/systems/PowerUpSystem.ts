@@ -149,13 +149,17 @@ export function spawnPowerUp(
     return;
   }
 
-  const slots = POWERUP_TIMINGS.spawnSlots;
-  const slot = slots[state.spawnIndex % slots.length];
+  // Random position within the arena (avoiding edges by 15% margin).
   const arenaWidth = arena.right - arena.left;
   const arenaHeight = arena.bottom - arena.top;
-  const x = arena.left + slot.x * arenaWidth;
-  const y = arena.top + slot.y * arenaHeight;
-  const definition = getNextPowerUpDefinition(state.spawnIndex);
+  const marginX = arenaWidth * 0.15;
+  const marginY = arenaHeight * 0.15;
+  const x = arena.left + marginX + Math.random() * (arenaWidth - marginX * 2);
+  const y = arena.top + marginY + Math.random() * (arenaHeight - marginY * 2);
+
+  // Random power-up type (not sequential).
+  const defIndex = Math.floor(Math.random() * POWERUP_DEFINITIONS.length);
+  const definition = POWERUP_DEFINITIONS[defIndex];
   const labelText = translator ? translator(definition.labelKey) : definition.label;
 
   const label = scene.add

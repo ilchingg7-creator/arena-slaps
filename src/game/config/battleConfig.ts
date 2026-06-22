@@ -16,21 +16,21 @@ export const botByDifficulty = {
     color: 0xe07a5f,
     knockbackSpeed: 400,
     speed: 160,
-    slapRange: 60,
+    slapRange: 44,
     size: 36,
   },
   medium: {
     color: 0xe07a5f,
     knockbackSpeed: 470,
     speed: 200,
-    slapRange: 70,
+    slapRange: 54,
     size: 36,
   },
   hard: {
     color: 0xe07a5f,
     knockbackSpeed: 530,
     speed: 240,
-    slapRange: 80,
+    slapRange: 64,
     size: 36,
   },
 } as const;
@@ -71,7 +71,7 @@ export const battleConfig = {
     color: 0x3d405b,
     knockbackSpeed: 560,
     speed: 260,
-    slapRange: 84,
+    slapRange: 58,
     size: 36,
   },
   powerUp: {

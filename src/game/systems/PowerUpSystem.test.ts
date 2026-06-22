@@ -932,49 +932,37 @@ describe("PowerUpSystem", () => {
       expect(state.active!.spawnedAt).toBe(12345);
     });
 
-    it("uses all 5 spawn slots in rotation (positions match arena-relative slots)", () => {
+    it("spawns at random positions within the arena (15% margin)", () => {
       const state = createPowerUpState();
       const { scene, arena } = makeRecordingSceneAndArena();
       const arenaWidth = arena.right - arena.left;
       const arenaHeight = arena.bottom - arena.top;
-      const expectedPositions = POWERUP_TIMINGS.spawnSlots.map((slot) => ({
-        x: arena.left + slot.x * arenaWidth,
-        y: arena.top + slot.y * arenaHeight,
-      }));
+      const marginX = arenaWidth * 0.15;
+      const marginY = arenaHeight * 0.15;
 
-      const recorded: Array<{ x: number; y: number }> = [];
       for (let i = 0; i < 5; i++) {
         spawnPowerUp(scene, state, arena, 16);
         expect(state.active).not.toBeNull();
-        recorded.push({
-          x: state.active!.sprite.x,
-          y: state.active!.sprite.y,
-        });
+        expect(state.active!.sprite.x).toBeGreaterThan(arena.left + marginX - 1);
+        expect(state.active!.sprite.x).toBeLessThan(arena.right - marginX + 1);
+        expect(state.active!.sprite.y).toBeGreaterThan(arena.top + marginY - 1);
+        expect(state.active!.sprite.y).toBeLessThan(arena.bottom - marginY + 1);
         despawnPowerUp(state);
-        expect(state.active).toBeNull();
       }
-
-      expect(recorded).toEqual(expectedPositions);
     });
 
-    it("wraps around to slot 0 on the 6th spawn", () => {
+    it("spawns at valid positions across multiple spawns (no fixed rotation)", () => {
       const state = createPowerUpState();
-      const { scene, arena } = makeSceneAndArena();
-      const arenaWidth = arena.right - arena.left;
-      const arenaHeight = arena.bottom - arena.top;
-      const slot0 = POWERUP_TIMINGS.spawnSlots[0];
-      const expectedX = arena.left + slot0.x * arenaWidth;
-      const expectedY = arena.top + slot0.y * arenaHeight;
+      const { scene, arena } = makeRecordingSceneAndArena();
 
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 10; i++) {
         spawnPowerUp(scene, state, arena, 16);
+        expect(state.active!.sprite.x).toBeGreaterThanOrEqual(arena.left);
+        expect(state.active!.sprite.x).toBeLessThanOrEqual(arena.right);
+        expect(state.active!.sprite.y).toBeGreaterThanOrEqual(arena.top);
+        expect(state.active!.sprite.y).toBeLessThanOrEqual(arena.bottom);
         despawnPowerUp(state);
       }
-      // 6th spawn should wrap back to slot 0.
-      spawnPowerUp(scene, state, arena, 16);
-      expect(state.active).not.toBeNull();
-      expect(state.active!.sprite.x).toBeCloseTo(expectedX, 5);
-      expect(state.active!.sprite.y).toBeCloseTo(expectedY, 5);
     });
 
     describe("label rendering", () => {
@@ -1020,18 +1008,22 @@ describe("PowerUpSystem", () => {
         expect(typeof state.active!.label.destroy).toBe("function");
       });
 
-      it("rotates through all 6 power-up definitions as spawnIndex advances", () => {
+      it("spawns random power-up types (not sequential)", () => {
         const state = createPowerUpState();
         const { scene, arena, textCalls } = makeRecordingSceneAndArena();
 
-        for (let i = 0; i < 6; i++) {
+        for (let i = 0; i < 20; i++) {
           spawnPowerUp(scene, state, arena, 16);
           despawnPowerUp(state);
         }
-        // Each spawn's label should match the rotation order.
-        expect(textCalls.map((c) => c.value)).toEqual(
-          POWERUP_DEFINITIONS.map((d) => d.label),
-        );
+        // All labels should be valid power-up labels
+        const validLabels = new Set(POWERUP_DEFINITIONS.map((d) => d.label));
+        for (const c of textCalls) {
+          expect(validLabels.has(c.value)).toBe(true);
+        }
+        // With 20 random spawns, should see at least 3 different types
+        const labels = new Set(textCalls.map((c) => c.value));
+        expect(labels.size).toBeGreaterThanOrEqual(3);
       });
     });
 
@@ -1048,34 +1040,29 @@ describe("PowerUpSystem", () => {
         expect(typeof state.active!.sprite.destroy).toBe("function");
       });
 
-      it("uses the per-type sprite key (powerup-<effect>) from POWERUP_SPRITE_KEYS", () => {
+      it("uses a valid per-type sprite key from POWERUP_SPRITE_KEYS", () => {
         const state = createPowerUpState();
         const { scene, arena, imageCalls } = makeRecordingSceneAndArena();
 
         spawnPowerUp(scene, state, arena, 16);
 
-        // First spawn is the "speed" definition (index 0) → key "powerup-speed".
-        expect(imageCalls[0].key).toBe("powerup-speed");
-        expect(imageCalls[0].key).toBe(POWERUP_SPRITE_KEYS.speed);
+        const validKeys = new Set(Object.values(POWERUP_SPRITE_KEYS));
+        expect(validKeys.has(imageCalls[0].key as never)).toBe(true);
       });
 
-      it("rotates through all 6 per-type sprite keys as spawnIndex advances", () => {
+      it("uses valid sprite keys across multiple spawns", () => {
         const state = createPowerUpState();
         const { scene, arena, imageCalls } = makeRecordingSceneAndArena();
 
-        for (let i = 0; i < 6; i++) {
+        for (let i = 0; i < 10; i++) {
           spawnPowerUp(scene, state, arena, 16);
           despawnPowerUp(state);
         }
 
-        expect(imageCalls.map((c) => c.key)).toEqual([
-          "powerup-speed",
-          "powerup-knockback",
-          "powerup-shield",
-          "powerup-mega-knockback",
-          "powerup-freeze",
-          "powerup-double-slap",
-        ]);
+        const validKeys = new Set(Object.values(POWERUP_SPRITE_KEYS));
+        for (const c of imageCalls) {
+          expect(validKeys.has(c.key as never)).toBe(true);
+        }
       });
 
       it("the sprite has setVisible + setAlpha methods (for blink / collected flash)", () => {
