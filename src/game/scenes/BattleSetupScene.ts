@@ -82,6 +82,23 @@ export class BattleSetupScene extends Phaser.Scene {
     let settings: GameSettings = loadSettings(storage);
 
     const audio: AudioService = getAudioService(this, settings);
+
+    // --- Validate bot difficulty against progression unlocks ---
+    // If the player's saved difficulty is locked at their current level,
+    // fall back to the highest unlocked difficulty.
+    {
+      const profile = loadProfile(storage);
+      const unlockKey = `bot-${settings.botDifficulty}`;
+      if (!ProgressionService.isFeatureUnlocked(profile, unlockKey)) {
+        // Find the highest unlocked difficulty.
+        const unlocked = (BOT_DIFFICULTY_OPTIONS as readonly BotDifficulty[])
+          .filter((d) => ProgressionService.isFeatureUnlocked(profile, `bot-${d}`));
+        if (unlocked.length > 0) {
+          settings = { ...settings, botDifficulty: unlocked[unlocked.length - 1] };
+          if (storage) saveSettings(storage, settings);
+        }
+      }
+    }
     audio.playMenuTheme();
 
     // --- i18n (RU/EN) ---
@@ -171,10 +188,19 @@ export class BattleSetupScene extends Phaser.Scene {
       ...valueButtonConfig,
       onClick: () => {
         clickPlay();
-        const next: BotDifficulty = cycleOption(
-          BOT_DIFFICULTY_OPTIONS as readonly BotDifficulty[],
-          settings.botDifficulty,
+        // Filter to only unlocked difficulties.
+        const profile = loadProfile(storage);
+        const availableDifficulties = (BOT_DIFFICULTY_OPTIONS as readonly BotDifficulty[]).filter(
+          (d) => {
+            const unlockKey = `bot-${d}`;
+            return ProgressionService.isFeatureUnlocked(profile, unlockKey);
+          },
         );
+        if (availableDifficulties.length === 0) return;
+        const currentIdx = availableDifficulties.indexOf(settings.botDifficulty);
+        // If current difficulty is somehow locked (e.g. level reset), fall back to first available.
+        const nextIdx = currentIdx === -1 ? 0 : (currentIdx + 1) % availableDifficulties.length;
+        const next = availableDifficulties[nextIdx];
         settings = { ...settings, botDifficulty: next };
         difficultyButton.setText(i18n.t(DIFFICULTY_KEYS[next]));
         persist();
