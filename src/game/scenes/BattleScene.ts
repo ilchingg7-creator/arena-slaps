@@ -13,7 +13,14 @@ import {
   type ActorState,
   type Player,
 } from "../entities/Player";
-import { applySlap, isRingOut } from "../systems/CombatSystem";
+import { applySlap, getComboMultiplier, isRingOut } from "../systems/CombatSystem";
+import { playRingOutFX } from "../systems/RingOutFX";
+import {
+  canDodge,
+  getDodgeSpeedMultiplier,
+  isDodging,
+  startDodge,
+} from "../systems/DodgeSystem";
 import {
   createBattleResults,
   saveBattleResults,
@@ -137,6 +144,13 @@ type BattleRuntime = {
   settings: GameSettings;
   slapKeyP1: Phaser.Input.Keyboard.Key;
   slapKeyP2: Phaser.Input.Keyboard.Key;
+  /**
+   * P1 dodge key (Task 2ac). Defaults to Left-Shift. When JustDown AND
+   * `canDodge(player, now)` is true AND a movement direction is held,
+   * `startDodge` stamps the i-frame window and the BattleScene applies
+   * the dodge velocity (2x move speed) for the 200ms duration.
+   */
+  dodgeKeyP1: Phaser.Input.Keyboard.Key;
   touchMovement: DirectionInput;
   wasd: {
     down: Phaser.Input.Keyboard.Key;
@@ -147,6 +161,13 @@ type BattleRuntime = {
   scoreText: Phaser.GameObjects.Text;
   timerText: Phaser.GameObjects.Text;
   winnerText: Phaser.GameObjects.Text;
+  /**
+   * Combo counter HUD (Task 2ac). Shows "Combo: x3" near the score text
+   * while the player has comboStacks > 0. Hidden otherwise. Updated every
+   * frame in {@link updateHud}. Reuses the same font / color as the score
+   * text for visual consistency.
+   */
+  comboText: Phaser.GameObjects.Text;
   lastTickInt: number;
   isPaused: boolean;
 };
@@ -248,6 +269,17 @@ function updateHud(runtime: BattleRuntime): void {
   runtime.scoreText.setText(
     `${playerLabel} ${runtime.round.score.player} - ${runtime.round.score.bots} ${opponentLabel}`,
   );
+  // --- Combo HUD (Task 2ac) ---
+  // Show "Combo: xN" while the player has comboStacks > 0. The combo
+  // counter resets to 0 when the player gets hit (defender.comboStacks = 0
+  // in applySlap) or when 3000ms pass without a successful slap (reset by
+  // getComboMultiplier, which is called every frame in update()).
+  if (runtime.player.comboStacks > 0) {
+    runtime.comboText.setText(`Combo: x${runtime.player.comboStacks}`);
+    runtime.comboText.setVisible(true);
+  } else {
+    runtime.comboText.setVisible(false);
+  }
 }
 
 /**
@@ -356,7 +388,7 @@ export function applyBotSlap(
 
 /**
  * Handle a ring-out: award the point to the OPPOSITE side (the actor that
- * fell off concedes), play the ring-out sound, and reset only the offender.
+ * fell off concedes) and play the ring-out sound.
  *
  * Extracted from `update()` so the scoring-on-ring-out contract can be
  * unit-tested without driving the full Phaser scene. Previously the
@@ -364,6 +396,12 @@ export function applyBotSlap(
  * was awarded, because `applySlap` was awarding points on every successful
  * slap. Scoring has now moved here (slap → knockback only, ring-out →
  * point + reset).
+ *
+ * Task 2b: the offender is NO LONGER reset inside this function. The
+ * caller (BattleScene.update) invokes `playRingOutFX` after this and
+ * passes `resetOffender` as the FX's `onComplete` callback, so the
+ * offender teleport happens AFTER the visual sequence (camera shake +
+ * fall animation + off-screen tween + flash) has had time to play.
  */
 export function handleRingOut(
   runtime: RingOutRuntimeLike,
@@ -375,7 +413,9 @@ export function handleRingOut(
   const side: ScoringSide = who === "player" ? "bots" : "player";
   registerPoint(runtime.round, side, winningScore);
   runtime.audio.playRingOut();
-  resetOffender(runtime, who);
+  // NOTE: resetOffender is intentionally NOT called here. See the
+  // docstring above — the caller is responsible for resetting the
+  // offender via playRingOutFX's onComplete callback.
 }
 
 function getStorage(): Storage | null {
@@ -394,6 +434,22 @@ function createDisabledKey(): Phaser.Input.Keyboard.Key {
 export class BattleScene extends Phaser.Scene {
   private runtime: BattleRuntime | null = null;
   private pauseMenu: PauseMenu | null = null;
+  /**
+   * Per-actor flags tracking whether a ring-out FX sequence is currently
+   * playing for that actor. While true for an actor, the ring-out section
+   * in `update()` skips re-triggering FX for that actor — otherwise
+   * `isRingOut` would re-fire every frame for the 500ms the offender is
+   * off-screen, each call stacking another point + another FX on top of
+   * the in-flight one (Task 2b).
+   *
+   * Set to `true` when `playRingOutFX` is invoked; cleared in its
+   * `onComplete` callback right after `resetOffender` teleports the actor
+   * back to spawn.
+   */
+  private ringOutFxInProgress: { player: boolean; opponent: boolean } = {
+    player: false,
+    opponent: false,
+  };
 
   constructor() {
     super("BattleScene");
@@ -569,6 +625,15 @@ export class BattleScene extends Phaser.Scene {
     const slapKeyP2 =
       keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER) ??
       createDisabledKey();
+    // --- Dodge key (Task 2ac) ---
+    // Left-Shift triggers P1's dodge. The dodge is a 200ms i-frame dash at
+    // 2x move speed, on a 1.5s cooldown. The actual dodge trigger lives in
+    // update() (gated on JustDown + canDodge + a non-zero movement
+    // direction); here we just register the key so Phaser starts tracking
+    // its up/down state.
+    const dodgeKeyP1 =
+      keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT) ??
+      createDisabledKey();
 
     // --- Floating name labels (Task 3b) ---
     // Rendered above each actor and repositioned every frame in `update()`
@@ -615,6 +680,7 @@ export class BattleScene extends Phaser.Scene {
       settings,
       slapKeyP1,
       slapKeyP2,
+      dodgeKeyP1,
       touchMovement,
       wasd: {
         down: keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.S) ?? createDisabledKey(),
@@ -627,6 +693,16 @@ export class BattleScene extends Phaser.Scene {
         fontFamily: "Arial",
         fontSize: "24px",
       }),
+      // Combo counter (Task 2ac). Positioned just below the score text so
+      // it stays "near the score" per the spec without overlapping. Hidden
+      // by default; updateHud toggles visibility based on comboStacks.
+      comboText: this.add
+        .text(arena.left, 56, "", {
+          color: "#f4d35e",
+          fontFamily: "Arial",
+          fontSize: "20px",
+        })
+        .setVisible(false),
       timerText: this.add
         .text(arena.right, 24, "", {
           color: "#f4f1de",
@@ -672,6 +748,12 @@ export class BattleScene extends Phaser.Scene {
       if (!rt || rt.round.isComplete) {
         return;
       }
+      // Task 2ac: applySlap now applies the attacker's combo multiplier to
+      // the knockback (1.0 / 1.5 / 3.0 based on comboStacks), increments
+      // comboStacks on a hit, resets the defender's comboStacks to 0, and
+      // short-circuits if the defender is mid-dodge (i-frames). The combo
+      // multiplier is computed INSIDE applySlap — no manual multiplication
+      // needed here.
       const hit = applySlap(
         rt.player,
         this.opponentActor(),
@@ -692,6 +774,8 @@ export class BattleScene extends Phaser.Scene {
       if (rt.opponent.kind !== "player2") {
         return;
       }
+      // Task 2ac: same combo + dodge i-frame wiring as slapP1 — applySlap
+      // handles the multiplier and combo bookkeeping internally.
       const hit = applySlap(
         rt.opponent.player,
         rt.player,
@@ -940,9 +1024,47 @@ export class BattleScene extends Phaser.Scene {
       return;
     }
 
-    // --- Player 1 movement ---
-    if (!isKnockedBack(runtime.player, this.time.now) && !isFrozen(runtime.player, this.time.now)) {
-      moveActor(runtime.player, getDirection(runtime), this.time.now);
+    // --- Player 1 movement + dodge (Task 2ac) ---
+    // The dodge key (Shift) is checked BEFORE movement so a fresh dodge
+    // burst stamps its i-frame window and sets the dodge velocity in the
+    // same frame. During the 200ms dodge window we SKIP the moveActor call
+    // (which would overwrite the dodge velocity with normal movement) and
+    // also bypass the `isKnockedBack` gate (i-frames let the player move
+    // through knockback). The dodge velocity is set ONCE at trigger time;
+    // the body's `setDamping(true)` + `setDrag(0.05)` keep it essentially
+    // constant for the 200ms window.
+    const now = this.time.now;
+    const playerDodging = isDodging(runtime.player, now);
+    if (
+      Phaser.Input.Keyboard.JustDown(runtime.dodgeKeyP1) &&
+      canDodge(runtime.player, now)
+    ) {
+      const dir = getDirection(runtime);
+      if (dir.lengthSq() > 0) {
+        startDodge(runtime.player, { x: dir.x, y: dir.y }, now);
+        // Apply the dodge velocity immediately. The caller (not startDodge)
+        // owns the physics write per the DodgeSystem contract.
+        runtime.player.body.setVelocity(
+          dir.x *
+            runtime.player.moveSpeed *
+            runtime.player.speedMultiplier *
+            getDodgeSpeedMultiplier(),
+          dir.y *
+            runtime.player.moveSpeed *
+            runtime.player.speedMultiplier *
+            getDodgeSpeedMultiplier(),
+        );
+      }
+    }
+    if (playerDodging) {
+      // Mid-dodge: leave the dodge velocity intact (don't call moveActor).
+      // i-frames are active — applySlap will short-circuit if the bot/P2
+      // swings at us this frame.
+    } else if (
+      !isKnockedBack(runtime.player, now) &&
+      !isFrozen(runtime.player, now)
+    ) {
+      moveActor(runtime.player, getDirection(runtime), now);
     }
 
     // --- Opponent logic ---
@@ -1011,6 +1133,53 @@ export class BattleScene extends Phaser.Scene {
       }
     }
 
+    // --- Combo timeout tick (Task 2ac) ---
+    // getComboMultiplier is a cheap read that also resets `comboStacks` to
+    // 0 when the combo has timed out (>3000ms since the last successful
+    // slap). Calling it every frame for both actors keeps the HUD combo
+    // counter honest — without this tick a stale 5-stack would display
+    // "Combo: x5" forever even after the player stopped slapping.
+    // The call is a no-op for fresh actors (comboStacks === 0 short-
+    // circuits the reset check).
+    getComboMultiplier(runtime.player, this.time.now);
+    getComboMultiplier(opponentActor, this.time.now);
+
+    // --- Comeback mechanic (Task 2ac) ---
+    // If a side is losing by 3+ score, give that side a "Rage" buff:
+    // +15% speed AND +15% knockback. The buff uses Math.max so it never
+    // tramples an active power-up boost (Boost = 1.35x, Heavy Hand = 1.25x
+    // — both > 1.15x, so the rage buff is a no-op when those are active).
+    //
+    // Reversion: the buff is "sticky" — when the gap closes, the multipliers
+    // revert on the next `expirePowerUpBoosts` call (via moveActor for a
+    // moving actor, or via applySlap for the attacker). If NO power-up is
+    // active when the gap closes, the buff persists until the actor picks
+    // up a power-up (whose expiry will reset the multiplier to 1.0). This
+    // is a known limitation accepted by the spec — see worklog 2ac.
+    const scoreGap = runtime.round.score.player - runtime.round.score.bots;
+    if (scoreGap <= -3) {
+      // Player is losing by 3+: rage buff on the player.
+      runtime.player.speedMultiplier = Math.max(
+        runtime.player.speedMultiplier,
+        1.15,
+      );
+      runtime.player.knockbackMultiplier = Math.max(
+        runtime.player.knockbackMultiplier,
+        1.15,
+      );
+    }
+    if (scoreGap >= 3) {
+      // Opponent is losing by 3+: rage buff on the opponent (bot or P2).
+      opponentActor.speedMultiplier = Math.max(
+        opponentActor.speedMultiplier,
+        1.15,
+      );
+      opponentActor.knockbackMultiplier = Math.max(
+        opponentActor.knockbackMultiplier,
+        1.15,
+      );
+    }
+
     // --- Power-up despawn + blink + spawn + collect ---
     // 1) If a power-up is currently active, drive its despawn timer + the
     //    blink strobe during the warning window (last 2s before despawn).
@@ -1069,13 +1238,60 @@ export class BattleScene extends Phaser.Scene {
     // --- Ring out ---
     // Points are awarded ONLY on ring-out: the actor that falls off concedes
     // a point to the opposite side. Slaps apply knockback but do not score
-    // (see `applySlap`). `handleRingOut` also plays the ring-out sound and
-    // resets only the offender.
-    if (isRingOut(runtime.player, runtime.arena, battleConfig.arena.ringOutMargin)) {
+    // (see `applySlap`). `handleRingOut` registers the point + plays the
+    // ring-out sound. The visual FX (camera shake + fall animation + flash)
+    // is played via `playRingOutFX`, and `resetOffender` is deferred to the
+    // FX's onComplete callback so the actor stays visible during the fall.
+    if (
+      isRingOut(runtime.player, runtime.arena, battleConfig.arena.ringOutMargin) &&
+      !this.ringOutFxInProgress.player
+    ) {
+      const fxX = runtime.player.sprite.x;
+      const fxY = runtime.player.sprite.y;
       handleRingOut(runtime, "player", runtime.settings.winningScore);
+      this.ringOutFxInProgress.player = true;
+      playRingOutFX({
+        scene: this,
+        x: fxX,
+        y: fxY,
+        animatedSprite: runtime.playerAnim,
+        onComplete: () => {
+          if (this.runtime) {
+            resetOffender(this.runtime, "player");
+            // Restore the sprite's alpha/scale after the fall tween
+            runtime.playerAnim.setPosition(
+              this.runtime.player.sprite.x,
+              this.runtime.player.sprite.y,
+            );
+          }
+          this.ringOutFxInProgress.player = false;
+        },
+      });
     }
-    if (isRingOut(opponentActor, runtime.arena, battleConfig.arena.ringOutMargin)) {
+    if (
+      isRingOut(opponentActor, runtime.arena, battleConfig.arena.ringOutMargin) &&
+      !this.ringOutFxInProgress.opponent
+    ) {
+      const fxX = opponentActor.sprite.x;
+      const fxY = opponentActor.sprite.y;
       handleRingOut(runtime, "opponent", runtime.settings.winningScore);
+      this.ringOutFxInProgress.opponent = true;
+      playRingOutFX({
+        scene: this,
+        x: fxX,
+        y: fxY,
+        animatedSprite: runtime.opponentAnim,
+        onComplete: () => {
+          if (this.runtime) {
+            resetOffender(this.runtime, "opponent");
+            runtime.opponentAnim.setPosition(
+              this.opponentActor().sprite.x,
+              this.opponentActor().sprite.y,
+            );
+          }
+          this.ringOutFxInProgress.opponent = false;
+        },
+      });
     }
 
     advanceRoundState(
