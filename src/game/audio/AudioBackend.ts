@@ -26,12 +26,19 @@ export interface IAudioBackend {
    * sound is not playing (implementations must no-op gracefully).
    */
   stop(key: SoundKey): void;
+  /**
+   * Change the volume of a currently-playing sound. Safe to call when the
+   * sound is not playing (implementations must no-op gracefully).
+   * Used for live volume adjustments without restarting the track.
+   */
+  setVolume(key: SoundKey, volume: number): void;
   /** Stop every sound this backend knows about. */
   stopAll(): void;
 }
 
 type PhaserSound = {
   stop?: () => void;
+  setVolume?: (volume: number) => void;
 };
 
 type PhaserLike = {
@@ -106,6 +113,15 @@ export class PhaserAudioBackend implements IAudioBackend {
     }
   }
 
+  setVolume(key: SoundKey, volume: number): void {
+    try {
+      const sound = this.scene.sound?.get?.(key);
+      sound?.setVolume?.(clamp01(volume));
+    } catch {
+      // Best-effort: if Phaser can't find the sound, no-op.
+    }
+  }
+
   stopAll(): void {
     this.scene.sound?.stopAll?.();
   }
@@ -117,7 +133,7 @@ export class PhaserAudioBackend implements IAudioBackend {
  */
 export class NoopAudioBackend implements IAudioBackend {
   calls: Array<{
-    op: "load" | "play" | "stop" | "stopAll";
+    op: "load" | "play" | "stop" | "setVolume" | "stopAll";
     key?: SoundKey;
     volume?: number;
     loop?: boolean;
@@ -145,6 +161,10 @@ export class NoopAudioBackend implements IAudioBackend {
 
   stop(key: SoundKey): void {
     this.calls.push({ op: "stop", key });
+  }
+
+  setVolume(key: SoundKey, volume: number): void {
+    this.calls.push({ op: "setVolume", key, volume: clamp01(volume) });
   }
 
   stopAll(): void {
