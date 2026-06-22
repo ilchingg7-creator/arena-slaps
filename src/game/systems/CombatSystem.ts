@@ -211,10 +211,16 @@ export function isRingOut(
   arena: Phaser.Geom.Rectangle,
   margin: number,
 ): boolean {
+  // Use the actor's bounding-box edges (center ± half size) so the
+  // ring-out fires only when the ENTIRE sprite has left the platform,
+  // not just the center point. This makes the visual ring-out match
+  // what the player sees — the sprite must fully clear the platform
+  // edge before being counted out.
+  const halfSize = actor.size / 2;
   return (
-    actor.sprite.x < arena.left - margin ||
-    actor.sprite.x > arena.right + margin ||
-    actor.sprite.y < arena.top - margin ||
-    actor.sprite.y > arena.bottom + margin
+    actor.sprite.x + halfSize < arena.left - margin ||
+    actor.sprite.x - halfSize > arena.right + margin ||
+    actor.sprite.y + halfSize < arena.top - margin ||
+    actor.sprite.y - halfSize > arena.bottom + margin
   );
 }
