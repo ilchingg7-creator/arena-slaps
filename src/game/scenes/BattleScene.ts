@@ -1309,8 +1309,11 @@ export class BattleScene extends Phaser.Scene {
         onComplete: () => {
           if (this.runtime) {
             resetOffender(this.runtime, "player");
-            // Restore the sprite's alpha + scale after the fall tween
-            // (RingOutFX sets alpha=0, scale=0.2).
+            // Kill any in-flight tweens on the sprite BEFORE restoring
+            // alpha/scale — otherwise the fall tween (alpha:0, scale:0.2)
+            // can overwrite our restoration on the next frame if it
+            // hasn't fully completed yet.
+            this.tweens.killTweensOf(runtime.playerAnim.gameObject);
             const go = runtime.playerAnim.gameObject as unknown as {
               setAlpha: (a: number) => void;
               setScale: (x: number, y?: number) => void;
@@ -1344,6 +1347,7 @@ export class BattleScene extends Phaser.Scene {
           if (this.runtime) {
             resetOffender(this.runtime, "opponent");
             const opp = this.opponentActor();
+            this.tweens.killTweensOf(runtime.opponentAnim.gameObject);
             const go = runtime.opponentAnim.gameObject as unknown as {
               setAlpha: (a: number) => void;
               setScale: (x: number, y?: number) => void;
