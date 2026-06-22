@@ -3,6 +3,7 @@ import type { ActorState } from "../entities/Player";
 import {
   consumeShieldHit,
   expirePowerUpBoosts,
+  isDoubleSlapReady,
   isShieldActive,
 } from "./PowerUpSystem";
 import { battleConfig } from "../config/battleConfig";
@@ -60,6 +61,20 @@ export function applySlap(
   // hasn't moved since picking it up.
   expirePowerUpBoosts(attacker, now);
 
+  // C1: Double-Slap power-up. When the attacker has a double-slap boost
+  // ready (set by the `double-slap` power-up effect), the next successful
+  // slap hits TWICE — concretely, the defender is launched with double the
+  // knockback velocity. The boost is consumed on use (reset to 0) so the
+  // subsequent slap is a normal single slap. The check happens AFTER the
+  // cooldown / range / shield gates so a missed slap (cooldown, out of
+  // range, or shield-blocked) does NOT consume the boost — only a slap
+  // that actually lands triggers the double-hit.
+  const doubleSlapReady = isDoubleSlapReady(attacker, now);
+  const doubleSlapMultiplier = doubleSlapReady ? 2 : 1;
+  if (doubleSlapReady) {
+    attacker.doubleSlapUntil = 0;
+  }
+
   const direction = new Phaser.Math.Vector2(
     defender.sprite.x - attacker.sprite.x,
     defender.sprite.y - attacker.sprite.y,
@@ -67,8 +82,14 @@ export function applySlap(
 
   defender.knockbackUntil = now + KNOCKBACK_DURATION_MS;
   defender.body.setVelocity(
-    direction.x * attacker.knockbackSpeed * attacker.knockbackMultiplier,
-    direction.y * attacker.knockbackSpeed * attacker.knockbackMultiplier,
+    direction.x *
+      attacker.knockbackSpeed *
+      attacker.knockbackMultiplier *
+      doubleSlapMultiplier,
+    direction.y *
+      attacker.knockbackSpeed *
+      attacker.knockbackMultiplier *
+      doubleSlapMultiplier,
   );
   // Scoring moved to the ring-out handler in BattleScene.update() —
   // see `handleRingOut`. Slaps apply knockback only.

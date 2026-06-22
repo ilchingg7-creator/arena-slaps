@@ -115,9 +115,12 @@ export function createTopRightMuteButton(
       state = { sfxMuted: true, musicMuted: true };
     }
     button.setText(labelFor(state, soundLabel, mutedLabel));
-    // Re-set style by recreating the visual — Phaser text objects don't
-    // support changing backgroundColor after creation, so we accept the
-    // initial color. The label text change is sufficient to indicate state.
+    // NOTE (MINOR-3): Phaser Text objects don't expose a public
+    // `setBackgroundColor` — the background color is baked in at creation
+    // time from the style config and can't be restyled afterwards. Rather
+    // than destroy + recreate the text on every toggle (cosmetic nit,
+    // not worth the churn), we keep the initial color and rely on the
+    // "🔊 Sound" / "🔇 Muted" label change to indicate the mute state.
     onChange(state);
   };
 

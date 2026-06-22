@@ -56,6 +56,12 @@ type PowerUpSprite = {
 };
 
 type PowerUpLabel = {
+  /**
+   * Sets the render depth so the label draws above the power-up sprite
+   * (which defaults to depth 0). Optional so unit-test stubs without it
+   * remain structurally compatible; the real Phaser.Text always has it.
+   */
+  setDepth?: (depth: number) => PowerUpLabel;
   destroy: () => void;
 };
 
@@ -157,6 +163,12 @@ export function spawnPowerUp(
       fontSize: "14px",
     })
     .setOrigin(0.5, 0.5);
+  // Render the label above the power-up sprite (MINOR-11). Both the label
+  // and the sprite default to depth 0; without an explicit depth the
+  // label could flicker behind the sprite depending on creation order.
+  // The real Phaser.Text exposes `setDepth`; the optional-chained call
+  // keeps unit-test stubs (which don't implement setDepth) compatible.
+  label.setDepth?.(1);
 
   state.spawnIndex += 1;
   // Create the power-up sprite via the PowerUpSprite wrapper (Task 3C). The

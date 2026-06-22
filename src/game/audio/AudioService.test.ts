@@ -497,6 +497,40 @@ describe("PhaserAudioBackend", () => {
     expect(stopped).toBe(true);
   });
 
+  it("stopAll destroys tracked BaseSound instances to avoid leaks (MINOR-5)", () => {
+    // The SoundManager's stopAll() only stops playback — it leaves the
+    // BaseSound instances in its internal list. Repeated play/stop cycles
+    // would otherwise accumulate dangling BaseSounds. stopAll() must call
+    // `destroy()` on each tracked sound to release them.
+    const stopCalls: string[] = [];
+    const destroyCalls: string[] = [];
+    const sounds: Record<string, { stop: () => void; destroy: () => void; play: () => boolean }> = {};
+    const scene = {
+      sound: {
+        play: () => true,
+        stopAll: () => { /* noop */ },
+        add: (key: string) => {
+          const sound = {
+            stop: () => { stopCalls.push(key); },
+            destroy: () => { destroyCalls.push(key); },
+            play: () => true,
+          };
+          sounds[key] = sound;
+          return sound;
+        },
+      },
+    };
+    const b = new PhaserAudioBackend(scene);
+    b.play("menu-theme", 0.5, true);
+    b.play("slap-hit", 0.7);
+    b.stopAll();
+    expect(stopCalls).toEqual(expect.arrayContaining(["menu-theme", "slap-hit"]));
+    expect(destroyCalls).toEqual(expect.arrayContaining(["menu-theme", "slap-hit"]));
+    // Each tracked sound is stopped + destroyed exactly once.
+    expect(stopCalls).toHaveLength(2);
+    expect(destroyCalls).toHaveLength(2);
+  });
+
   it("stop(key) delegates to the BaseSound.stop of the looked-up sound", () => {
     const stoppedKeys: string[] = [];
     const scene = {

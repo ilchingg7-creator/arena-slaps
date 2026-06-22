@@ -425,6 +425,28 @@ describe("applyBotSlap (B9)", () => {
     expect(runtime.audio.playSlapHit).not.toHaveBeenCalled();
     expect(runtime.audio.playSlapMiss).not.toHaveBeenCalled();
   });
+
+  // --- C2: frozen actors cannot slap ---
+  // The freeze power-up was checked before `moveActor` (movement blocked)
+  // but NOT before the three slap paths (P1, P2, bot). A frozen bot would
+  // still slap the player. The fix adds an `isFrozen` gate inside
+  // `applyBotSlap` (the bot path) — the P1 and P2 paths are gated in
+  // BattleScene.update() directly. shouldBotSlap itself doesn't check
+  // frozen state, so without the gate the bot would still attempt a slap
+  // (and applySlap would succeed) while frozen.
+  it("C2: does nothing when the bot is frozen (no slap attempt, no audio)", () => {
+    const now = 1000;
+    const runtime = makeBotSlapRuntime({
+      bot: {
+        lastAttackAt: Number.NEGATIVE_INFINITY,
+        // Bot is frozen for the next 5s — should be unable to slap.
+        frozenUntil: now + 5000,
+      },
+    });
+    applyBotSlap(runtime, now);
+    expect(runtime.audio.playSlapHit).not.toHaveBeenCalled();
+    expect(runtime.audio.playSlapMiss).not.toHaveBeenCalled();
+  });
 });
 
 // --- fix-scoring: points awarded on ring-out, not slap ---

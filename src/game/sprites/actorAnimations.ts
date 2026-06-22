@@ -76,20 +76,19 @@ const MEGA_KNOCKBACK_MULTIPLIER_THRESHOLD = 1.5;
  *   1. If knockback is active (`now < actor.knockbackUntil`) → "fall".
  *      Knockback overrides everything else — the actor is being launched
  *      and should look like they're tumbling regardless of any residual
- *      movement input.
- *   2. Else if the actor's body velocity is ~0 (below
+ *      movement input or slap window.
+ *   2. Else if the actor recently slapped (`now - actor.lastAttackAt < 200`)
+ *      → "slap". The slap animation is a brief 200ms one-shot triggered
+ *      by `applySlap` stamping `lastAttackAt = now`. Priority is slap >
+ *      run > idle so the player sees their own slap connect even while
+ *      still holding a movement key (slap beats run).
+ *   3. Else if the actor's body velocity is ~0 (below
  *      {@link IDLE_VELOCITY_EPSILON_SQ}) → "idle".
- *   3. Else pick a run-N/S/E/W state based on the DOMINANT velocity axis:
+ *   4. Else pick a run-N/S/E/W state based on the DOMINANT velocity axis:
  *      - If |vy| >= |vx| → vertical movement dominates → run-n (vy < 0,
  *        moving up) or run-s (vy > 0, moving down).
  *      - Else → horizontal movement dominates → run-e (vx > 0) or run-w
  *        (vx < 0).
- *
- * Note: the slap animation is NOT driven here. Slap is a brief one-shot
- * animation triggered by `applySlap`, and wiring it up would require
- * tracking "slap until X ms" timestamps. Task 2a only requires idle/run/
- * fall — the "slap" state is still reachable via `AnimatedSprite.setState`
- * for future use, but `getActorAnimationState` never returns it.
  */
 export function getActorAnimationState(
   actor: ActorState,
@@ -100,16 +99,27 @@ export function getActorAnimationState(
     return "fall";
   }
 
+  // 2. MINOR-1: slap animation. The actor is slapping when their most
+  // recent slap landed within the last 200ms. `lastAttackAt` is stamped
+  // by `applySlap` on every successful slap (after the cooldown / range /
+  // shield gates pass), so this window is exactly the visible slap
+  // duration. Default `lastAttackAt = -Infinity` makes the check
+  // trivially false at spawn, so this branch never fires for an actor
+  // that has never slapped.
+  if (now - actor.lastAttackAt < 200) {
+    return "slap";
+  }
+
   const vx = actor.body.velocity.x;
   const vy = actor.body.velocity.y;
   const speedSq = vx * vx + vy * vy;
 
-  // 2. Effectively stationary.
+  // 3. Effectively stationary.
   if (speedSq < IDLE_VELOCITY_EPSILON_SQ) {
     return "idle";
   }
 
-  // 3. Dominant-axis run direction. Phaser's coordinate system has +y
+  // 4. Dominant-axis run direction. Phaser's coordinate system has +y
   // pointing down, so vy < 0 = moving north (up) and vy > 0 = moving
   // south (down). +x is east (right), -x is west (left).
   const absX = Math.abs(vx);
