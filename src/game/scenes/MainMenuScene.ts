@@ -11,6 +11,8 @@ import { createStyledButton } from "../ui/StyledButton";
 import { createBackground } from "../ui/Background";
 import { I18nService } from "../i18n/I18nService";
 import { createLanguageToggle } from "../ui/LanguageToggle";
+import { loadProfile, saveProfile } from "../config/profile";
+import { LEVELS } from "../config/progression";
 
 /**
  * Main menu scene — title screen with "Начать", "Профиль", and
@@ -156,5 +158,19 @@ export class MainMenuScene extends Phaser.Scene {
     });
 
     this.input.keyboard?.on("keydown-ENTER", goStart);
+
+    // --- Debug: Shift+Y → max level (for testing unlocks) ---
+    const shiftKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
+    this.input.keyboard?.on("keydown-Y", () => {
+      if (shiftKey?.isDown) {
+        const profile = loadProfile(storage);
+        const maxDef = LEVELS[LEVELS.length - 1];
+        const maxProfile = { ...profile, xp: maxDef.xpRequired, level: maxDef.level };
+        if (storage) saveProfile(storage, maxProfile);
+        console.log(`[Debug] Profile set to max level ${maxDef.level} (XP: ${maxDef.xpRequired})`);
+        // Restart scene to refresh any level-dependent UI
+        this.scene.restart();
+      }
+    });
   }
 }

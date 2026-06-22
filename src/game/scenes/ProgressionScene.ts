@@ -18,6 +18,7 @@ import { createStyledButton } from "../ui/StyledButton";
 import { createBackground } from "../ui/Background";
 import { createTopRightMuteButton } from "../ui/TopRightMuteButton";
 import { I18nService } from "../i18n/I18nService";
+import type { TranslationKey } from "../config/translations";
 
 /**
  * Progression scene — displays the player's level, XP bar, and the full
@@ -195,9 +196,16 @@ export class ProgressionScene extends Phaser.Scene {
       const markColor = reached ? "#81b29a" : "#e07a5f";
       const unlockText =
         def.unlocks.length > 0
-          ? def.unlocks.map((u) => u.key).join(", ")
+          ? def.unlocks.map((u) => {
+              // Translate unlock key: "bot-easy" → "unlock.bot-easy", "title-rookie" → "unlock.title-rookie"
+              const translationKey = `unlock.${u.key}` as TranslationKey;
+              return i18n.t(translationKey);
+            }).join(", ")
           : "\u2014";
-      const rowStr = `${mark}  ${i18n.t("progression.level")} ${def.level}: ${unlockText}`;
+      const rewardText = def.reward
+        ? ` + ${i18n.t(`unlock.title-${def.reward.key}` as TranslationKey)}`
+        : "";
+      const rowStr = `${mark}  ${i18n.t("progression.level")} ${def.level}: ${unlockText}${rewardText}`;
       this.add
         .text(labelX, rowY, rowStr, {
           color: markColor,

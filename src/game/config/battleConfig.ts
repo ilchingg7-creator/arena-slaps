@@ -1,36 +1,36 @@
 /**
- * Per-difficulty bot tuning (Fix B). The single `bot` block used to be
- * shared across ALL difficulties, which left even the Hard bot strictly
- * weaker than the player on every axis (slower, shorter range, weaker
- * knockback). Each difficulty now has its own block:
- *   - easy:   slower / shorter range / weaker knockback (180 / 64 / 450)
- *   - medium: the legacy baseline                       (210 / 74 / 500)
- *   - hard:   EXACT parity with the player              (260 / 84 / 560)
+ * Per-difficulty bot tuning. Hard bot is strong but NOT at full player
+ * parity — the bot's AI is simpler than a human (no real strategy, just
+ * chase + slap), so giving it equal stats would make it frustrating.
  *
- * Declared as a standalone const so `battleConfig.bot` can alias
- * `botByDifficulty.medium` for backward compatibility (some existing code
- * references `battleConfig.bot.color` / `battleConfig.bot` directly).
+ *   - easy:   much slower / short range / weak knockback (160 / 60 / 400)
+ *   - medium: moderate speed / decent range (200 / 70 / 470)
+ *   - hard:   fast / good range / strong knockback (240 / 80 / 530)
+ *
+ * Player stats for reference: speed=260, slapRange=84, knockback=560.
+ * Hard bot is ~92% of player speed, ~95% range, ~95% knockback —
+ * competitive but beatable with good play.
  */
 export const botByDifficulty = {
   easy: {
     color: 0xe07a5f,
-    knockbackSpeed: 450,
-    speed: 180,
-    slapRange: 64,
+    knockbackSpeed: 400,
+    speed: 160,
+    slapRange: 60,
     size: 36,
   },
   medium: {
     color: 0xe07a5f,
-    knockbackSpeed: 500,
-    speed: 210,
-    slapRange: 74,
+    knockbackSpeed: 470,
+    speed: 200,
+    slapRange: 70,
     size: 36,
   },
   hard: {
     color: 0xe07a5f,
-    knockbackSpeed: 560,
-    speed: 260,
-    slapRange: 84,
+    knockbackSpeed: 530,
+    speed: 240,
+    slapRange: 80,
     size: 36,
   },
 } as const;

@@ -1300,7 +1300,15 @@ export class BattleScene extends Phaser.Scene {
         onComplete: () => {
           if (this.runtime) {
             resetOffender(this.runtime, "player");
-            // Restore the sprite's alpha/scale after the fall tween
+            // Restore the sprite's alpha + scale after the fall tween
+            // (RingOutFX sets alpha=0, scale=0.2).
+            const go = runtime.playerAnim.gameObject as unknown as {
+              setAlpha: (a: number) => void;
+              setScale: (x: number, y?: number) => void;
+            };
+            go.setAlpha(1);
+            go.setScale(1);
+            runtime.playerAnim.setState("idle");
             runtime.playerAnim.setPosition(
               this.runtime.player.sprite.x,
               this.runtime.player.sprite.y,
@@ -1326,9 +1334,17 @@ export class BattleScene extends Phaser.Scene {
         onComplete: () => {
           if (this.runtime) {
             resetOffender(this.runtime, "opponent");
+            const opp = this.opponentActor();
+            const go = runtime.opponentAnim.gameObject as unknown as {
+              setAlpha: (a: number) => void;
+              setScale: (x: number, y?: number) => void;
+            };
+            go.setAlpha(1);
+            go.setScale(1);
+            runtime.opponentAnim.setState("idle");
             runtime.opponentAnim.setPosition(
-              this.opponentActor().sprite.x,
-              this.opponentActor().sprite.y,
+              opp.sprite.x,
+              opp.sprite.y,
             );
           }
           this.ringOutFxInProgress.opponent = false;

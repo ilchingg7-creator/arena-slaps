@@ -30,6 +30,23 @@ export const TRANSLATIONS = {
   "progression.maxLevel": { ru: "Максимальный уровень!", en: "Max level!" },
   "progression.back": { ru: "Назад", en: "Back" },
 
+  // --- Unlock display names ---
+  "unlock.bot-easy": { ru: "Бот: Лёгкий", en: "Bot: Easy" },
+  "unlock.bot-medium": { ru: "Бот: Средний", en: "Bot: Medium" },
+  "unlock.bot-hard": { ru: "Бот: Сложный", en: "Bot: Hard" },
+  "unlock.arena-default": { ru: "Карта: Базовая", en: "Map: Default" },
+  "unlock.arena-neon": { ru: "Карта: Неон", en: "Map: Neon" },
+  "unlock.arena-cosmic": { ru: "Карта: Космос", en: "Map: Cosmic" },
+  "unlock.arena-volcano": { ru: "Карта: Вулкан", en: "Map: Volcano" },
+  "unlock.arena-ice": { ru: "Карта: Лёд", en: "Map: Ice" },
+  "unlock.arena-grass": { ru: "Карта: Трава", en: "Map: Grass" },
+  "unlock.all-maps": { ru: "Все карты", en: "All Maps" },
+  "unlock.title-rookie": { ru: "Титул: Новичок", en: "Title: Rookie" },
+  "unlock.title-fighter": { ru: "Титул: Боец", en: "Title: Fighter" },
+  "unlock.title-master": { ru: "Титул: Мастер", en: "Title: Master" },
+  "unlock.title-champion": { ru: "Титул: Чемпион", en: "Title: Champion" },
+  "unlock.title-legend": { ru: "Титул: Легенда", en: "Title: Legend" },
+
   // --- BattleSetup ---
   "battlesetup.title": { ru: "Настройка боя", en: "Battle Setup" },
   "battlesetup.mode": { ru: "Режим", en: "Mode" },
