@@ -39,6 +39,14 @@ export interface IAudioBackend {
 type PhaserSound = {
   stop?: () => void;
   setVolume?: (volume: number) => void;
+  destroy?: () => void;
+  isPlaying?: boolean;
+  // Use a permissive play signature — Phaser's BaseSound.play has a
+  // complex overload (markerName?: string | SoundConfig, config?:
+  // SoundConfig) that doesn't structurally match our duck type. We
+  // cast to access it at runtime.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  play?: (...args: any[]) => boolean;
 };
 
 type PhaserLike = {
@@ -50,8 +58,11 @@ type PhaserLike = {
     play: (
       key: string,
       config?: { volume?: number; loop?: boolean },
-    ) => unknown;
+    ) => boolean;
+    add?: (key: string, config?: { volume?: number; loop?: boolean }) => PhaserSound;
     stopAll?: () => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    remove?: (sound: any) => boolean;
   };
   cache?: {
     audio?: { exists: (key: string) => boolean };
@@ -61,9 +72,10 @@ type PhaserLike = {
 /**
  * Production audio backend that delegates to Phaser's loader and SoundManager.
  *
- * `scene` should be the active Phaser.Scene during create(); we only touch
- * the loader + sound + cache, so a real Scene works fine and a duck-typed
- * stub works fine in tests.
+ * Uses `sound.add(key, config)` to create a `BaseSound` instance, then calls
+ * `BaseSound.play()` to start it. This gives us a DIRECT reference to the
+ * sound object, which we store in `playingSounds` for reliable `setVolume()`
+ * and `stop()` calls — `sound.get(key)` is unreliable after stopAll() cycles.
  */
 export class PhaserAudioBackend implements IAudioBackend {
   private scene: PhaserLike;
@@ -98,14 +110,35 @@ export class PhaserAudioBackend implements IAudioBackend {
     }
 
     try {
-      const result = this.scene.sound?.play(key, config);
-      // Phaser's SoundManager.play() returns the BaseSound instance.
-      // Store it so setVolume() can use the direct reference instead of
-      // relying on sound.get(key), which can be unreliable after
-      // stopAll()/stop() cycles.
-      if (result) {
-        this.playingSounds.set(key, result as unknown as PhaserSound);
+      // If a sound with this key is already tracked, stop + remove it
+      // first to avoid duplicate instances (sound.add() creates a NEW
+      // BaseSound each time, so calling play() twice without cleanup
+      // would leave the old one playing).
+      const existing = this.playingSounds.get(key);
+      if (existing) {
+        try {
+          existing.stop?.();
+          if (this.scene.sound?.remove) {
+            this.scene.sound.remove(existing);
+          }
+        } catch {
+          // Best-effort
+        }
+        this.playingSounds.delete(key);
       }
+
+      // Prefer sound.add() + BaseSound.play() — gives us a direct reference.
+      // Fall back to sound.play() if add() is unavailable.
+      if (this.scene.sound?.add) {
+        const sound = this.scene.sound.add(key, config);
+        if (sound) {
+          this.playingSounds.set(key, sound);
+          sound.play?.(undefined, config);
+          return true;
+        }
+      }
+      // Fallback: SoundManager.play() returns boolean (not the sound).
+      this.scene.sound?.play(key, config);
       return true;
     } catch {
       return false;
@@ -116,6 +149,14 @@ export class PhaserAudioBackend implements IAudioBackend {
     try {
       const sound = this.playingSounds.get(key) ?? this.scene.sound?.get?.(key);
       sound?.stop?.();
+      // Also remove from the SoundManager if possible.
+      if (sound && this.scene.sound?.remove) {
+        try {
+          this.scene.sound.remove(sound);
+        } catch {
+          // Best-effort
+        }
+      }
     } catch {
       // Best-effort
     }
@@ -138,8 +179,17 @@ export class PhaserAudioBackend implements IAudioBackend {
   }
 
   stopAll(): void {
-    this.scene.sound?.stopAll?.();
+    // Stop each tracked sound individually first (so we can remove them),
+    // then call stopAll() as a safety net for any untracked sounds.
+    for (const [, sound] of this.playingSounds) {
+      try {
+        sound.stop?.();
+      } catch {
+        // Best-effort
+      }
+    }
     this.playingSounds.clear();
+    this.scene.sound?.stopAll?.();
   }
 }
 

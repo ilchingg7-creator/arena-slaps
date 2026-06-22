@@ -439,6 +439,7 @@ describe("PhaserAudioBackend", () => {
             volume: config?.volume ?? 1,
             loop: config?.loop,
           });
+          return true;
         },
       },
     };
@@ -460,6 +461,7 @@ describe("PhaserAudioBackend", () => {
             volume: config?.volume ?? 1,
             loop: config?.loop,
           });
+          return true;
         },
       },
     };
@@ -474,6 +476,7 @@ describe("PhaserAudioBackend", () => {
       sound: {
         play: (key: string, config?: { volume?: number }) => {
           plays.push({ key, volume: config?.volume ?? 1 });
+          return true;
         },
       },
     };
@@ -487,7 +490,7 @@ describe("PhaserAudioBackend", () => {
   it("stopAll delegates to scene.sound.stopAll when present", () => {
     let stopped = false;
     const scene = {
-      sound: { play: () => void 0, stopAll: () => { stopped = true; } },
+      sound: { play: () => true, stopAll: () => { stopped = true; } },
     };
     const b = new PhaserAudioBackend(scene);
     b.stopAll();
@@ -498,7 +501,7 @@ describe("PhaserAudioBackend", () => {
     const stoppedKeys: string[] = [];
     const scene = {
       sound: {
-        play: () => void 0,
+        play: () => true,
         get: (key: string) => ({
           stop: () => {
             stoppedKeys.push(key);
@@ -515,7 +518,7 @@ describe("PhaserAudioBackend", () => {
   it("stop(key) is a no-op when scene.sound.get returns nothing", () => {
     const scene = {
       sound: {
-        play: () => void 0,
+        play: () => true,
         get: () => null,
       },
     };
