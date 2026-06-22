@@ -116,6 +116,9 @@ export class ProfileScene extends Phaser.Scene {
         color: "#f4f1de",
         fontFamily: "Arial",
         fontSize: "42px",
+        stroke: "#000000",
+        strokeThickness: 5,
+        shadow: { offsetX: 0, offsetY: 2, color: "#000000", blur: 5, fill: true },
       })
       .setOrigin(0.5);
 
@@ -180,34 +183,7 @@ export class ProfileScene extends Phaser.Scene {
         fontSize: 18,
         onClick: () => {
           audio.playMenuClick();
-          // Prompt for new nickname (simple browser prompt for now).
-          const newName =
-            typeof window !== "undefined"
-              ? window.prompt(i18n.t("profile.changeNicknamePrompt"), profile.nickname)
-              : null;
-          if (
-            newName &&
-            newName.trim().length > 0 &&
-            newName.trim().length <= 20
-          ) {
-            const trimmed = newName.trim();
-            // MINOR-4: reject banned words (profanity / hate speech /
-            // sexual terms). The full blocklist lives in nicknames.ts.
-            // A browser alert is used for the rejection message — the
-            // game has no rich modal system, and prompt() already
-            // blocks the page so an alert() is consistent with that UX.
-            if (!validateNickname(trimmed)) {
-              if (typeof window !== "undefined") {
-                window.alert(i18n.t("profile.nicknameBanned"));
-              }
-              return;
-            }
-            profile = { ...profile, nickname: trimmed };
-            service.setNickname(trimmed);
-            if (storage) saveProfile(storage, profile);
-            // Restart scene to refresh display.
-            this.scene.restart();
-          }
+          this.openNicknameEditor(profile, service, storage, i18n);
         },
       },
     );
@@ -261,6 +237,151 @@ export class ProfileScene extends Phaser.Scene {
     this.input.keyboard?.on("keydown-ENTER", () => {
       audio.playMenuClick();
       this.scene.start("MainMenuScene");
+    });
+  }
+
+  /**
+   * Open an inline nickname editor using an HTML5 <input> element overlaid
+   * on the Phaser canvas. The user types a new nickname and clicks Save
+   * (or presses Enter) to confirm, or Cancel (or presses Escape) to abort.
+   *
+   * This replaces the previous window.prompt() approach which was silently
+   * blocked by some browsers / iframe contexts.
+   */
+  private openNicknameEditor(
+    profile: Profile,
+    service: ProfileService,
+    storage: Storage | null,
+    i18n: I18nService,
+  ): void {
+    if (typeof document === "undefined") return;
+
+    // Create a semi-transparent overlay div
+    const overlay = document.createElement("div");
+    overlay.style.position = "fixed";
+    overlay.style.top = "0";
+    overlay.style.left = "0";
+    overlay.style.width = "100%";
+    overlay.style.height = "100%";
+    overlay.style.backgroundColor = "rgba(0, 0, 0, 0.7)";
+    overlay.style.display = "flex";
+    overlay.style.flexDirection = "column";
+    overlay.style.alignItems = "center";
+    overlay.style.justifyContent = "center";
+    overlay.style.zIndex = "1000";
+    overlay.style.fontFamily = "Arial, sans-serif";
+
+    // Container box
+    const box = document.createElement("div");
+    box.style.backgroundColor = "#1a1a2e";
+    box.style.padding = "30px";
+    box.style.borderRadius = "12px";
+    box.style.border = "2px solid #9b5de5";
+    box.style.boxShadow = "0 0 20px rgba(155, 93, 229, 0.5)";
+    box.style.display = "flex";
+    box.style.flexDirection = "column";
+    box.style.gap = "16px";
+    box.style.minWidth = "320px";
+
+    // Label
+    const label = document.createElement("label");
+    label.textContent = i18n.t("profile.changeNicknamePrompt");
+    label.style.color = "#f4f1de";
+    label.style.fontSize = "18px";
+    box.appendChild(label);
+
+    // Input field
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = profile.nickname;
+    input.maxLength = 20;
+    input.style.padding = "10px";
+    input.style.fontSize = "18px";
+    input.style.borderRadius = "6px";
+    input.style.border = "2px solid #3d405b";
+    input.style.backgroundColor = "#101820";
+    input.style.color = "#f4f1de";
+    input.style.outline = "none";
+    input.style.width = "100%";
+    input.style.boxSizing = "border-box";
+    box.appendChild(input);
+
+    // Button row
+    const buttonRow = document.createElement("div");
+    buttonRow.style.display = "flex";
+    buttonRow.style.gap = "12px";
+    buttonRow.style.justifyContent = "center";
+
+    const saveButton = document.createElement("button");
+    saveButton.textContent = "Save";
+    saveButton.style.padding = "10px 24px";
+    saveButton.style.fontSize = "16px";
+    saveButton.style.borderRadius = "6px";
+    saveButton.style.border = "none";
+    saveButton.style.backgroundColor = "#81b29a";
+    saveButton.style.color = "#101820";
+    saveButton.style.cursor = "pointer";
+    saveButton.style.fontWeight = "bold";
+
+    const cancelButton = document.createElement("button");
+    cancelButton.textContent = "Cancel";
+    cancelButton.style.padding = "10px 24px";
+    cancelButton.style.fontSize = "16px";
+    cancelButton.style.borderRadius = "6px";
+    cancelButton.style.border = "none";
+    cancelButton.style.backgroundColor = "#3d405b";
+    cancelButton.style.color = "#f4f1de";
+    cancelButton.style.cursor = "pointer";
+
+    buttonRow.appendChild(saveButton);
+    buttonRow.appendChild(cancelButton);
+    box.appendChild(buttonRow);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+
+    // Focus the input + select all
+    setTimeout(() => {
+      input.focus();
+      input.select();
+    }, 50);
+
+    const close = () => {
+      document.body.removeChild(overlay);
+    };
+
+    const save = () => {
+      const newName = input.value.trim();
+      if (newName.length === 0 || newName.length > 20) {
+        return;
+      }
+      if (!validateNickname(newName)) {
+        input.style.borderColor = "#e07a5f";
+        input.style.boxShadow = "0 0 8px rgba(224, 122, 95, 0.5)";
+        return;
+      }
+      const updated = { ...profile, nickname: newName };
+      service.setNickname(newName);
+      if (storage) saveProfile(storage, updated);
+      close();
+      this.scene.restart();
+    };
+
+    saveButton.addEventListener("click", save);
+    cancelButton.addEventListener("click", close);
+
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        save();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        close();
+      }
+    });
+
+    // Close on overlay click (outside the box)
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) close();
     });
   }
 }

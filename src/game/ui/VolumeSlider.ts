@@ -46,6 +46,7 @@ export type SliderSceneLike = {
 type SliderRectangle = {
   setOrigin: (x?: number, y?: number) => SliderRectangle;
   setDepth: (depth: number) => SliderRectangle;
+  setVisible: (visible: boolean) => SliderRectangle;
   width: number;
   height: number;
   x: number;
@@ -121,13 +122,15 @@ export function createVolumeSlider(
     .setOrigin(0.5, 0.5)
     .setDepth(1);
 
-  // Fill (left-anchored). Phaser rectangles are centered by default, so we
-  // compute the fill's center x as: left edge of track + half the fill width.
+  // Fill (left-anchored) — hidden by default. The green fill was visually
+  // distracting during drag; the handle position + percentage label are
+  // sufficient indicators. Set fill.setVisible(true) to re-enable.
   const trackLeft = centerX - trackWidth / 2;
   const fill = scene.add
     .rectangle(centerX, centerY, 0, TRACK_HEIGHT, FILL_COLOR)
     .setOrigin(0.5, 0.5)
-    .setDepth(2);
+    .setDepth(2)
+    .setVisible(false);
 
   // Handle (draggable square)
   const handle = scene.add

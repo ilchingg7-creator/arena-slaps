@@ -47,8 +47,8 @@ export type LanguageToggle = {
   getLanguage: () => Language;
 };
 
-const FLAG_RU = "🇷🇺";
-const FLAG_EN = "🇬🇧";
+const FLAG_RU = "RU";
+const FLAG_EN = "EN";
 
 function flagFor(lang: Language): string {
   return lang === "ru" ? FLAG_RU : FLAG_EN;

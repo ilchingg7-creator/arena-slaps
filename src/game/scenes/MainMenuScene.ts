@@ -76,20 +76,32 @@ export class MainMenuScene extends Phaser.Scene {
     // --- Background (menu-bg.png with dark navy fallback) ---
     createBackground(this as unknown as Phaser.Scene, { key: "menu-bg" });
 
-    // --- Title ---
-    this.add
-      .text(width / 2, height * 0.25, i18n.t("mainmenu.title"), {
-        color: "#f4f1de",
-        fontFamily: "Arial",
-        fontSize: "64px",
-      })
-      .setOrigin(0.5);
+    // --- Logo (image instead of text — can be used as a brand logo) ---
+    if (this.textures.exists("logo")) {
+      this.add.image(width / 2, height * 0.25, "logo").setOrigin(0.5).setScale(0.5);
+    } else {
+      // Fallback: text with glow shadow for readability
+      this.add
+        .text(width / 2, height * 0.25, i18n.t("mainmenu.title"), {
+          color: "#f4f1de",
+          fontFamily: "Arial",
+          fontStyle: "bold",
+          fontSize: "64px",
+          stroke: "#000000",
+          strokeThickness: 6,
+          shadow: { offsetX: 0, offsetY: 2, color: "#000000", blur: 6, fill: true },
+        })
+        .setOrigin(0.5);
+    }
 
     this.add
       .text(width / 2, height * 0.35, i18n.t("mainmenu.tagline"), {
         color: "#81b29a",
         fontFamily: "Arial",
         fontSize: "20px",
+        stroke: "#000000",
+        strokeThickness: 4,
+        shadow: { offsetX: 0, offsetY: 2, color: "#000000", blur: 4, fill: true },
       })
       .setOrigin(0.5);
 

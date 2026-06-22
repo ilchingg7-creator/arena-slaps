@@ -49,6 +49,9 @@ export class ResultsScene extends Phaser.Scene {
         color: "#f4f1de",
         fontFamily: "Arial",
         fontSize: "52px",
+        stroke: "#000000",
+        strokeThickness: 5,
+        shadow: { offsetX: 0, offsetY: 2, color: "#000000", blur: 5, fill: true },
       })
       .setOrigin(0.5);
 

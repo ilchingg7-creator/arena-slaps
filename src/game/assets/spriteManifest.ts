@@ -242,6 +242,15 @@ export const SPRITE_DEFINITIONS: readonly SpriteDefinition[] = [
     fallback: "rectangle",
     fallbackColor: 0x2a2d44,
   },
+
+  // --- Logo (main menu title image) ---
+  {
+    key: "logo",
+    path: png("logo"),
+    category: "ui",
+    fallback: "rectangle",
+    fallbackColor: 0x9b5de5,
+  },
 ];
 
 export const SPRITE_ATLASES: readonly AtlasDefinition[] = [

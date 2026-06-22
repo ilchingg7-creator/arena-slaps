@@ -75,18 +75,18 @@ describe("LanguageToggle - construction", () => {
     expect(scene.texts[0].interactive).toBe(true);
   });
 
-  it("initial flag is 🇷🇺 when language is ru", () => {
+  it("initial flag is RU when language is ru", () => {
     const scene = makeScene();
     const i18n = new I18nService("ru");
     createLanguageToggle(scene, i18n, () => void 0);
-    expect(scene.texts[0].text).toBe("🇷🇺");
+    expect(scene.texts[0].text).toBe("RU");
   });
 
-  it("initial flag is 🇬🇧 when language is en", () => {
+  it("initial flag is EN when language is en", () => {
     const scene = makeScene();
     const i18n = new I18nService("en");
     createLanguageToggle(scene, i18n, () => void 0);
-    expect(scene.texts[0].text).toBe("🇬🇧");
+    expect(scene.texts[0].text).toBe("EN");
   });
 });
 
@@ -95,10 +95,10 @@ describe("LanguageToggle - click", () => {
     const scene = makeScene();
     const i18n = new I18nService("ru");
     createLanguageToggle(scene, i18n, () => void 0);
-    expect(scene.texts[0].text).toBe("🇷🇺");
+    expect(scene.texts[0].text).toBe("RU");
     scene.click();
     expect(i18n.getLanguage()).toBe("en");
-    expect(scene.texts[0].text).toBe("🇬🇧");
+    expect(scene.texts[0].text).toBe("EN");
   });
 
   it("clicking twice toggles back to the original language", () => {
@@ -106,10 +106,10 @@ describe("LanguageToggle - click", () => {
     const i18n = new I18nService("ru");
     createLanguageToggle(scene, i18n, () => void 0);
     scene.click();
-    expect(scene.texts[0].text).toBe("🇬🇧");
+    expect(scene.texts[0].text).toBe("EN");
     scene.click();
     expect(i18n.getLanguage()).toBe("ru");
-    expect(scene.texts[0].text).toBe("🇷🇺");
+    expect(scene.texts[0].text).toBe("RU");
   });
 
   it("onChange callback is called with the new language", () => {
@@ -137,11 +137,11 @@ describe("LanguageToggle - refresh / getLanguage", () => {
     const scene = makeScene();
     const i18n = new I18nService("ru");
     const toggle = createLanguageToggle(scene, i18n, () => void 0);
-    expect(scene.texts[0].text).toBe("🇷🇺");
+    expect(scene.texts[0].text).toBe("RU");
     // Externally change the language and call refresh.
     i18n.setLanguage("en");
     toggle.refresh();
-    expect(scene.texts[0].text).toBe("🇬🇧");
+    expect(scene.texts[0].text).toBe("EN");
   });
 
   it("getLanguage returns the current language from i18n", () => {

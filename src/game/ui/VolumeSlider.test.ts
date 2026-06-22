@@ -10,6 +10,7 @@ type Rect = {
   color: number;
   origin: { x: number; y: number };
   depth: number;
+  visible: boolean;
 };
 
 type Text = {
@@ -57,6 +58,7 @@ function makeScene(): FakeScene {
           color,
           origin: { x: 0.5, y: 0.5 },
           depth: 0,
+          visible: true,
         };
         rects.push(r);
         // Return a proxy object whose methods record mutations back onto r.
@@ -67,6 +69,10 @@ function makeScene(): FakeScene {
           },
           setDepth(d: number) {
             r.depth = d;
+            return this;
+          },
+          setVisible(v: boolean) {
+            r.visible = v;
             return this;
           },
           get width() {
