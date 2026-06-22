@@ -251,6 +251,22 @@ export const SPRITE_DEFINITIONS: readonly SpriteDefinition[] = [
     fallback: "rectangle",
     fallbackColor: 0x9b5de5,
   },
+
+  // --- Mute button sprites (sound + muted states) ---
+  {
+    key: "mute-sound",
+    path: png("mute-sound"),
+    category: "ui",
+    fallback: "rectangle",
+    fallbackColor: 0x81b29a,
+  },
+  {
+    key: "mute-muted",
+    path: png("mute-muted"),
+    category: "ui",
+    fallback: "rectangle",
+    fallbackColor: 0xe07a5f,
+  },
 ];
 
 export const SPRITE_ATLASES: readonly AtlasDefinition[] = [

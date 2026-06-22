@@ -135,6 +135,9 @@ export class ProfileScene extends Phaser.Scene {
           color: "#81b29a",
           fontFamily: "Arial",
           fontSize: "20px",
+          stroke: "#000000",
+          strokeThickness: 3,
+          shadow: { offsetX: 0, offsetY: 1, color: "#000000", blur: 3, fill: true },
         })
         .setOrigin(0, 0.5);
       this.add
@@ -142,6 +145,9 @@ export class ProfileScene extends Phaser.Scene {
           color: "#f4f1de",
           fontFamily: "Arial",
           fontSize: "20px",
+          stroke: "#000000",
+          strokeThickness: 3,
+          shadow: { offsetX: 0, offsetY: 1, color: "#000000", blur: 3, fill: true },
         })
         .setOrigin(1, 0.5);
     };
@@ -195,9 +201,9 @@ export class ProfileScene extends Phaser.Scene {
         y: buttonY,
         text: i18n.t("profile.resetStats"),
         variant: "danger",
-        width: 180,
+        width: 240,
         height: 44,
-        fontSize: 18,
+        fontSize: 16,
         onClick: () => {
           audio.playMenuClick();
           const confirmReset =

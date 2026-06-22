@@ -11,17 +11,31 @@ type FakeText = {
   text: string;
   origin: { x: number; y: number };
   handlers: Map<string, () => void>;
+  visible: boolean;
+};
+
+type FakeImage = {
+  x: number;
+  y: number;
+  key: string;
+  origin: { x: number; y: number };
+  visible: boolean;
+  handlers: Map<string, () => void>;
 };
 
 type FakeScene = MuteButtonSceneLike & {
   texts: FakeText[];
+  images: FakeImage[];
   click(): void;
+  clickImage(index: number): void;
 };
 
 function makeScene(width = 1280): FakeScene {
   const texts: FakeText[] = [];
+  const images: FakeImage[] = [];
   const scene: FakeScene = {
     texts,
+    images,
     add: {
       text(x, y, value, _style) {
         const t: FakeText = {
@@ -30,6 +44,7 @@ function makeScene(width = 1280): FakeScene {
           text: value,
           origin: { x: 0.5, y: 0.5 },
           handlers: new Map(),
+          visible: true,
         };
         texts.push(t);
         return {
@@ -48,12 +63,53 @@ function makeScene(width = 1280): FakeScene {
             t.text = v;
             return this;
           },
+          setVisible(v: boolean) {
+            t.visible = v;
+            return this;
+          },
         } as unknown as ReturnType<MuteButtonSceneLike["add"]["text"]>;
+      },
+      image(x: number, y: number, key: string) {
+        const img: FakeImage = {
+          x,
+          y,
+          key,
+          origin: { x: 0.5, y: 0.5 },
+          visible: true,
+          handlers: new Map(),
+        };
+        images.push(img);
+        return {
+          setOrigin(o?: number, p?: number) {
+            img.origin = { x: o ?? 0.5, y: p ?? 0.5 };
+            return this;
+          },
+          setInteractive() {
+            return this;
+          },
+          on(event: string, handler: () => void) {
+            img.handlers.set(event, handler);
+            return this;
+          },
+          setVisible(v: boolean) {
+            img.visible = v;
+            return this;
+          },
+          setTexture(k: string) {
+            img.key = k;
+            return this;
+          },
+        } as unknown as ReturnType<MuteButtonSceneLike["add"]["image"]>;
       },
     },
     scale: { width, height: 720 },
+    textures: { exists: () => false },  // text fallback by default
     click() {
       const handler = texts[0]?.handlers.get("pointerup");
+      if (handler) handler();
+    },
+    clickImage(index: number) {
+      const handler = images[index]?.handlers.get("pointerup");
       if (handler) handler();
     },
   };
