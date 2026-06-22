@@ -94,6 +94,7 @@ function mockActor(overrides: Partial<ActorState> = {}): ActorState {
     frozenUntil: 0,
     doubleSlapUntil: 0,
     dodgeUntil: 0,
+    committedPowerUpSpawnedAt: null,
     dodgeCooldownUntil: 0,
     comboStacks: 0,
     lastSlapAt: Number.NEGATIVE_INFINITY,
@@ -339,6 +340,7 @@ function makeBotAI(): BotAIState {
     lastSlapAttemptAt: 0,
     currentDir: { x: 0, y: 0 },
     dodgeUntil: 0,
+    committedPowerUpSpawnedAt: null,
   };
 }
 

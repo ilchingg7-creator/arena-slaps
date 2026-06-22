@@ -173,6 +173,7 @@ type BattleRuntime = {
    */
   comboText: Phaser.GameObjects.Text;
   lastTickInt: number;
+  lastPowerUpDespawnAt: number;
   isPaused: boolean;
 };
 
@@ -765,6 +766,7 @@ export class BattleScene extends Phaser.Scene {
         })
         .setOrigin(0.5),
       lastTickInt: Math.ceil(settings.roundLengthSeconds),
+      lastPowerUpDespawnAt: 0,
       isPaused: false,
     };
 
@@ -1289,10 +1291,11 @@ export class BattleScene extends Phaser.Scene {
       // "powerup-despawn" sound can be added in a future audio pass.
       if (shouldDespawnPowerUp(runtime.powerUp, now)) {
         despawnPowerUp(runtime.powerUp);
+        runtime.lastPowerUpDespawnAt = now;
       }
     }
 
-    if (!runtime.powerUp.active) {
+    if (!runtime.powerUp.active && now - runtime.lastPowerUpDespawnAt > 3000) {
       spawnPowerUp(this, runtime.powerUp, runtime.arena, battleConfig.powerUp.size, (key: string) => runtime.i18n?.t(key as never) ?? key);
     }
 
@@ -1310,11 +1313,13 @@ export class BattleScene extends Phaser.Scene {
         runtime.powerUpTypesCollected.push(collectedKey);
       }
       runtime.audio.playPowerUpCollect();
+      runtime.lastPowerUpDespawnAt = this.time.now;
     }
 
     if (tryCollectPowerUp(opponentActor, runtime.powerUp, this.time.now, runtime.player)) {
       runtime.powerUpsCollected.bots += 1;
       runtime.audio.playPowerUpCollect();
+      runtime.lastPowerUpDespawnAt = this.time.now;
     }
 
     // --- Ring out ---
