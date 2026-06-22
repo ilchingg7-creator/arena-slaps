@@ -135,4 +135,68 @@ describe("applySlap", () => {
     expect(registerPointSpy).not.toHaveBeenCalled();
     registerPointSpy.mockRestore();
   });
+
+  // --- C1: Double-Slap power-up ---
+  // Previously `isDoubleSlapReady` was imported in BattleScene but never
+  // consulted: the double-slap power-up applied a visual tint but the next
+  // slap did NOT hit twice. The fix lives inside `applySlap` so every slap
+  // path (P1, P2, bot) benefits automatically — when the attacker has a
+  // double-slap boost ready, the next successful slap's knockback velocity
+  // is doubled AND the boost is consumed (reset to 0).
+
+  it("C1: applySlap with doubleSlapReady doubles the knockback velocity", () => {
+    // Setup: attacker at (0,0), defender at (40,0). Direction = (1, 0).
+    // Base knockback velocity = knockbackSpeed (560) * knockbackMultiplier (1) = 560.
+    // With double-slap ready: 560 * 2 = 1120.
+    const attacker = mockActor(0, 0, { doubleSlapUntil: 5000 });
+    const defender = mockActor(40, 0);
+    const setVelocity = vi.fn();
+    (defender as unknown as { body: { setVelocity: typeof setVelocity } }).body = {
+      setVelocity,
+    };
+    const hit = applySlap(attacker, defender, 1000);
+    expect(hit).toBe(true);
+    expect(setVelocity).toHaveBeenCalledTimes(1);
+    // Velocity along +x is doubled; y stays 0.
+    expect(setVelocity.mock.calls[0][0]).toBe(1120);
+    expect(setVelocity.mock.calls[0][1]).toBe(0);
+  });
+
+  it("C1: applySlap consumes doubleSlapReady (resets doubleSlapUntil to 0)", () => {
+    const attacker = mockActor(0, 0, { doubleSlapUntil: 5000 });
+    const defender = mockActor(40, 0);
+    const hit = applySlap(attacker, defender, 1000);
+    expect(hit).toBe(true);
+    // The double-slap boost is consumed on use — the next slap should be a
+    // normal single slap.
+    expect(attacker.doubleSlapUntil).toBe(0);
+  });
+
+  it("C1: applySlap without doubleSlapReady does not double velocity", () => {
+    // doubleSlapUntil defaults to 0 → boost NOT ready.
+    const attacker = mockActor(0, 0);
+    const defender = mockActor(40, 0);
+    const setVelocity = vi.fn();
+    (defender as unknown as { body: { setVelocity: typeof setVelocity } }).body = {
+      setVelocity,
+    };
+    const hit = applySlap(attacker, defender, 1000);
+    expect(hit).toBe(true);
+    // Velocity should NOT be doubled: 560 * 1 = 560.
+    expect(setVelocity.mock.calls[0][0]).toBe(560);
+  });
+
+  it("C1: applySlap does not consume doubleSlapReady when the slap misses (out of range)", () => {
+    // A missed slap should NOT consume the boost — only a successful slap
+    // triggers the double-hit. The boost should persist for the next attempt.
+    const attacker = mockActor(0, 0, {
+      doubleSlapUntil: 5000,
+      slapRange: 10, // out of range
+    });
+    const defender = mockActor(200, 0);
+    const hit = applySlap(attacker, defender, 1000);
+    expect(hit).toBe(false);
+    // Boost is preserved — not consumed by a miss.
+    expect(attacker.doubleSlapUntil).toBe(5000);
+  });
 });

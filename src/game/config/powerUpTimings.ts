@@ -23,10 +23,6 @@ export const POWERUP_TIMINGS = {
   freezeMs: 1500,
   doubleSlapMs: 5000,
 
-  // --- Spawn ---
-  /** Min delay between power-up spawns (ms). */
-  spawnCooldownMs: 3000,
-
   // --- Collection ---
   /** How close an actor must be to pick up a power-up (pixels). */
   collectDistance: 36,

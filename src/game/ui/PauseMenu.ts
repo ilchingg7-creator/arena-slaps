@@ -45,6 +45,26 @@ import {
 } from "./VolumeSlider";
 import type { I18nService } from "../i18n/I18nService";
 import type { TranslationKey } from "../config/translations";
+import type { AudioSettings } from "../audio/AudioService";
+import type { GameSettings } from "../config/gameSettings";
+import { saveSettings } from "../config/gameSettings";
+
+/**
+ * Minimal storage surface PauseMenu needs to persist volume slider changes.
+ * Compatible with the global `Storage` and the `StorageLike` type used
+ * internally by gameSettings.ts (so callers can pass either).
+ */
+export type PauseStorageLike = {
+  setItem?: (key: string, value: string) => void;
+};
+
+/**
+ * Duck-typed AudioService surface PauseMenu needs to push live volume
+ * changes through. Real {@link AudioService} instances satisfy this shape.
+ */
+export type PauseAudioLike = {
+  updateSettings: (settings: AudioSettings) => void;
+};
 
 export type PauseMenuConfig = {
   /** The scene that should be resumed/quit (typically the BattleScene). */
@@ -63,6 +83,25 @@ export type PauseMenuConfig = {
    * that don't construct an I18nService).
    */
   i18n?: I18nService;
+  /**
+   * Shared audio service. When provided alongside `settings`, the inline
+   * volume sliders push live changes through `audio.updateSettings(...)`
+   * so the player hears SFX/music volume changes immediately (M1 fix).
+   * When omitted, slider drags are a no-op (preserves the legacy test
+   * behaviour where sliders had `onChange: () => void 0`).
+   */
+  audio?: PauseAudioLike;
+  /**
+   * Mutable settings object the sliders write back into. When omitted,
+   * slider drags don't persist anywhere.
+   */
+  settings?: GameSettings;
+  /**
+   * Optional storage backend. When provided alongside `settings`, slider
+   * drags are persisted via `saveSettings(storage, settings)` so the new
+   * volumes survive a page reload.
+   */
+  storage?: PauseStorageLike | null;
 };
 
 export type PauseMenu = {
@@ -78,6 +117,17 @@ export type PauseMenu = {
   toggleSettings: () => void;
   /** Is the settings panel currently shown? */
   isSettingsVisible: () => boolean;
+  /**
+   * Forward a global pointermove event to every settings slider so the
+   * drag stays alive when the pointer leaves the slider's hit zone (M1).
+   * The owning scene wires `scene.input.on("pointermove", ...)` to this.
+   */
+  handlePointerMove: (pointer: { x: number; y: number; isDown: boolean }) => void;
+  /**
+   * End the current drag on every settings slider. The owning scene wires
+   * `scene.input.on("pointerup", ...)` to this (M1).
+   */
+  endDrag: () => void;
 };
 
 // --- Scene duck types --------------------------------------------------
@@ -322,8 +372,10 @@ export function createPauseMenu(
       centerX + 60,
       centerY - 80,
       240,
-      0.7,
-      () => void 0,
+      config.settings?.sfxVolume ?? 0.7,
+      (nextVolume) => {
+        applySfxVolume(nextVolume);
+      },
     );
     settingsSliders.push(sfxSlider);
 
@@ -339,8 +391,10 @@ export function createPauseMenu(
       centerX + 60,
       centerY + 20,
       240,
-      0.5,
-      () => void 0,
+      config.settings?.musicVolume ?? 0.5,
+      (nextVolume) => {
+        applyMusicVolume(nextVolume);
+      },
     );
     settingsSliders.push(musicSlider);
   } finally {
@@ -372,6 +426,54 @@ export function createPauseMenu(
   // --- State + methods -------------------------------------------------
   let visible = false;
   let settingsVisible = false;
+
+  /**
+   * Push a new SFX volume through the live AudioService + persist it into
+   * the shared settings object (and localStorage when available). No-op
+   * when the menu was constructed without `audio` / `settings` (M1 fix).
+   */
+  function applySfxVolume(nextVolume: number): void {
+    const settings = config.settings;
+    if (!settings) {
+      return;
+    }
+    settings.sfxVolume = nextVolume;
+    if (config.audio) {
+      config.audio.updateSettings({
+        sfxMuted: settings.sfxMuted,
+        musicMuted: settings.musicMuted,
+        sfxVolume: settings.sfxVolume,
+        musicVolume: settings.musicVolume,
+      });
+    }
+    if (config.storage) {
+      saveSettings(config.storage, settings);
+    }
+  }
+
+  /**
+   * Push a new Music volume through the live AudioService + persist it into
+   * the shared settings object (and localStorage when available). No-op
+   * when the menu was constructed without `audio` / `settings` (M1 fix).
+   */
+  function applyMusicVolume(nextVolume: number): void {
+    const settings = config.settings;
+    if (!settings) {
+      return;
+    }
+    settings.musicVolume = nextVolume;
+    if (config.audio) {
+      config.audio.updateSettings({
+        sfxMuted: settings.sfxMuted,
+        musicMuted: settings.musicMuted,
+        sfxVolume: settings.sfxVolume,
+        musicVolume: settings.musicVolume,
+      });
+    }
+    if (config.storage) {
+      saveSettings(config.storage, settings);
+    }
+  }
 
   function showMainButtons(v: boolean): void {
     for (const btn of mainButtons) {
@@ -447,6 +549,22 @@ export function createPauseMenu(
     }
   }
 
+  function handlePointerMove(pointer: {
+    x: number;
+    y: number;
+    isDown: boolean;
+  }): void {
+    for (const slider of settingsSliders) {
+      slider.handlePointerMove(pointer);
+    }
+  }
+
+  function endDrag(): void {
+    for (const slider of settingsSliders) {
+      slider.endDrag();
+    }
+  }
+
   return {
     show,
     hide,
@@ -454,5 +572,7 @@ export function createPauseMenu(
     destroy,
     toggleSettings,
     isSettingsVisible,
+    handlePointerMove,
+    endDrag,
   };
 }

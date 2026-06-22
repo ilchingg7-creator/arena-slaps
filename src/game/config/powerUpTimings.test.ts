@@ -16,7 +16,6 @@ const positiveTimingKeys = [
   "megaKnockbackBoostMs",
   "freezeMs",
   "doubleSlapMs",
-  "spawnCooldownMs",
   "collectDistance",
 ] as const satisfies readonly (keyof PowerUpTimings)[];
 

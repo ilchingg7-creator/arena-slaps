@@ -1,6 +1,5 @@
 import Phaser from "phaser";
 import {
-  describeVolume,
   loadSettings,
   saveSettings,
   type GameSettings,
@@ -30,9 +29,6 @@ function rowStyle(): TextStyle {
     padding: { x: 14, y: 6 },
   };
 }
-
-// describeVolume is exported for future UI use; keep it referenced.
-void describeVolume;
 
 /**
  * Audio settings scene — separate SFX and Music volume sliders + mute

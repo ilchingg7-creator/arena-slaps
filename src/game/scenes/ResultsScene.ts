@@ -3,11 +3,20 @@ import { createBattleResultsSummary, loadBattleResults } from "../systems/Battle
 import { createStyledButton } from "../ui/StyledButton";
 import { createBackground } from "../ui/Background";
 import { I18nService } from "../i18n/I18nService";
+import { getAudioService } from "../audio/getAudioService";
+import { loadSettings } from "../config/gameSettings";
 
 /**
  * Results scene — shows the winner, score, rounds played, and power-ups
  * collected from the last battle (loaded from localStorage). A "Back to
  * menu" button returns to the MainMenuScene.
+ *
+ * M5: the BattleScene stops the battle-theme music before transitioning
+ * here, so without this scene starting its own track the results screen
+ * would be silent. The menu-theme fits the "post-battle lobby" feel of
+ * the results screen and is also what every other menu-style scene
+ * (MainMenu, AudioSettings, Profile) plays, so the audio continuity is
+ * preserved across the whole navigation flow.
  */
 export class ResultsScene extends Phaser.Scene {
   constructor() {
@@ -20,6 +29,13 @@ export class ResultsScene extends Phaser.Scene {
     const storage =
       typeof window !== "undefined" ? window.localStorage : null;
     const i18n = I18nService.load(storage);
+    const settings = loadSettings(storage);
+    // M5: start the menu-theme music on the shared AudioService so the
+    // results screen isn't silent. `getAudioService` reuses the same
+    // singleton the BattleScene was using, so the music volume respects
+    // whatever the player set in the AudioSettings scene.
+    const audio = getAudioService(this, settings);
+    audio.playMenuTheme();
     const results = storage ? loadBattleResults(storage) : null;
     const summary = results
       ? createBattleResultsSummary(results)

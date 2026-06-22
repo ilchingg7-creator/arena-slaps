@@ -3,8 +3,6 @@ import {
   BOT_DIFFICULTY_OPTIONS,
   DEFAULT_SETTINGS,
   describeVolume,
-  SFX_VOLUME_OPTIONS,
-  MUSIC_VOLUME_OPTIONS,
   MODE_OPTIONS,
   ROUND_LENGTH_OPTIONS,
   WINNING_SCORE_OPTIONS,
@@ -33,8 +31,6 @@ describe("gameSettings", () => {
     expect(BOT_DIFFICULTY_OPTIONS).toEqual(["easy", "medium", "hard"]);
     expect([...ROUND_LENGTH_OPTIONS]).toEqual([30, 60, 90, 120]);
     expect([...WINNING_SCORE_OPTIONS]).toEqual([3, 5, 7, 10]);
-    expect([...SFX_VOLUME_OPTIONS]).toEqual([0, 0.25, 0.5, 0.7, 1]);
-    expect([...MUSIC_VOLUME_OPTIONS]).toEqual([0, 0.25, 0.5, 0.7, 1]);
   });
 
   it("returns defaults when storage is missing", () => {
@@ -110,10 +106,6 @@ describe("gameSettings", () => {
     expect(cycleOption(BOT_DIFFICULTY_OPTIONS, "hard")).toBe("easy");
     expect(cycleOption(WINNING_SCORE_OPTIONS, 5)).toBe(7);
     expect(cycleOption(WINNING_SCORE_OPTIONS, 10)).toBe(3);
-    expect(cycleOption(SFX_VOLUME_OPTIONS, 0.7)).toBe(1);
-    expect(cycleOption(SFX_VOLUME_OPTIONS, 1)).toBe(0);
-    expect(cycleOption(MUSIC_VOLUME_OPTIONS, 0.5)).toBe(0.7);
-    expect(cycleOption(MUSIC_VOLUME_OPTIONS, 1)).toBe(0);
   });
 
   it("describes modes and difficulties for UI", () => {

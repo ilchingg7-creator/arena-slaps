@@ -134,8 +134,6 @@ export const BOT_DIFFICULTY_OPTIONS: readonly BotDifficulty[] = [
   "hard",
 ];
 export const MODE_OPTIONS: readonly GameMode[] = ["1p-vs-bot", "2p-local"];
-export const SFX_VOLUME_OPTIONS = [0, 0.25, 0.5, 0.7, 1] as const;
-export const MUSIC_VOLUME_OPTIONS = [0, 0.25, 0.5, 0.7, 1] as const;
 
 export function cycleOption<T extends string | number>(
   options: readonly T[],

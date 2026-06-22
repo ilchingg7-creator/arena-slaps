@@ -64,6 +64,15 @@ export const TRANSLATIONS = {
   "profile.back": { ru: "Назад", en: "Back" },
   "profile.changeNicknamePrompt": { ru: "Введите новый никнейм:", en: "Enter new nickname:" },
   "profile.resetConfirm": { ru: "Сбросить всю статистику? Это действие нельзя отменить.", en: "Reset all statistics? This cannot be undone." },
+  "profile.nicknameBanned": { ru: "Этот никнейм содержит запрещённые слова. Выберите другой.", en: "This nickname contains banned words. Please choose another." },
+
+  // --- Power-up display labels (used by ProfileScene favorite power-up row) ---
+  "powerup.speed": { ru: "Ускорение", en: "Boost" },
+  "powerup.knockback": { ru: "Тяжёлая рука", en: "Heavy Hand" },
+  "powerup.shield": { ru: "Щит", en: "Shield" },
+  "powerup.mega-knockback": { ru: "Мега-рука", en: "Mega Hand" },
+  "powerup.freeze": { ru: "Заморозка", en: "Freeze" },
+  "powerup.double-slap": { ru: "Двойной слэп", en: "Double Slap" },
 
   // --- Battle HUD ---
   "battle.time": { ru: "Время", en: "Time" },

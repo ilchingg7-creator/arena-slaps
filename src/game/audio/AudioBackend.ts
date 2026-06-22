@@ -179,11 +179,15 @@ export class PhaserAudioBackend implements IAudioBackend {
   }
 
   stopAll(): void {
-    // Stop each tracked sound individually first (so we can remove them),
-    // then call stopAll() as a safety net for any untracked sounds.
+    // Stop AND destroy each tracked sound individually first. `stopAll()`
+    // on the SoundManager only stops playback — it leaves the BaseSound
+    // instances in the manager's internal list, which leaks memory across
+    // repeated mute/unmute cycles (MINOR-5). Calling `destroy()` releases
+    // the BaseSound from the SoundManager and frees its WebAudio nodes.
     for (const [, sound] of this.playingSounds) {
       try {
         sound.stop?.();
+        sound.destroy?.();
       } catch {
         // Best-effort
       }

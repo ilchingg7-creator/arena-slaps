@@ -125,6 +125,62 @@ describe("getActorAnimationState", () => {
     const actor = mockActor({ body: { velocity: { x: 100, y: 100 } } });
     expect(getActorAnimationState(actor, 1000)).toBe("run-s");
   });
+
+  // --- MINOR-1: slap animation ---
+  // `getActorAnimationState` previously returned only "idle" / "run-N|S|E|W" /
+  // "fall" — the "slap" texture (player-slap.png, bot-slap.png) was never
+  // displayed because no state transition ever returned "slap". The fix
+  // introduces a "slap" state when the actor recently slapped (within 200ms
+  // of `lastAttackAt`). Priority: fall > slap > run > idle (fall still wins
+  // so a slapped-then-knocked actor tumbles visibly; the brief slap window
+  // is otherwise above run/idle so the player sees their own slap connect).
+  it("MINOR-1: returns 'slap' when lastAttackAt is within 200ms", () => {
+    const actor = mockActor({
+      lastAttackAt: 900,
+      body: { velocity: { x: 0, y: 0 } },
+    });
+    // now - lastAttackAt = 1000 - 900 = 100 < 200 → slap.
+    expect(getActorAnimationState(actor, 1000)).toBe("slap");
+  });
+
+  it("MINOR-1: returns 'slap' when lastAttackAt is exactly 199ms ago (boundary)", () => {
+    const actor = mockActor({
+      lastAttackAt: 801,
+      body: { velocity: { x: 0, y: 0 } },
+    });
+    // now - lastAttackAt = 1000 - 801 = 199 < 200 → slap (boundary inclusive).
+    expect(getActorAnimationState(actor, 1000)).toBe("slap");
+  });
+
+  it("MINOR-1: returns 'idle' when lastAttackAt is more than 200ms ago", () => {
+    const actor = mockActor({
+      lastAttackAt: 700,
+      body: { velocity: { x: 0, y: 0 } },
+    });
+    // now - lastAttackAt = 1000 - 700 = 300 > 200 → not slapping, velocity 0 → idle.
+    expect(getActorAnimationState(actor, 1000)).toBe("idle");
+  });
+
+  it("MINOR-1: returns 'fall' when both knockback and slap are active (fall wins)", () => {
+    const actor = mockActor({
+      knockbackUntil: 5000,
+      lastAttackAt: 900,
+      body: { velocity: { x: 0, y: 0 } },
+    });
+    // Both fall (knockbackUntil > now) AND slap (now - lastAttackAt = 100 < 200)
+    // are active. Fall takes priority — the actor is being launched.
+    expect(getActorAnimationState(actor, 1000)).toBe("fall");
+  });
+
+  it("MINOR-1: returns 'slap' even when velocity is non-zero (slap beats run)", () => {
+    const actor = mockActor({
+      lastAttackAt: 900,
+      body: { velocity: { x: 260, y: 0 } },
+    });
+    // Slap window is active and velocity is run-tier (260 px/s). Slap should
+    // override the run animation so the player sees the slap connect.
+    expect(getActorAnimationState(actor, 1000)).toBe("slap");
+  });
 });
 
 describe("getActorEffectTint", () => {
