@@ -52,8 +52,7 @@ import type { AudioService } from "../audio/AudioService";
 import { createBackground } from "../ui/Background";
 import { createPauseMenu, type PauseMenu } from "../ui/PauseMenu";
 import { loadProfile, saveProfile } from "../config/profile";
-import { ProfileService } from "../services/ProfileService";
-import { ProgressionService } from "../services/ProgressionService";
+import { processBattleEnd } from "../services/processBattleEnd";
 import {
   computeBotDirection,
   createBotAI,
@@ -176,6 +175,31 @@ type BattleRuntime = {
   lastTickInt: number;
   lastPowerUpDespawnAt: number;
   isPaused: boolean;
+  /**
+   * Wall-clock timestamp (ms) when the battle started. Set in `create()`.
+   * Used at round-end to compute `roundDurationMs` for the speed_demon
+   * achievement + the ResultsScene summary.
+   */
+  battleStartAt: number;
+  /**
+   * Highest combo stack count the player reached this battle. Updated
+   * every frame from `runtime.player.comboStacks` (taking the max so a
+   * brief spike to 5 then back to 0 still counts). Drives the
+   * `combo_5` achievement.
+   */
+  maxComboReached: number;
+  /**
+   * Total successful dodges the player performed this battle. Incremented
+   * in `update()` whenever `startDodge` returns true. Drives the
+   * `dodge_master` achievement.
+   */
+  dodgesThisBattle: number;
+  /**
+   * Total times the player was knocked out (ring-out) this battle.
+   * Incremented in `handleRingOut("player", ...)`. Drives the `survivor`
+   * achievement (3+ ring-outs suffered AND a win).
+   */
+  ringOutsSufferedThisBattle: number;
 };
 
 /**
@@ -283,6 +307,12 @@ function updateHud(runtime: BattleRuntime): void {
   if (runtime.player.comboStacks > 0) {
     runtime.comboText.setText(`Combo: x${runtime.player.comboStacks}`);
     runtime.comboText.setVisible(true);
+    // Track the peak for the `combo_5` achievement — taking the max each
+    // frame preserves brief spikes (e.g. a 5-stack that times out before
+    // the next update() would otherwise be missed).
+    if (runtime.player.comboStacks > runtime.maxComboReached) {
+      runtime.maxComboReached = runtime.player.comboStacks;
+    }
   } else {
     runtime.comboText.setVisible(false);
   }
@@ -770,6 +800,10 @@ export class BattleScene extends Phaser.Scene {
       lastTickInt: Math.ceil(settings.roundLengthSeconds),
       lastPowerUpDespawnAt: 0,
       isPaused: false,
+      battleStartAt: this.time.now,
+      maxComboReached: 0,
+      dodgesThisBattle: 0,
+      ringOutsSufferedThisBattle: 0,
     };
 
     const controlsHint =
@@ -1020,61 +1054,62 @@ export class BattleScene extends Phaser.Scene {
           saveBattleResults(storage, results);
         }
 
-        // Record game result to the player's profile (1P-vs-bot only —
-        // in 2P-local mode both players are human, so "win/loss" doesn't
-        // apply to a single profile). Also apply XP gained from this round
-        // via ProgressionService so the player can level up and unlock new
-        // bots / maps / titles (Task 3c).
-        if (storage && runtime.settings.mode === "1p-vs-bot") {
-          try {
-            const profile = loadProfile(storage);
-            const service = new ProfileService(profile);
-            const outcome: "win" | "loss" | "draw" =
-              runtime.round.winner === "player"
-                ? "win"
-                : runtime.round.winner === "bots"
-                  ? "loss"
-                  : "draw";
-            service.recordGameResult({
-              mode: runtime.settings.mode,
-              outcome,
-              ringOutsInflicted: runtime.round.score.player,
-              ringOutsSuffered: runtime.round.score.bots,
-              powerUpsCollected: runtime.powerUpsCollected.player,
-              // M2: pass the per-effect keys collected this round so
-              // ProfileService can derive the favorite power-up.
-              powerUpTypes: runtime.powerUpTypesCollected,
-            });
-            const savedProfile = service.getProfile();
+        // --- End-of-battle pipeline (1P-vs-bot only) ---
+        // Run the full ProfileService + ProgressionService +
+        // AchievementService pipeline via the pure `processBattleEnd`
+        // helper. Results are stashed in the registry so the ResultsScene
+        // can render XP gained, level-ups, new unlocks, and achievement
+        // notifications without re-deriving them.
+        const outcome: "win" | "loss" | "draw" =
+          runtime.round.winner === "player"
+            ? "win"
+            : runtime.round.winner === "bots"
+              ? "loss"
+              : "draw";
+        const battleEndOutput = storage
+          ? (() => {
+              try {
+                const profile = loadProfile(storage);
+                const out = processBattleEnd({
+                  profile,
+                  result: {
+                    mode: runtime.settings.mode,
+                    outcome,
+                    ringOutsInflicted: runtime.round.score.player,
+                    ringOutsSuffered: runtime.round.score.bots,
+                    powerUpsCollected: runtime.powerUpsCollected.player,
+                    powerUpTypes: runtime.powerUpTypesCollected,
+                    mapKey: runtime.settings.mapKey ?? DEFAULT_MAP_KEY,
+                  },
+                  ctx: {
+                    outcome,
+                    playerScore: runtime.round.score.player,
+                    botScore: runtime.round.score.bots,
+                    roundDurationMs: this.time.now - runtime.battleStartAt,
+                    powerUpsCollectedThisBattle:
+                      runtime.powerUpsCollected.player,
+                    powerUpTypesThisBattle: runtime.powerUpTypesCollected,
+                    maxComboReached: runtime.maxComboReached,
+                    dodgesThisBattle: runtime.dodgesThisBattle,
+                    ringOutsSufferedThisBattle:
+                      runtime.ringOutsSufferedThisBattle,
+                    mode: runtime.settings.mode,
+                    mapKey: runtime.settings.mapKey ?? DEFAULT_MAP_KEY,
+                  },
+                });
+                saveProfile(storage, out.updatedProfile);
+                return out;
+              } catch {
+                // Profile recording is non-critical — don't crash the round-end flow.
+                return null;
+              }
+            })()
+          : null;
 
-            // 3c: calculate + apply XP from this round. XP gain is derived
-            // from the same outcome / ring-outs / power-ups that were just
-            // recorded. applyXp returns the new (xp, level) and, when the
-            // player crossed a level boundary, the list of new unlocks.
-            const xpGained = ProgressionService.calculateXp({
-              outcome,
-              ringOutsInflicted: runtime.round.score.player,
-              powerUpsCollected: runtime.powerUpsCollected.player,
-            });
-            const { profile: updatedProfile, levelUp } =
-              ProgressionService.applyXp(savedProfile, xpGained);
-
-            saveProfile(storage, updatedProfile);
-
-            // Log level-ups for debugging. Future work: surface a
-            // level-up notification in the Results scene.
-            if (levelUp.leveledUp) {
-              const unlockKeys = levelUp.newUnlocks
-                .map((u) => u.key)
-                .join(", ");
-              console.log(
-                `[Progression] Level up! ${levelUp.newLevel}. New unlocks: ${unlockKeys}`,
-              );
-            }
-          } catch {
-            // Profile recording is non-critical — don't crash the round-end flow.
-          }
-        }
+        // Stash the pipeline output in the registry for ResultsScene to
+        // read. Always set the key (even when null) so ResultsScene can
+        // distinguish "no data" from "scene re-entered".
+        this.registry.set("lastBattleEnd", battleEndOutput);
 
         // End-of-round sting. In 2P-local mode we always use round-win
         // because the game logic doesn't know which human is "the player";
@@ -1125,8 +1160,11 @@ export class BattleScene extends Phaser.Scene {
     ) {
       const dir = getDirection(runtime);
       if (dir.lengthSq() > 0) {
-        startDodge(runtime.player, { x: dir.x, y: dir.y }, now);
-        dodgeTriggeredThisFrame = true;
+        const dodgeStarted = startDodge(runtime.player, { x: dir.x, y: dir.y }, now);
+        if (dodgeStarted) {
+          dodgeTriggeredThisFrame = true;
+          runtime.dodgesThisBattle += 1;
+        }
         // Apply the dodge velocity immediately. The caller (not startDodge)
         // owns the physics write per the DodgeSystem contract.
         runtime.player.body.setVelocity(
@@ -1338,6 +1376,7 @@ export class BattleScene extends Phaser.Scene {
       const fxX = runtime.player.sprite.x;
       const fxY = runtime.player.sprite.y;
       handleRingOut(runtime, "player", runtime.settings.winningScore);
+      runtime.ringOutsSufferedThisBattle += 1;
       this.ringOutFxInProgress.player = true;
       playRingOutFX({
         scene: this,

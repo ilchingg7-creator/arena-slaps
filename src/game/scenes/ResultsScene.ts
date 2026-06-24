@@ -8,17 +8,34 @@ import { loadSettings } from "../config/gameSettings";
 import { YandexSDK } from "../yandex/SDK";
 import { loadProfile, saveProfile } from "../config/profile";
 import { ProgressionService } from "../services/ProgressionService";
+import { formatResultsSummary } from "../ui/formatResultsSummary";
+import {
+  createAchievementNotification,
+  type AchievementNotification,
+} from "../ui/AchievementNotification";
+import { getAchievementById } from "../config/achievements";
+import type { BattleEndOutput } from "../services/processBattleEnd";
 
 /**
  * Results scene — shows the winner, score, rounds played, and power-ups
  * collected from the last battle (loaded from localStorage).
  *
+ * Also displays the end-of-battle pipeline output (XP gained, current
+ * level, level-up + new unlocks, achievement notifications) when the
+ * previous battle was 1P-vs-bot. The output is stashed in the Phaser
+ * registry under the `"lastBattleEnd"` key by BattleScene's round-
+ * complete block.
+ *
  * Features:
  * - "×2 XP" rewarded ad button (Rule 4.5: rewarded ads are optional)
  * - "Back to menu" button
  * - Menu-theme music
+ * - Slide-in achievement notification popups for each newly-unlocked
+ *   achievement (queued if multiple were unlocked by the same battle).
  */
 export class ResultsScene extends Phaser.Scene {
+  private notification: AchievementNotification | null = null;
+
   constructor() {
     super("ResultsScene");
   }
@@ -42,29 +59,104 @@ export class ResultsScene extends Phaser.Scene {
 
     // --- Title ---
     this.add
-      .text(width / 2, height * 0.20, i18n.t("results.title"), {
+      .text(width / 2, height * 0.13, i18n.t("results.title"), {
         color: "#f4f1de",
         fontFamily: "Arial",
-        fontSize: "52px",
+        fontSize: "46px",
         stroke: "#000000",
         strokeThickness: 5,
         shadow: { offsetX: 0, offsetY: 2, color: "#000000", blur: 5, fill: true },
       })
       .setOrigin(0.5);
 
-    // --- Summary lines ---
+    // --- Summary lines (score / rounds / power-ups) ---
     summary.forEach((line, index) => {
       this.add
-        .text(width / 2, height * 0.36 + index * 38, line, {
+        .text(width / 2, height * 0.24 + index * 32, line, {
           color: "#f4f1de",
           fontFamily: "Arial",
-          fontSize: "22px",
+          fontSize: "20px",
           stroke: "#000000",
           strokeThickness: 3,
           shadow: { offsetX: 0, offsetY: 1, color: "#000000", blur: 3, fill: true },
         })
         .setOrigin(0.5);
     });
+
+    // --- End-of-battle pipeline output (XP / level / achievements) ---
+    // BattleScene stashes the `BattleEndOutput` in the registry under
+    // `lastBattleEnd`. It's null in 2P-local mode or when no profile data
+    // could be derived.
+    const battleEnd = this.registry.get("lastBattleEnd") as
+      | BattleEndOutput
+      | null
+      | undefined;
+
+    const endLines = formatResultsSummary({
+      battleEnd: battleEnd ?? null,
+      t: (key, fallback) => {
+        try {
+          return i18n.t(key as never);
+        } catch {
+          return fallback;
+        }
+      },
+    });
+
+    // Render the end-of-battle lines below the score summary. Use a
+    // tinted background so the XP / level / achievement block is visually
+    // distinct from the score block.
+    const endLinesY = height * 0.24 + summary.length * 32 + 28;
+    if (endLines.length > 0) {
+      const blockH = endLines.length * 28 + 16;
+      this.add
+        .rectangle(width / 2, endLinesY + blockH / 2 - 8, width * 0.7, blockH, 0x000000, 0.35)
+        .setOrigin(0.5);
+      endLines.forEach((line, index) => {
+        const isAchievement = line.startsWith(
+          i18n.t("results.achievementUnlocked"),
+        );
+        const isLevelUp = line.startsWith(i18n.t("results.levelUp"));
+        this.add
+          .text(width / 2, endLinesY + index * 28, line, {
+            color: isAchievement
+              ? "#f4d35e"
+              : isLevelUp
+                ? "#81b29a"
+                : "#f4f1de",
+            fontFamily: "Arial",
+            fontSize: isAchievement || isLevelUp ? "20px" : "18px",
+            fontStyle: isAchievement || isLevelUp ? "bold" : "normal",
+            stroke: "#000000",
+            strokeThickness: 3,
+            shadow: { offsetX: 0, offsetY: 1, color: "#000000", blur: 2, fill: true },
+          })
+          .setOrigin(0.5);
+      });
+    }
+
+    // --- Achievement notifications (slide-in popups) ---
+    // Wire up the notification system and queue every newly-unlocked
+    // achievement. The AchievementNotification component handles the
+    // queue internally — calling `show()` while a popup is on screen
+    // defers the new one until the current one finishes.
+    this.notification = createAchievementNotification(
+      this as unknown as Parameters<typeof createAchievementNotification>[0],
+    );
+    if (battleEnd && battleEnd.newlyUnlocked.length > 0) {
+      for (const id of battleEnd.newlyUnlocked) {
+        const def = getAchievementById(id);
+        if (!def) continue;
+        const name = (() => {
+          try {
+            return i18n.t(def.nameKey as never);
+          } catch {
+            return id;
+          }
+        })();
+        this.notification.show(def.icon, name);
+      }
+    }
 
     // --- ×2 XP Rewarded Ad button ---
     // Rule 4.5: rewarded advertising is optional and grants the stated reward.
@@ -76,12 +168,18 @@ export class ResultsScene extends Phaser.Scene {
 
     let doubledXP = false;
 
+    // Compute the back-button Y based on whether the rewarded-ad button
+    // is visible AND whether the end-of-battle block pushed lines down.
+    const bottomButtonsY = endLines.length > 0
+      ? endLinesY + endLines.length * 28 + 60
+      : height * 0.74;
+
     if (showRewardedButton) {
       createStyledButton(
         this as unknown as Parameters<typeof createStyledButton>[0],
         {
           x: width / 2,
-          y: height * 0.64,
+          y: bottomButtonsY,
           text: i18n.t("results.doubleXp"),
           variant: "warning",
           width: 280,
@@ -128,7 +226,9 @@ export class ResultsScene extends Phaser.Scene {
       this.scene.start("MainMenuScene");
     };
 
-    const backButtonY = showRewardedButton ? height * 0.78 : height * 0.74;
+    const backButtonY = showRewardedButton
+      ? bottomButtonsY + 70
+      : bottomButtonsY;
     createStyledButton(
       this as unknown as Parameters<typeof createStyledButton>[0],
       {
@@ -141,5 +241,12 @@ export class ResultsScene extends Phaser.Scene {
     );
 
     this.input.keyboard?.on("keydown-ENTER", goMenu);
+  }
+
+  shutdown(): void {
+    if (this.notification) {
+      this.notification.destroy();
+      this.notification = null;
+    }
   }
 }

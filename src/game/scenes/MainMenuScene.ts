@@ -122,11 +122,20 @@ export class MainMenuScene extends Phaser.Scene {
       audio.playMenuClick();
       this.scene.start("ProgressionScene");
     };
+    const goAchievements = () => {
+      audio.playMenuClick();
+      this.scene.start("AchievementsScene");
+    };
     const goAudio = () => {
       audio.playMenuClick();
       this.scene.start("AudioSettingsScene");
     };
 
+    // Five buttons: Start / Profile / Progression / Achievements / Audio.
+    // Vertical positions are tuned so the whole stack fits between the
+    // tagline (~0.33) and the feedback email (~0.93) on both desktop
+    // and mobile portrait. Step = 0.115 → buttons land at 0.40, 0.515,
+    // 0.63, 0.745, 0.86 — leaves room above + below for the email line.
     createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
       x: width / 2,
       y: height * 0.40,
@@ -137,7 +146,7 @@ export class MainMenuScene extends Phaser.Scene {
 
     createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
       x: width / 2,
-      y: height * 0.52,
+      y: height * 0.515,
       text: i18n.t("mainmenu.profile"),
       variant: "secondary",
       onClick: goProfile,
@@ -145,7 +154,7 @@ export class MainMenuScene extends Phaser.Scene {
 
     createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
       x: width / 2,
-      y: height * 0.64,
+      y: height * 0.63,
       text: i18n.t("mainmenu.progression"),
       variant: "secondary",
       onClick: goProgression,
@@ -153,7 +162,15 @@ export class MainMenuScene extends Phaser.Scene {
 
     createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
       x: width / 2,
-      y: height * 0.76,
+      y: height * 0.745,
+      text: i18n.t("mainmenu.achievements"),
+      variant: "secondary",
+      onClick: goAchievements,
+    });
+
+    createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
+      x: width / 2,
+      y: height * 0.86,
       text: i18n.t("mainmenu.audioSettings"),
       variant: "secondary",
       onClick: goAudio,
@@ -161,10 +178,10 @@ export class MainMenuScene extends Phaser.Scene {
 
     // --- Feedback email (Rule 6.1) ---
     this.add
-      .text(width / 2, height * 0.93, FEEDBACK_EMAIL, {
+      .text(width / 2, height * 0.955, FEEDBACK_EMAIL, {
         color: "#81b29a",
         fontFamily: "Arial",
-        fontSize: "14px",
+        fontSize: "13px",
         stroke: "#000000",
         strokeThickness: 2,
       })

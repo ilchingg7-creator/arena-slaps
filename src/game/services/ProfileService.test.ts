@@ -16,6 +16,7 @@ function win(
     ringOutsSuffered: 0,
     powerUpsCollected: 0,
     powerUpTypes: [],
+    mapKey: "arena-default",
     ...overrides,
   };
 }
@@ -153,5 +154,124 @@ describe("ProfileService", () => {
     const service = makeDefaultService();
     service.setNickname("Alice");
     expect(service.getProfile().nickname).toBe("Alice");
+  });
+
+  // --- RED: streak tracking ---
+  describe("recordGameResult — win/loss streak", () => {
+    it("increments currentWinStreak on a win (from 0)", () => {
+      const service = makeDefaultService();
+      service.recordGameResult(win());
+      expect(service.getProfile().currentWinStreak).toBe(1);
+      expect(service.getProfile().maxWinStreak).toBe(1);
+    });
+
+    it("increments currentWinStreak across consecutive wins and tracks max", () => {
+      const service = makeDefaultService();
+      service.recordGameResult(win());
+      service.recordGameResult(win());
+      service.recordGameResult(win());
+      const p = service.getProfile();
+      expect(p.currentWinStreak).toBe(3);
+      expect(p.maxWinStreak).toBe(3);
+    });
+
+    it("resets currentWinStreak to 0 on a loss (but preserves maxWinStreak)", () => {
+      const service = makeDefaultService();
+      service.recordGameResult(win());
+      service.recordGameResult(win());
+      service.recordGameResult(win({ outcome: "loss" }));
+      const p = service.getProfile();
+      expect(p.currentWinStreak).toBe(0);
+      expect(p.maxWinStreak).toBe(2);
+    });
+
+    it("resets currentWinStreak to 0 on a draw (but preserves maxWinStreak)", () => {
+      const service = makeDefaultService();
+      service.recordGameResult(win());
+      service.recordGameResult(win({ outcome: "draw" }));
+      const p = service.getProfile();
+      expect(p.currentWinStreak).toBe(0);
+      expect(p.maxWinStreak).toBe(1);
+    });
+
+    it("preserves maxWinStreak across a win-streak-loss-win cycle", () => {
+      const service = makeDefaultService();
+      // Win 4 in a row
+      for (let i = 0; i < 4; i++) service.recordGameResult(win());
+      // Lose one
+      service.recordGameResult(win({ outcome: "loss" }));
+      // Win 2 more
+      service.recordGameResult(win());
+      service.recordGameResult(win());
+      const p = service.getProfile();
+      expect(p.currentWinStreak).toBe(2);
+      expect(p.maxWinStreak).toBe(4);
+    });
+  });
+
+  // --- RED: mapsPlayed tracking ---
+  describe("recordGameResult — mapsPlayed", () => {
+    it("appends the mapKey to mapsPlayed on each game", () => {
+      const service = makeDefaultService();
+      service.recordGameResult(win({ mapKey: "arena-default" }));
+      service.recordGameResult(win({ mapKey: "arena-ice" }));
+      const p = service.getProfile();
+      expect(p.mapsPlayed).toContain("arena-default");
+      expect(p.mapsPlayed).toContain("arena-ice");
+      expect(p.mapsPlayed).toHaveLength(2);
+    });
+
+    it("does not dedupe mapsPlayed (we want a play-count history)", () => {
+      const service = makeDefaultService();
+      service.recordGameResult(win({ mapKey: "arena-default" }));
+      service.recordGameResult(win({ mapKey: "arena-default" }));
+      expect(service.getProfile().mapsPlayed).toEqual([
+        "arena-default",
+        "arena-default",
+      ]);
+    });
+  });
+
+  // --- RED: p2GamesPlayed tracking ---
+  describe("recordGameResult — p2GamesPlayed", () => {
+    it("increments p2GamesPlayed when mode is 2p-local", () => {
+      const service = makeDefaultService();
+      service.recordGameResult(win({ mode: "2p-local" }));
+      service.recordGameResult(win({ mode: "2p-local" }));
+      expect(service.getProfile().p2GamesPlayed).toBe(2);
+    });
+
+    it("does NOT increment p2GamesPlayed when mode is 1p-vs-bot", () => {
+      const service = makeDefaultService();
+      service.recordGameResult(win({ mode: "1p-vs-bot" }));
+      expect(service.getProfile().p2GamesPlayed).toBe(0);
+    });
+  });
+
+  // --- RED: powerUpTypesUsed tracking ---
+  describe("recordGameResult — powerUpTypesUsed", () => {
+    it("merges new power-up types into powerUpTypesUsed (deduped)", () => {
+      const service = makeDefaultService();
+      service.recordGameResult(
+        win({ powerUpTypes: ["speed", "shield", "speed"] }),
+      );
+      const p1 = service.getProfile();
+      expect(p1.powerUpTypesUsed).toContain("speed");
+      expect(p1.powerUpTypesUsed).toContain("shield");
+      expect(p1.powerUpTypesUsed).toHaveLength(2);
+
+      service.recordGameResult(win({ powerUpTypes: ["knockback", "speed"] }));
+      const p2 = service.getProfile();
+      expect(p2.powerUpTypesUsed).toContain("knockback");
+      // speed is still only present once (deduped)
+      expect(p2.powerUpTypesUsed.filter((t) => t === "speed")).toHaveLength(1);
+      expect(p2.powerUpTypesUsed).toHaveLength(3);
+    });
+
+    it("handles empty powerUpTypes gracefully (no change)", () => {
+      const service = makeDefaultService();
+      service.recordGameResult(win({ powerUpTypes: [] }));
+      expect(service.getProfile().powerUpTypesUsed).toEqual([]);
+    });
   });
 });

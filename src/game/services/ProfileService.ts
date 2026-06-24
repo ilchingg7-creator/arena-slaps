@@ -7,6 +7,11 @@ export type GameResult = {
   ringOutsSuffered: number;
   powerUpsCollected: number;
   powerUpTypes: string[]; // one entry per power-up collected
+  /**
+   * Map key the battle was played on. Appended to `profile.mapsPlayed` so
+   * the achievement system can detect "played on all maps".
+   */
+  mapKey: string;
 };
 
 const MODE_VALUES: readonly GameMode[] = ["1p-vs-bot", "2p-local"];
@@ -34,6 +39,13 @@ export class ProfileService {
     this.profile = {
       ...profile,
       powerUpStats: { ...profile.powerUpStats },
+      // Deep-copy arrays so mutations inside this service don't leak back
+      // to the caller's profile object (which may be a shared DEFAULT or
+      // a cached object). Without these copies, `recordGameResult`'s
+      // `push` calls would mutate the caller's arrays in place.
+      powerUpTypesUsed: [...profile.powerUpTypesUsed],
+      mapsPlayed: [...profile.mapsPlayed],
+      achievements: [...profile.achievements],
     };
     this.modeCounts = { "1p-vs-bot": 0, "2p-local": 0 };
     if (this.profile.totalGames > 0) {
@@ -46,6 +58,9 @@ export class ProfileService {
     return {
       ...this.profile,
       powerUpStats: { ...this.profile.powerUpStats },
+      powerUpTypesUsed: [...this.profile.powerUpTypesUsed],
+      mapsPlayed: [...this.profile.mapsPlayed],
+      achievements: [...this.profile.achievements],
     };
   }
 
@@ -58,10 +73,18 @@ export class ProfileService {
 
     if (result.outcome === "win") {
       this.profile.wins += 1;
-    } else if (result.outcome === "loss") {
-      this.profile.losses += 1;
+      this.profile.currentWinStreak += 1;
+      if (this.profile.currentWinStreak > this.profile.maxWinStreak) {
+        this.profile.maxWinStreak = this.profile.currentWinStreak;
+      }
     } else {
-      this.profile.draws += 1;
+      // Loss OR draw breaks the win streak (but preserves maxWinStreak).
+      this.profile.currentWinStreak = 0;
+      if (result.outcome === "loss") {
+        this.profile.losses += 1;
+      } else {
+        this.profile.draws += 1;
+      }
     }
 
     this.profile.ringOutsInflicted += result.ringOutsInflicted;
@@ -71,6 +94,22 @@ export class ProfileService {
     for (const type of result.powerUpTypes) {
       this.profile.powerUpStats[type] =
         (this.profile.powerUpStats[type] ?? 0) + 1;
+      // Merge into powerUpTypesUsed (deduped). This array drives the
+      // `all_powerups` achievement check in AchievementService.
+      if (!this.profile.powerUpTypesUsed.includes(type)) {
+        this.profile.powerUpTypesUsed.push(type);
+      }
+    }
+
+    // Track unique maps played (NOT deduped — keeps a play-count history
+    // so future "X games on map Y" achievements can read it too).
+    if (result.mapKey) {
+      this.profile.mapsPlayed.push(result.mapKey);
+    }
+
+    // 2P-mode game counter (drives the `social` achievement).
+    if (result.mode === "2p-local") {
+      this.profile.p2GamesPlayed += 1;
     }
 
     this.profile.lastPlayedAt = Date.now();
