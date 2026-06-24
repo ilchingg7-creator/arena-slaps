@@ -32,7 +32,14 @@ import {
  * {@link AchievementService.checkBattleEnd}.
  */
 export type BattleContext = {
-  outcome: "win" | "loss" | "draw";
+  /**
+   * Battle outcome. `"win"` / `"loss"` / `"draw"` apply to 1P-vs-bot.
+   * `"neutral"` is used for 2P-local mode — it prevents `first_blood`,
+   * `first_loss`, `comeback_king`, `flawless`, `speed_demon`, `survivor`
+   * from firing (those are 1P concepts) while still allowing profile-state
+   * achievements (`social`, `all_maps`, `veteran`) to fire.
+   */
+  outcome: "win" | "loss" | "draw" | "neutral";
   /** Final player score for this battle. */
   playerScore: number;
   /** Final opponent score for this battle. */
@@ -83,34 +90,46 @@ export type UnlockResult = {
 };
 
 /**
- * The 6 power-up type ids that must all be collected (across the player's
- * career) for the `all_powerups` achievement. The current Arena Slaps
- * PowerUpSystem exposes 3 (`speed`, `knockback`, `shield`); the remaining 3
- * are forward-looking placeholders so the achievement is meaningful once the
- * power-up roster is expanded. The achievement only checks the per-battle
- * `powerUpTypesThisBattle` collection — collecting all 6 in a single battle.
+ * The 6 power-up type ids that must all be collected in a single battle
+ * for the `all_powerups` achievement. These keys match the `key` field of
+ * every entry in {@link ../config/powerUpConfig.ts POWERUP_DEFINITIONS}:
+ *   `speed`, `knockback`, `shield`, `mega-knockback`, `freeze`, `double-slap`.
+ *
+ * Bug 3 fix: previously this array had `"double_slap"`, `"mega_sprint"`,
+ * `"anti_gravity"` — none of which exist as real PowerUpEffect keys. The
+ * mismatch made `all_powerups` mathematically unreachable because
+ * `powerUpTypesThisBattle` (populated by BattleScene from real collections)
+ * could never contain the phantom keys. Now the array mirrors the real
+ * manifest exactly.
  */
 export const ALL_POWERUP_TYPES: readonly string[] = [
   "speed",
   "knockback",
   "shield",
-  "double_slap",
-  "mega_sprint",
-  "anti_gravity",
+  "mega-knockback",
+  "freeze",
+  "double-slap",
 ];
 
 /**
- * The 6 map keys that must all be played for the `all_maps` achievement. The
- * current Arena Slaps codebase only ships `arena-default`; the remaining 5
- * are forward-looking placeholders for future map additions.
+ * The 6 map keys that must all be played for the `all_maps` achievement.
+ * These keys match the `key` field of every entry in
+ * {@link ../config/mapManifest.ts MAPS}:
+ *   `arena-default`, `arena-neon`, `arena-cosmic`, `arena-volcano`,
+ *   `arena-ice`, `arena-grass`.
+ *
+ * Bug 4 fix: previously this array had `"arena-lava"`, `"arena-jungle"`,
+ * `"arena-space"`, `"arena-desert"` — none of which exist in MAPS. The
+ * mismatch made `all_maps` mathematically unreachable. Now the array
+ * mirrors the real manifest exactly.
  */
 export const ALL_MAPS: readonly string[] = [
   "arena-default",
+  "arena-neon",
+  "arena-cosmic",
+  "arena-volcano",
   "arena-ice",
-  "arena-lava",
-  "arena-jungle",
-  "arena-space",
-  "arena-desert",
+  "arena-grass",
 ];
 
 /** Speed Demon threshold: win in under this many milliseconds. */

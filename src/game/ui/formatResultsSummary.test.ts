@@ -16,6 +16,7 @@ function makeBattleEnd(
     },
     newlyUnlocked: [],
     xpDoubled: false,
+    mode: "1p-vs-bot",
     ...overrides,
   };
 }
@@ -156,5 +157,92 @@ describe("formatResultsSummary", () => {
     expect(lines[1]).toContain("Level");
     expect(lines[2]).toContain("Level up");
     expect(lines[3]).toContain("Achievement unlocked");
+  });
+
+  // --- RED: Bug 2c — 2P-local must not show XP: +0 / Level lines ---
+  describe("Bug 2c: 2P-local hides XP / Level lines", () => {
+    it("does NOT show XP or Level lines when mode is 2p-local", () => {
+      // Bug 2c: ResultsScene showed "XP: +0" and "Level: 1" after a 2P
+      // battle because processBattleEnd returned a non-null object. The
+      // fix: formatResultsSummary checks the mode and skips XP/Level
+      // lines for 2P-local (no XP is awarded, so showing "+0" is
+      // misleading; the player's level is irrelevant to 2P results).
+      const lines = formatResultsSummary({
+        battleEnd: makeBattleEnd({
+          xpGained: 0,
+          updatedProfile: {
+            ...DEFAULT_PROFILE,
+            powerUpStats: {},
+            level: 1,
+          },
+          mode: "2p-local",
+        }),
+        t: (_key, fallback) => fallback,
+      });
+      const xpLine = lines.find((l) => l.startsWith("XP"));
+      const levelLine = lines.find((l) => l.startsWith("Level"));
+      expect(xpLine).toBeUndefined();
+      expect(levelLine).toBeUndefined();
+    });
+
+    it("DOES show achievement lines for 2p-local (e.g. social just unlocked)", () => {
+      const lines = formatResultsSummary({
+        battleEnd: makeBattleEnd({
+          xpGained: 0,
+          updatedProfile: {
+            ...DEFAULT_PROFILE,
+            powerUpStats: {},
+            level: 1,
+          },
+          mode: "2p-local",
+          newlyUnlocked: ["social"],
+        }),
+        t: (key, fallback) => {
+          if (key === "achievement.social.name") return "Duelist";
+          return fallback;
+        },
+      });
+      const achLine = lines.find((l) => l.startsWith("Achievement unlocked"));
+      expect(achLine).toBeDefined();
+      // The line contains the social achievement's icon (🎮) and its
+      // translated name ("Duelist"), not the raw id "social".
+      expect(achLine).toContain("🎮");
+      expect(achLine).toContain("Duelist");
+    });
+
+    it("returns [] for 2p-local with no achievements (clean results screen)", () => {
+      const lines = formatResultsSummary({
+        battleEnd: makeBattleEnd({
+          xpGained: 0,
+          updatedProfile: {
+            ...DEFAULT_PROFILE,
+            powerUpStats: {},
+            level: 1,
+          },
+          mode: "2p-local",
+          newlyUnlocked: [],
+        }),
+        t: (_key, fallback) => fallback,
+      });
+      expect(lines).toEqual([]);
+    });
+
+    it("still shows XP + Level for 1p-vs-bot mode (regression guard)", () => {
+      const lines = formatResultsSummary({
+        battleEnd: makeBattleEnd({
+          xpGained: 150,
+          updatedProfile: {
+            ...DEFAULT_PROFILE,
+            powerUpStats: {},
+            xp: 150,
+            level: 2,
+          },
+          mode: "1p-vs-bot",
+        }),
+        t: (_key, fallback) => fallback,
+      });
+      expect(lines).toContain("XP: +150");
+      expect(lines).toContain("Level: 2");
+    });
   });
 });

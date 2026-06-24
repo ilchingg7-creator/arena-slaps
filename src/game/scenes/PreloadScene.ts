@@ -65,6 +65,11 @@ export class PreloadScene extends Phaser.Scene {
           `[PreloadScene] loader did not complete within ${LOADER_TIMEOUT_MS}ms — forcing transition to MainMenuScene`,
         );
         loadingText.setText(`${i18n.t("preload.loading")} (timeout — continuing)`);
+        // Bug 1 fix: even on timeout, signal the game is "ready" so
+        // YandexSDK.ready() (= LoadingAPI.ready()) fires. Without this the
+        // Yandex loader would hang indefinitely waiting for the ready
+        // signal that never comes.
+        this.game.events.emit("ready");
         this.scene.start("MainMenuScene");
       },
     });
@@ -72,6 +77,12 @@ export class PreloadScene extends Phaser.Scene {
 
   create(): void {
     console.log("[PreloadScene] create() called — transitioning to MainMenuScene");
+    // Bug 1 fix: emit the "ready" event on the game so main.ts's
+    // `game.events.once("ready", () => YandexSDK.ready())` listener fires
+    // LoadingAPI.ready(). Without this, the Yandex Games platform never
+    // receives the "game is playable" signal and may show its own loading
+    // overlay indefinitely (Rule 1.19.2).
+    this.game.events.emit("ready");
     this.scene.start("MainMenuScene");
   }
 }

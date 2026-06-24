@@ -43,15 +43,25 @@ export function formatResultsSummary(input: FormatResultsInput): string[] {
 
   const lines: string[] = [];
 
-  // XP gained this battle.
-  lines.push(`${t("results.xp", "XP")}: +${battleEnd.xpGained}`);
+  // Bug 2c fix: in 2P-local mode, no XP is awarded and the player's level
+  // is irrelevant to the results. Showing "XP: +0" and "Level: X" after a
+  // 2P battle is misleading, so skip those lines entirely. Achievement
+  // lines (e.g. `social` just unlocked) are still shown below.
+  const is2P = battleEnd.mode === "2p-local";
 
-  // Current level (post-battle).
-  lines.push(
-    `${t("results.level", "Level")}: ${battleEnd.updatedProfile.level}`,
-  );
+  // XP gained this battle (1P only).
+  if (!is2P) {
+    lines.push(`${t("results.xp", "XP")}: +${battleEnd.xpGained}`);
+  }
 
-  // Level-up banner.
+  // Current level (1P only — 2P doesn't change level).
+  if (!is2P) {
+    lines.push(
+      `${t("results.level", "Level")}: ${battleEnd.updatedProfile.level}`,
+    );
+  }
+
+  // Level-up banner (won't fire for 2P since no XP, but defensive).
   if (battleEnd.levelUp.leveledUp) {
     const unlockKeys = battleEnd.levelUp.newUnlocks
       .map((u) => u.key)
@@ -67,7 +77,8 @@ export function formatResultsSummary(input: FormatResultsInput): string[] {
     }
   }
 
-  // Newly-unlocked achievements (one line each).
+  // Newly-unlocked achievements (one line each). Shown for ALL modes —
+  // 2P can unlock `social` / `all_maps` / `veteran`.
   for (const id of battleEnd.newlyUnlocked) {
     const def = getAchievementById(id);
     if (!def) continue;

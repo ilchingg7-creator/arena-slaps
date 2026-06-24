@@ -7,7 +7,6 @@ import { getAudioService } from "../audio/getAudioService";
 import { loadSettings } from "../config/gameSettings";
 import { YandexSDK } from "../yandex/SDK";
 import { loadProfile, saveProfile } from "../config/profile";
-import { ProgressionService } from "../services/ProgressionService";
 import { formatResultsSummary } from "../ui/formatResultsSummary";
 import {
   createAchievementNotification,
@@ -15,6 +14,7 @@ import {
 } from "../ui/AchievementNotification";
 import { getAchievementById } from "../config/achievements";
 import type { BattleEndOutput } from "../services/processBattleEnd";
+import { applyRewardedXp } from "../services/applyRewardedXp";
 
 /**
  * Results scene — shows the winner, score, rounds played, and power-ups
@@ -195,31 +195,24 @@ export class ResultsScene extends Phaser.Scene {
             YandexSDK.showRewardedAd(
               () => {
                 // onRewarded — grant the SECOND half of the ×2 XP bonus.
-                // Bug 3b: previously this granted only the base XP
-                // (win=100/loss=30/draw=50) as a "double approximation",
-                // ignoring ring-outs (×20) + power-ups (×10). The REAL
-                // first portion is `battleEnd.xpGained` (already applied
-                // to the profile in BattleScene via processBattleEnd). To
-                // truly double it, we apply the SAME amount again.
+                // Bug 7 fix: use the pure `applyRewardedXp` helper instead
+                // of calling ProgressionService.applyXp directly. The
+                // helper recalculates levelUp + newlyUnlocked (including
+                // level_5 / level_10 achievements) so the player sees the
+                // "Level up!" banner and achievement notifications if the
+                // rewarded XP crossed a level boundary.
                 if (!storage || !battleEnd) return;
                 try {
                   const profile = loadProfile(storage);
-                  const { profile: updated } = ProgressionService.applyXp(
-                    profile,
-                    battleEnd.xpGained,
-                  );
-                  saveProfile(storage, updated);
-                  // Flip the flag in the registry entry so the next
-                  // render of this scene (after `scene.restart()`)
-                  // hides the ×2 XP button. The registry survives
-                  // same-scene restarts, so the player can no longer
-                  // farm XP by re-pressing the button.
-                  this.registry.set("lastBattleEnd", {
-                    ...battleEnd,
-                    updatedProfile: updated,
-                    xpDoubled: true,
-                  });
-                  // Restart scene to show updated XP + hide the button.
+                  const { updatedProfile, updatedBattleEnd } =
+                    applyRewardedXp(battleEnd, profile);
+                  saveProfile(storage, updatedProfile);
+                  // Write the updated battle end (with new levelUp +
+                  // newlyUnlocked + xpDoubled=true) to the registry so
+                  // the restarted scene shows the level-up banner,
+                  // achievement notifications, and hides the ×2 XP button.
+                  this.registry.set("lastBattleEnd", updatedBattleEnd);
+                  // Restart scene to show updated state.
                   this.scene.restart();
                 } catch {
                   // Non-critical

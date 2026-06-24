@@ -37,6 +37,12 @@ function baseInput(
 
 describe("processBattleEnd", () => {
   it("returns the original profile when mode is 2p-local (no profile mutations)", () => {
+    // LEGACY test — kept as a regression guard for the OLD behavior.
+    // The NEW behavior (Bug 2 fix) is tested in the "Bug 2" describe
+    // block below: 2P mode now records totalGames / mapsPlayed /
+    // p2GamesPlayed (so `social` + `all_maps` + `veteran` are
+    // reachable) but still awards zero XP and does not touch
+    // wins/losses/streaks.
     const input = baseInput({
       result: {
         mode: "2p-local",
@@ -62,13 +68,131 @@ describe("processBattleEnd", () => {
       },
     });
     const out = processBattleEnd(input);
-    // No XP awarded, no achievements, totalGames still 0.
+    // No XP awarded, no level-up.
     expect(out.xpGained).toBe(0);
-    expect(out.newlyUnlocked).toEqual([]);
-    expect(out.updatedProfile.totalGames).toBe(0);
     expect(out.updatedProfile.xp).toBe(0);
     expect(out.updatedProfile.level).toBe(1);
     expect(out.levelUp.leveledUp).toBe(false);
+  });
+
+  // --- RED: Bug 2 — 2P-local must record stats (social / all_maps / veteran) ---
+  describe("Bug 2: 2P-local records stats without XP", () => {
+    function base2PInput(
+      overrides: Partial<BattleEndInput> = {},
+    ): BattleEndInput {
+      return {
+        profile: { ...DEFAULT_PROFILE, powerUpStats: {} },
+        result: {
+          mode: "2p-local",
+          outcome: "win",
+          ringOutsInflicted: 5,
+          ringOutsSuffered: 0,
+          powerUpsCollected: 0,
+          powerUpTypes: [],
+          mapKey: "arena-default",
+        },
+        ctx: {
+          outcome: "win",
+          playerScore: 5,
+          botScore: 0,
+          roundDurationMs: 25_000,
+          powerUpsCollectedThisBattle: 0,
+          powerUpTypesThisBattle: [],
+          maxComboReached: 0,
+          dodgesThisBattle: 0,
+          ringOutsSufferedThisBattle: 0,
+          mode: "2p-local",
+          mapKey: "arena-default",
+        },
+        ...overrides,
+      };
+    }
+
+    it("increments totalGames for a 2P-local battle", () => {
+      const out = processBattleEnd(base2PInput());
+      expect(out.updatedProfile.totalGames).toBe(1);
+    });
+
+    it("increments p2GamesPlayed for a 2P-local battle (drives social achievement)", () => {
+      const out = processBattleEnd(base2PInput());
+      expect(out.updatedProfile.p2GamesPlayed).toBe(1);
+    });
+
+    it("appends the mapKey to mapsPlayed for a 2P-local battle (drives all_maps)", () => {
+      const out = processBattleEnd(
+        base2PInput({
+          result: {
+            mode: "2p-local",
+            outcome: "win",
+            ringOutsInflicted: 5,
+            ringOutsSuffered: 0,
+            powerUpsCollected: 0,
+            powerUpTypes: [],
+            mapKey: "arena-neon",
+          },
+        }),
+      );
+      expect(out.updatedProfile.mapsPlayed).toContain("arena-neon");
+    });
+
+    it("does NOT award XP for a 2P-local battle", () => {
+      const out = processBattleEnd(base2PInput());
+      expect(out.xpGained).toBe(0);
+      expect(out.updatedProfile.xp).toBe(0);
+    });
+
+    it("does NOT increment wins/losses/draws for a 2P-local battle", () => {
+      const out = processBattleEnd(base2PInput());
+      expect(out.updatedProfile.wins).toBe(0);
+      expect(out.updatedProfile.losses).toBe(0);
+      expect(out.updatedProfile.draws).toBe(0);
+    });
+
+    it("does NOT touch currentWinStreak for a 2P-local battle", () => {
+      // A 2P game should not break a 1P win streak.
+      const input = base2PInput({
+        profile: {
+          ...DEFAULT_PROFILE,
+          powerUpStats: {},
+          wins: 3,
+          totalGames: 3,
+          currentWinStreak: 3,
+          maxWinStreak: 3,
+        },
+      });
+      const out = processBattleEnd(input);
+      expect(out.updatedProfile.currentWinStreak).toBe(3);
+      expect(out.updatedProfile.maxWinStreak).toBe(3);
+    });
+
+    it("unlocks social achievement when p2GamesPlayed reaches 10", () => {
+      const input = base2PInput({
+        profile: {
+          ...DEFAULT_PROFILE,
+          powerUpStats: {},
+          totalGames: 9,
+          p2GamesPlayed: 9,
+        },
+      });
+      const out = processBattleEnd(input);
+      expect(out.updatedProfile.p2GamesPlayed).toBe(10);
+      expect(out.newlyUnlocked).toContain("social");
+    });
+
+    it("does NOT unlock first_blood / flawless / speed_demon for 2P-local", () => {
+      // These are 1P-vs-bot concepts and must not fire in 2P mode.
+      const out = processBattleEnd(base2PInput());
+      expect(out.newlyUnlocked).not.toContain("first_blood");
+      expect(out.newlyUnlocked).not.toContain("flawless");
+      expect(out.newlyUnlocked).not.toContain("speed_demon");
+    });
+
+    it("does NOT level up or check level-based achievements for 2P-local", () => {
+      const out = processBattleEnd(base2PInput());
+      expect(out.levelUp.leveledUp).toBe(false);
+      expect(out.newlyUnlocked).not.toContain("level_5");
+      expect(out.newlyUnlocked).not.toContain("level_10");
+    });
   });
 
   it("records the game + applies XP for a 1p-vs-bot win", () => {

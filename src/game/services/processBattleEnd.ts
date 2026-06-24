@@ -16,7 +16,7 @@
  * flow unit-testable without Phaser.
  */
 
-import type { Profile } from "../config/profile";
+import type { GameMode, Profile } from "../config/profile";
 import type { Unlock } from "../config/progression";
 import { ProfileService, type GameResult } from "./ProfileService";
 import { ProgressionService } from "./ProgressionService";
@@ -42,7 +42,7 @@ export type BattleEndInput = {
 export type BattleEndOutput = {
   /** Profile with game result + XP + achievements applied. Persist this. */
   updatedProfile: Profile;
-  /** Total XP earned this battle (base + ring-outs + power-ups). */
+  /** Total XP earned this battle (base + ring-outs + power-ups). 0 for 2P. */
   xpGained: number;
   /** Level-up result (leveledUp=false if no boundary was crossed). */
   levelUp: {
@@ -65,29 +65,74 @@ export type BattleEndOutput = {
    * scene and click ×2 XP again to farm XP infinitely (Bug 3).
    */
   xpDoubled: boolean;
+  /**
+   * Game mode of this battle. `"1p-vs-bot"` awards XP and full achievements;
+   * `"2p-local"` records stats (totalGames / mapsPlayed / p2GamesPlayed) but
+   * no XP, and only checks profile-state achievements (`social`, `all_maps`,
+   * `veteran`). ResultsScene reads this to decide whether to show XP/Level
+   * lines (Bug 2c).
+   */
+  mode: GameMode;
 };
 
 /**
  * Run the full end-of-battle pipeline on the given input. See the type
  * doc above for the contract.
  *
- * In 2P-local mode the function returns the input profile unchanged with
- * zero XP / no unlocks — the "player" concept doesn't apply when both
- * players are human.
+ * **2P-local mode (Bug 2 fix):** records `totalGames` / `mapsPlayed` /
+ * `p2GamesPlayed` (via `ProfileService.recordGameResult` with
+ * `outcome: "neutral"`) so the `social` + `all_maps` + `veteran`
+ * achievements are reachable via 2P play. Does NOT award XP, does NOT
+ * touch wins/losses/streaks, does NOT run level-based achievements.
+ * Battle-end achievements are still checked — most won't fire (outcome
+ * is "neutral"), but `social` / `all_maps` / `veteran` will fire based
+ * on the updated profile state.
  */
 export function processBattleEnd(input: BattleEndInput): BattleEndOutput {
-  // 2P-local mode: no profile mutations. Both players are human.
+  // 2P-local mode: record stats (no XP), check profile-state achievements.
   if (input.result.mode === "2p-local") {
+    const service = new ProfileService(input.profile);
+    // Force outcome to "neutral" so recordGameResult doesn't touch
+    // wins/losses/streaks. The caller may pass "win"/"loss" (from the
+    // round winner), but for 2P that's a P1-vs-P2 result, not a
+    // player-vs-bot result — it shouldn't inflate the profile's win count.
+    service.recordGameResult({
+      ...input.result,
+      outcome: "neutral",
+      // Ring-outs + power-ups are 1P-profile concepts; pass 0 / [] so
+      // they don't pollute the profile in 2P mode.
+      ringOutsInflicted: 0,
+      ringOutsSuffered: 0,
+      powerUpsCollected: 0,
+      powerUpTypes: [],
+    });
+    const recordedProfile = service.getProfile();
+
+    // Check battle-end achievements. Override ctx.outcome to "neutral"
+    // so 1P-specific achievements (first_blood, flawless, speed_demon,
+    // comeback_king, survivor) don't fire for 2P. Profile-state
+    // achievements (social, all_maps, veteran) still fire because they
+    // don't depend on ctx.outcome.
+    const battleResult = AchievementService.checkBattleEnd(
+      recordedProfile,
+      { ...input.ctx, outcome: "neutral" },
+    );
+    const finalProfile: Profile = {
+      ...recordedProfile,
+      achievements: battleResult.updatedProfile.achievements,
+    };
+
     return {
-      updatedProfile: input.profile,
+      updatedProfile: finalProfile,
       xpGained: 0,
       levelUp: {
         leveledUp: false,
         newLevel: input.profile.level,
         newUnlocks: [],
       },
-      newlyUnlocked: [],
+      newlyUnlocked: [...battleResult.newlyUnlocked],
       xpDoubled: false,
+      mode: "2p-local",
     };
   }
 
@@ -97,8 +142,13 @@ export function processBattleEnd(input: BattleEndInput): BattleEndOutput {
   const recordedProfile = service.getProfile();
 
   // Step 2: calculate + apply XP.
+  // The 1P-vs-bot branch only runs when mode !== "2p-local", and the
+  // caller (BattleScene) always passes outcome "win"/"loss"/"draw" —
+  // never "neutral" (that's only constructed internally for 2P above).
+  // The cast narrows the union so calculateXp accepts it.
+  const outcome1P = input.result.outcome as "win" | "loss" | "draw";
   const xpGained = ProgressionService.calculateXp({
-    outcome: input.result.outcome,
+    outcome: outcome1P,
     ringOutsInflicted: input.result.ringOutsInflicted,
     powerUpsCollected: input.result.powerUpsCollected,
   });
@@ -149,5 +199,6 @@ export function processBattleEnd(input: BattleEndInput): BattleEndOutput {
     // this to true (via the registry) once the rewarded-ad bonus is
     // applied, and hides the ×2 XP button on subsequent renders.
     xpDoubled: false,
+    mode: "1p-vs-bot",
   };
 }

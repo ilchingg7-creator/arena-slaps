@@ -69,6 +69,17 @@ class YandexSDKImpl {
       }).YaGames;
       this.sdk = await YaGames.init();
       console.log("[YandexSDK] Initialized successfully");
+
+      // Bug 5 fix: write the detected language to window.__yaSdkLang so
+      // I18nService.detectLanguage() can pick it up. Without this, the
+      // game always fell back to navigator.language, ignoring the Yandex
+      // platform's language setting (e.g. a player with an English
+      // browser but a Russian Yandex account would see EN instead of RU).
+      const lang = this.getLanguage();
+      if (lang === "ru" || lang === "en") {
+        (window as unknown as { __yaSdkLang?: string }).__yaSdkLang = lang;
+        console.log(`[YandexSDK] Language detected: ${lang}`);
+      }
     } catch (err) {
       console.warn("[YandexSDK] Failed to initialize:", err);
     }

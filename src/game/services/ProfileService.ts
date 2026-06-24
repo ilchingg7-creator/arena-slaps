@@ -2,7 +2,15 @@ import type { GameMode, Profile } from "../config/profile";
 
 export type GameResult = {
   mode: GameMode;
-  outcome: "win" | "loss" | "draw";
+  /**
+   * Battle outcome. `"win"` / `"loss"` / `"draw"` apply to 1P-vs-bot mode
+   * (the player vs the bot). `"neutral"` is used for 2P-local mode where
+   * both players are human — it increments `totalGames`, `mapsPlayed`, and
+   * `p2GamesPlayed` but does NOT touch `wins` / `losses` / `draws` /
+   * `currentWinStreak` / `maxWinStreak` / `ringOutsInflicted` /
+   * `ringOutsSuffered` (those are 1P-profile concepts).
+   */
+  outcome: "win" | "loss" | "draw" | "neutral";
   ringOutsInflicted: number;
   ringOutsSuffered: number;
   powerUpsCollected: number;
@@ -71,7 +79,13 @@ export class ProfileService {
   recordGameResult(result: GameResult): void {
     this.profile.totalGames += 1;
 
-    if (result.outcome === "win") {
+    if (result.outcome === "neutral") {
+      // 2P-local mode: both players are human. Increment totalGames,
+      // mapsPlayed, p2GamesPlayed (handled below), but do NOT touch
+      // wins / losses / draws / streaks / ringOuts — those are 1P-profile
+      // concepts. This lets `social` + `all_maps` + `veteran` achievements
+      // be reachable via 2P play without polluting the 1P stats.
+    } else if (result.outcome === "win") {
       this.profile.wins += 1;
       this.profile.currentWinStreak += 1;
       if (this.profile.currentWinStreak > this.profile.maxWinStreak) {
@@ -87,22 +101,29 @@ export class ProfileService {
       }
     }
 
-    this.profile.ringOutsInflicted += result.ringOutsInflicted;
-    this.profile.ringOutsSuffered += result.ringOutsSuffered;
-    this.profile.powerUpsCollected += result.powerUpsCollected;
+    // Ring-outs + power-ups are only counted for non-neutral outcomes
+    // (1P-vs-bot). In 2P mode both players are human, so "ringOutsInflicted"
+    // doesn't map to a single profile.
+    if (result.outcome !== "neutral") {
+      this.profile.ringOutsInflicted += result.ringOutsInflicted;
+      this.profile.ringOutsSuffered += result.ringOutsSuffered;
+      this.profile.powerUpsCollected += result.powerUpsCollected;
 
-    for (const type of result.powerUpTypes) {
-      this.profile.powerUpStats[type] =
-        (this.profile.powerUpStats[type] ?? 0) + 1;
-      // Merge into powerUpTypesUsed (deduped). This array drives the
-      // `all_powerups` achievement check in AchievementService.
-      if (!this.profile.powerUpTypesUsed.includes(type)) {
-        this.profile.powerUpTypesUsed.push(type);
+      for (const type of result.powerUpTypes) {
+        this.profile.powerUpStats[type] =
+          (this.profile.powerUpStats[type] ?? 0) + 1;
+        // Merge into powerUpTypesUsed (deduped). This array drives the
+        // `all_powerups` achievement check in AchievementService.
+        if (!this.profile.powerUpTypesUsed.includes(type)) {
+          this.profile.powerUpTypesUsed.push(type);
+        }
       }
     }
 
     // Track unique maps played (NOT deduped — keeps a play-count history
     // so future "X games on map Y" achievements can read it too).
+    // This applies to ALL modes (1P + 2P) so `all_maps` is reachable
+    // via either mode.
     if (result.mapKey) {
       this.profile.mapsPlayed.push(result.mapKey);
     }

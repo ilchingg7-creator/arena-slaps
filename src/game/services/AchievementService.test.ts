@@ -8,6 +8,8 @@ import {
   type ProfileForAchievements,
 } from "./AchievementService";
 import { ACHIEVEMENTS, getAchievementCount } from "../config/achievements";
+import { POWERUP_DEFINITIONS } from "../config/powerUpConfig";
+import { MAPS } from "../config/mapManifest";
 
 function baseProfile(
   overrides: Partial<ProfileForAchievements> = {},
@@ -319,5 +321,91 @@ describe("AchievementService immutability", () => {
       profile.powerUpTypesUsed,
     );
     expect(result.updatedProfile.mapsPlayed).not.toBe(profile.mapsPlayed);
+  });
+
+  // --- RED: Bug 3+4 — ALL_POWERUP_TYPES / ALL_MAPS must match real keys ---
+  describe("Bug 3+4: achievement keys match real manifest keys", () => {
+    it("ALL_POWERUP_TYPES contains exactly the real power-up keys from powerUpConfig", () => {
+      // Bug 3: ALL_POWERUP_TYPES had "double_slap", "mega_sprint",
+      // "anti_gravity" — none of which exist as PowerUpEffect keys. The
+      // real keys (from POWERUP_DEFINITIONS) are "speed", "knockback",
+      // "shield", "mega-knockback", "freeze", "double-slap". Without
+      // this match, `all_powerups` is mathematically unreachable.
+      const realKeys = POWERUP_DEFINITIONS.map((d) => d.key).sort();
+      const achievementKeys = [...ALL_POWERUP_TYPES].sort();
+      expect(achievementKeys).toEqual(realKeys);
+    });
+
+    it("ALL_MAPS contains exactly the real map keys from mapManifest", () => {
+      // Bug 4: ALL_MAPS had "arena-lava", "arena-jungle", "arena-space",
+      // "arena-desert" — none of which exist in MAPS. The real keys are
+      // "arena-default", "arena-neon", "arena-cosmic", "arena-volcano",
+      // "arena-ice", "arena-grass". Without this match, `all_maps` is
+      // mathematically unreachable.
+      const realKeys = MAPS.map((m) => m.key).sort();
+      const achievementKeys = [...ALL_MAPS].sort();
+      expect(achievementKeys).toEqual(realKeys);
+    });
+
+    it("unlocks all_powerups when the player collects ALL real power-up types in one battle", () => {
+      // Use the real keys (not ALL_POWERUP_TYPES directly) to prove the
+      // achievement is reachable in practice.
+      const realKeys = POWERUP_DEFINITIONS.map((d) => d.key);
+      const profile = baseProfile();
+      const ctx = baseCtx({
+        powerUpTypesThisBattle: [...realKeys],
+        botScore: 2, // avoid flawless
+      });
+      const result = AchievementService.checkBattleEnd(profile, ctx);
+      expect(result.newlyUnlocked).toContain("all_powerups");
+    });
+
+    it("unlocks all_maps when the player has played on ALL real maps", () => {
+      const realKeys = MAPS.map((m) => m.key);
+      const profile = baseProfile({
+        mapsPlayed: [...realKeys],
+        totalGames: realKeys.length,
+        wins: 1,
+      });
+      const ctx = baseCtx({ outcome: "win" });
+      const result = AchievementService.checkBattleEnd(profile, ctx);
+      expect(result.newlyUnlocked).toContain("all_maps");
+    });
+
+    it("does NOT unlock all_powerups when only the OLD (wrong) keys are collected", () => {
+      // Regression guard: the old wrong keys must NOT satisfy the condition.
+      const profile = baseProfile();
+      const ctx = baseCtx({
+        powerUpTypesThisBattle: [
+          "speed",
+          "knockback",
+          "shield",
+          "double_slap", // wrong — real is "double-slap"
+          "mega_sprint", // wrong — real is "mega-knockback"
+          "anti_gravity", // wrong — real is "freeze"
+        ],
+        botScore: 2,
+      });
+      const result = AchievementService.checkBattleEnd(profile, ctx);
+      expect(result.newlyUnlocked).not.toContain("all_powerups");
+    });
+
+    it("does NOT unlock all_maps when only the OLD (wrong) map keys are played", () => {
+      const profile = baseProfile({
+        mapsPlayed: [
+          "arena-default",
+          "arena-ice",
+          "arena-lava", // wrong
+          "arena-jungle", // wrong
+          "arena-space", // wrong
+          "arena-desert", // wrong
+        ],
+        totalGames: 6,
+        wins: 1,
+      });
+      const ctx = baseCtx({ outcome: "win" });
+      const result = AchievementService.checkBattleEnd(profile, ctx);
+      expect(result.newlyUnlocked).not.toContain("all_maps");
+    });
   });
 });
