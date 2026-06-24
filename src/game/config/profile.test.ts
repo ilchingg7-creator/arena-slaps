@@ -99,6 +99,12 @@ describe("profile", () => {
       lastPlayedAt: 67890,
       xp: 750,
       level: 4,
+      achievements: [],
+      currentWinStreak: 0,
+      maxWinStreak: 0,
+      powerUpTypesUsed: [],
+      mapsPlayed: [],
+      p2GamesPlayed: 0,
     };
     saveProfile(storage, profile);
     expect(capturedKey).toBe("arena-slaps:profile");
@@ -143,6 +149,12 @@ describe("profile", () => {
       lastPlayedAt: 9876543210,
       xp: 1200,
       level: 5,
+      achievements: [],
+      currentWinStreak: 0,
+      maxWinStreak: 0,
+      powerUpTypesUsed: [],
+      mapsPlayed: [],
+      p2GamesPlayed: 0,
     };
     const reset = resetProfileStats(profile);
     expect(reset.nickname).toBe("Alice");
@@ -179,6 +191,12 @@ describe("profile", () => {
       lastPlayedAt: 222,
       xp: 500,
       level: 4,
+      achievements: [],
+      currentWinStreak: 0,
+      maxWinStreak: 0,
+      powerUpTypesUsed: [],
+      mapsPlayed: [],
+      p2GamesPlayed: 0,
     };
     const snapshot: Profile = {
       ...original,

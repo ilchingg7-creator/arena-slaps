@@ -19,6 +19,12 @@ function mockProfile(overrides: Partial<Profile> = {}): Profile {
     lastPlayedAt: 0,
     xp: 0,
     level: 1,
+    achievements: [],
+    currentWinStreak: 0,
+    maxWinStreak: 0,
+    powerUpTypesUsed: [],
+    mapsPlayed: [],
+    p2GamesPlayed: 0,
     ...overrides,
   };
 }

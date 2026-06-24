@@ -1,194 +1,116 @@
 import Phaser from "phaser";
 import {
   ACHIEVEMENTS,
-  getAchievementCount,
+  getAchievementById,
+  getAchievementsByCategory,
+  type AchievementCategory,
 } from "../config/achievements";
-import {
-  loadProfile,
-  type Profile,
-} from "../config/profile";
-import { translate, type Language } from "../config/translations";
-import { AchievementService } from "../services/AchievementService";
-import {
-  loadSettings,
-  saveSettings,
-  type GameSettings,
-} from "../config/gameSettings";
+import { loadProfile } from "../config/profile";
+import { createBackground } from "../ui/Background";
+import { createStyledButton } from "../ui/StyledButton";
+import { I18nService } from "../i18n/I18nService";
 
 /**
- * Scene key for the AchievementsScene. Exported so callers (MainMenu wiring,
- * gameConfig scene list) can reference the key without a string literal.
- */
-export const ACHIEVEMENTS_SCENE_KEY = "AchievementsScene";
-
-/**
- * Persisted UI language preference. Defaults to Russian ("ru") to match the
- * game's primary audience. The user can toggle this from the settings menu
- * (future work); for now the AchievementsScene reads this from the registry.
- */
-const DEFAULT_LANG: Language = "ru";
-
-/**
- * AchievementsScene — a grid view of all 18 achievements.
- *
- * Layout:
- *   - Title "Достижения" / "Achievements" at the top.
- *   - 6×3 grid of achievement cells below the title. Each cell shows the
- *     emoji icon + localized name; unlocked achievements are rendered in
- *     green, locked ones in grey.
- *   - Back button at the bottom (returns to MenuScene).
- *   - Top-right mute toggle (placeholder — the audio service handles the
- *     actual mute state).
- *
- * The scene loads the player profile from localStorage to determine which
- * achievements are unlocked.
+ * Achievements scene — shows a grid of all 18 achievements.
+ * Unlocked = bright (green text), locked = dimmed (grey text).
  */
 export class AchievementsScene extends Phaser.Scene {
   constructor() {
-    super(ACHIEVEMENTS_SCENE_KEY);
+    super("AchievementsScene");
   }
 
   create(): void {
-    const width = this.scale.width || 1280;
-    const height = this.scale.height || 720;
-    const lang = (this.registry.get("lang") as Language | undefined) ?? DEFAULT_LANG;
+    const width = this.scale.width;
+    const height = this.scale.height;
+    const storage = typeof window !== "undefined" ? window.localStorage : null;
+    const i18n = I18nService.load(storage);
+    const profile = loadProfile(storage);
+    const unlockedSet = new Set(profile.achievements ?? []);
 
-    this.cameras.main.setBackgroundColor("#101820");
+    // --- Background ---
+    createBackground(this as unknown as Phaser.Scene, { key: "menu-bg" });
 
     // --- Title ---
     this.add
-      .text(width / 2, height * 0.10, translate("achievements.title", lang), {
+      .text(width / 2, height * 0.10, i18n.t("achievements.title"), {
         color: "#f4f1de",
         fontFamily: "Arial",
-        fontSize: "52px",
+        fontSize: "42px",
+        stroke: "#000000",
+        strokeThickness: 5,
+        shadow: { offsetX: 0, offsetY: 2, color: "#000000", blur: 5, fill: true },
       })
       .setOrigin(0.5);
 
-    // --- Profile + unlocked set ---
-    const storage =
-      typeof window === "undefined" ? null : window.localStorage;
-    const profile: Profile = loadProfile(storage);
-    const unlockedSet = new Set(profile.achievements);
-
-    // --- Achievement grid (6 columns × 3 rows = 18 cells) ---
-    const columns = 6;
+    // --- Grid: 6 columns × 3 rows ---
+    const cols = 6;
     const rows = 3;
-    expectCorrectGrid(columns, rows);
-    const gridTopY = height * 0.24;
-    const gridBottomY = height * 0.78;
-    const gridLeftX = width * 0.08;
-    const gridRightX = width * 0.92;
-    const cellWidth = (gridRightX - gridLeftX) / columns;
-    const cellHeight = (gridBottomY - gridTopY) / rows;
+    const cellW = width / (cols + 1);
+    const cellH = height * 0.20;
+    const gridStartX = cellW / 2 + cellW * 0.5;
+    const gridStartY = height * 0.28;
 
-    for (let i = 0; i < ACHIEVEMENTS.length; i++) {
-      const def = ACHIEVEMENTS[i];
-      const col = i % columns;
-      const row = Math.floor(i / columns);
-      const cx = gridLeftX + cellWidth * (col + 0.5);
-      const cy = gridTopY + cellHeight * (row + 0.5);
-      const isUnlocked = unlockedSet.has(def.id);
-      const color = isUnlocked ? "#81b29a" : "#6c757d";
+    const categories: AchievementCategory[] = ["combat", "collection", "milestone", "progression", "fun"];
 
-      // Cell background.
+    ACHIEVEMENTS.forEach((ach, idx) => {
+      const col = idx % cols;
+      const row = Math.floor(idx / cols);
+      const x = gridStartX + col * cellW;
+      const y = gridStartY + row * cellH;
+      const isUnlocked = unlockedSet.has(ach.id);
+      const color = isUnlocked ? "#81b29a" : "#555555";
+      const alpha = isUnlocked ? 1.0 : 0.5;
+
+      // Icon
       this.add
-        .rectangle(cx, cy, cellWidth - 12, cellHeight - 12, 0x1d2433)
-        .setStrokeStyle(2, isUnlocked ? 0x81b29a : 0x3d405b)
-        .setOrigin(0.5);
-
-      // Icon (emoji).
-      this.add
-        .text(cx, cy - 14, def.icon, {
-          color,
-          fontFamily: "Arial",
+        .text(x, y, ach.icon, {
           fontSize: "32px",
         })
-        .setOrigin(0.5);
+        .setOrigin(0.5)
+        .setAlpha(alpha);
 
-      // Name (localized).
+      // Name
       this.add
-        .text(cx, cy + 22, translate(def.nameKey, lang), {
+        .text(x, y + 28, i18n.t(ach.nameKey as never), {
           color,
           fontFamily: "Arial",
-          fontSize: "14px",
+          fontSize: "12px",
+          stroke: "#000000",
+          strokeThickness: 2,
           align: "center",
         })
-        .setOrigin(0.5);
-    }
+        .setOrigin(0.5)
+        .setAlpha(alpha);
+    });
 
-    // --- Unlocked count footer ---
-    const unlockedCount = AchievementService.getUnlockedDefinitions(profile).length;
+    // --- Unlocked count ---
+    const unlockedCount = unlockedSet.size;
     this.add
-      .text(
-        width / 2,
-        height * 0.86,
-        `${translate("achievements.unlocked", lang)}: ${unlockedCount} / ${getAchievementCount()}`,
-        {
-          color: "#f4f1de",
-          fontFamily: "Arial",
-          fontSize: "20px",
-        },
-      )
+      .text(width / 2, height * 0.92, `${i18n.t("achievements.unlocked")}: ${unlockedCount} / ${ACHIEVEMENTS.length}`, {
+        color: "#f4f1de",
+        fontFamily: "Arial",
+        fontSize: "18px",
+        stroke: "#000000",
+        strokeThickness: 3,
+      })
       .setOrigin(0.5);
 
     // --- Back button ---
-    const backButton = this.add
-      .text(width / 2, height * 0.94, translate("achievements.back", lang), {
-        align: "center",
-        backgroundColor: "#e07a5f",
-        color: "#101820",
-        fontFamily: "Arial",
-        fontSize: "24px",
-        padding: { x: 24, y: 10 },
-      })
-      .setOrigin(0.5)
-      .setInteractive();
-    backButton.on("pointerup", () => {
-      this.scene.start("MenuScene");
+    createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
+      x: width / 2,
+      y: height * 0.86,
+      text: i18n.t("achievements.back"),
+      variant: "primary",
+      onClick: () => {
+        this.scene.start("MainMenuScene");
+      },
     });
 
-    // --- Mute button (top-right) ---
-    // Toggles the persisted `muted` flag in GameSettings. The actual audio
-    // muting is applied the next time a scene with an AudioService is
-    // created (MenuScene, BattleScene) — they read the settings on startup.
-    const persistedSettings: GameSettings = loadSettings(
-      typeof window === "undefined" ? null : window.localStorage,
-    );
-    const muteButton = this.add
-      .text(width - 24, 24, persistedSettings.muted ? "🔇" : "🔊", {
-        fontFamily: "Arial",
-        fontSize: "28px",
-      })
-      .setOrigin(1, 0)
-      .setInteractive();
-    muteButton.on("pointerup", () => {
-      const next = !persistedSettings.muted;
-      const updated: GameSettings = { ...persistedSettings, muted: next };
-      if (typeof window !== "undefined") {
-        saveSettings(window.localStorage, updated);
-      }
-      muteButton.setText(next ? "🔇" : "🔊");
-      persistedSettings.muted = next;
-    });
-
-    // Esc / Enter returns to the menu.
     this.input.keyboard?.on("keydown-ESC", () => {
-      this.scene.start("MenuScene");
+      this.scene.start("MainMenuScene");
     });
-  }
-}
-
-/**
- * Tiny runtime guard so the grid layout stays in sync with the manifest. If
- * the manifest ever grows past 18 entries, this throws at scene-create time
- * rather than silently rendering an incomplete grid.
- */
-function expectCorrectGrid(columns: number, rows: number): void {
-  const capacity = columns * rows;
-  if (capacity < getAchievementCount()) {
-    // eslint-disable-next-line no-console
-    console.warn(
-      `[AchievementsScene] grid capacity (${capacity}) < achievement count (${getAchievementCount()}); some achievements will not be rendered.`,
-    );
+    this.input.keyboard?.on("keydown-ENTER", () => {
+      this.scene.start("MainMenuScene");
+    });
   }
 }

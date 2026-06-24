@@ -2,7 +2,7 @@ export type GameMode = "1p-vs-bot" | "2p-local";
 
 export type Profile = {
   nickname: string;
-  avatar: "player-idle"; // only one option for now
+  avatar: "player-idle";
   totalGames: number;
   wins: number;
   losses: number;
@@ -10,12 +10,18 @@ export type Profile = {
   ringOutsInflicted: number;
   ringOutsSuffered: number;
   powerUpsCollected: number;
-  powerUpStats: Record<string, number>; // by power-up type
+  powerUpStats: Record<string, number>;
   favoriteMode: GameMode;
-  createdAt: number; // set on first creation
+  createdAt: number;
   lastPlayedAt: number;
-  xp: number; // total XP accumulated across all games
-  level: number; // current progression level (1..MAX_LEVEL)
+  xp: number;
+  level: number;
+  achievements: string[];
+  currentWinStreak: number;
+  maxWinStreak: number;
+  powerUpTypesUsed: string[];
+  mapsPlayed: string[];
+  p2GamesPlayed: number;
 };
 
 export const DEFAULT_PROFILE: Profile = {
@@ -34,6 +40,12 @@ export const DEFAULT_PROFILE: Profile = {
   lastPlayedAt: 0,
   xp: 0,
   level: 1,
+  achievements: [],
+  currentWinStreak: 0,
+  maxWinStreak: 0,
+  powerUpTypesUsed: [],
+  mapsPlayed: [],
+  p2GamesPlayed: 0,
 };
 
 const STORAGE_KEY = "arena-slaps:profile";
@@ -127,6 +139,24 @@ function migrateProfile(parsed: Record<string, unknown>): Profile {
     Number.isInteger(parsed.level)
   ) {
     base.level = Math.max(1, Math.floor(parsed.level));
+  }
+  if (Array.isArray(parsed.achievements)) {
+    base.achievements = parsed.achievements.filter((a: unknown) => typeof a === "string");
+  }
+  if (typeof parsed.currentWinStreak === "number") {
+    base.currentWinStreak = parsed.currentWinStreak;
+  }
+  if (typeof parsed.maxWinStreak === "number") {
+    base.maxWinStreak = parsed.maxWinStreak;
+  }
+  if (Array.isArray(parsed.powerUpTypesUsed)) {
+    base.powerUpTypesUsed = parsed.powerUpTypesUsed.filter((a: unknown) => typeof a === "string");
+  }
+  if (Array.isArray(parsed.mapsPlayed)) {
+    base.mapsPlayed = parsed.mapsPlayed.filter((a: unknown) => typeof a === "string");
+  }
+  if (typeof parsed.p2GamesPlayed === "number") {
+    base.p2GamesPlayed = parsed.p2GamesPlayed;
   }
 
   return base;

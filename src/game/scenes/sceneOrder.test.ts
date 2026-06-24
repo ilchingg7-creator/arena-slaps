@@ -1,9 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 
-// Mock Phaser: provide the Scale enum (used by gameConfig) and a Scene
-// base class (extended by BootScene / PreloadScene / MainMenuScene etc.).
-// The mock Scene is a minimal class with a constructor that stores the
-// key and a `name` property derived from it, so sceneClasses[i].name works.
 vi.mock("phaser", () => {
   class Scene {
     name: string;
@@ -41,8 +37,12 @@ describe("sceneClasses", () => {
     expect(sceneClasses.some((scene) => scene.name === "ProgressionScene")).toBe(true);
   });
 
-  it("has 7 scenes in the correct order", () => {
-    expect(sceneClasses).toHaveLength(7);
+  it("includes AchievementsScene", () => {
+    expect(sceneClasses.some((scene) => scene.name === "AchievementsScene")).toBe(true);
+  });
+
+  it("has 8 scenes in the correct order", () => {
+    expect(sceneClasses).toHaveLength(8);
     expect(sceneClasses.map((s) => s.name)).toEqual([
       "BootScene",
       "PreloadScene",
@@ -51,21 +51,6 @@ describe("sceneClasses", () => {
       "AudioSettingsScene",
       "ProfileScene",
       "ProgressionScene",
-    ]);
-  });
-
-  it("includes AchievementsScene so the menu can switch to it", () => {
-    expect(sceneClasses.some((scene) => scene.name === "AchievementsScene")).toBe(
-      true,
-    );
-  });
-
-  it("contains exactly 4 scenes (Boot, Preload, Menu, Achievements)", () => {
-    expect(sceneClasses.length).toBe(4);
-    expect(sceneClasses.map((s) => s.name)).toEqual([
-      "BootScene",
-      "PreloadScene",
-      "MenuScene",
       "AchievementsScene",
     ]);
   });
