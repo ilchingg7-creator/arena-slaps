@@ -1,14 +1,99 @@
 # Arena Slaps — Status
 
-**Version:** v1.2.0
+**Version:** v1.3.0
 **Last updated:** 2026-06-25
-**Build:** `4.53s` · **Tests:** `804/804 passed (48 files)` · **tsc:** clean · **Bundle:** `361 KB gzip`
+**Build:** `5.33s` · **Tests:** `840/840 passed (51 files)` · **tsc:** clean · **Bundle:** `361 KB gzip`
 
 ---
 
 ## Recent work (latest first)
 
-### v1.2.0 — Bugfixes from code review (2026-06-25)
+### v1.3.0 — 5 bugfixes from second code review (2026-06-25)
+
+Five bugs identified during a second code-review pass, all fixed via TDD
+(RED → GREEN):
+
+1. **`LoadingAPI.ready()` was never called**
+   - `main.ts` listened for `game.events.once("ready", ...)` but
+     `PreloadScene.create()` never emitted the event — it just called
+     `this.scene.start("MainMenuScene")`. On the Yandex platform this
+     meant the loader never received the "game is playable" signal
+     (Rule 1.19.2), potentially hanging the Yandex loading overlay.
+   - Fix: `PreloadScene.create()` and the 8-second timeout fallback
+     both emit `"ready"` on `this.game.events` before transitioning.
+
+2. **2P-local broke profile / achievements / results (3 sub-issues)**
+   - **2a:** `processBattleEnd` early-returned for 2P-local, so
+     `p2GamesPlayed` never incremented — `social` achievement was
+     unreachable.
+   - **2b:** BattleScene still called `processBattleEnd` for 2P and
+     stashed a non-null `BattleEndOutput` (with `xpGained: 0`) in the
+     registry.
+   - **2c:** `formatResultsSummary` then showed `XP: +0` and
+     `Level: 1` after a 2P battle — misleading.
+   - Fix: added a new `"neutral"` outcome to `GameResult` /
+     `BattleContext`. In 2P mode, `processBattleEnd` now records
+     stats via `recordGameResult({ outcome: "neutral" })` (increments
+     `totalGames` + `mapsPlayed` + `p2GamesPlayed` but NOT
+     wins/losses/streaks/ringOuts), runs `checkBattleEnd` with
+     `ctx.outcome = "neutral"` so 1P-specific achievements don't fire,
+     and `formatResultsSummary` skips XP/Level lines for 2P mode.
+     `social`, `all_maps`, and `veteran` are now reachable via 2P.
+
+3. **`ALL_POWERUP_TYPES` had 3 phantom keys**
+   - Array had `"double_slap"`, `"mega_sprint"`, `"anti_gravity"` —
+     none exist as `PowerUpEffect` keys. Real keys: `speed`,
+     `knockback`, `shield`, `mega-knockback`, `freeze`, `double-slap`.
+   - `all_powerups` achievement was mathematically unreachable.
+   - Fix: array now mirrors `POWERUP_DEFINITIONS` exactly.
+
+4. **`ALL_MAPS` had 5 phantom keys**
+   - Array had `"arena-lava"`, `"arena-jungle"`, `"arena-space"`,
+     `"arena-desert"` — none exist in `MAPS`. Real keys:
+     `arena-default`, `arena-neon`, `arena-cosmic`, `arena-volcano`,
+     `arena-ice`, `arena-grass`.
+   - `all_maps` achievement was mathematically unreachable.
+   - STATUS.md previously claimed "only arena-default ships" — that
+     was also stale; 6 maps actually ship.
+   - Fix: array now mirrors `MAPS` exactly.
+
+5. **Yandex SDK language not wired**
+   - `I18nService.detectLanguage()` reads `window.__yaSdkLang` but
+     `YandexSDK.init()` never wrote it. On prod, the Yandex platform's
+     language setting was always ignored — the game fell back to
+     `navigator.language`. A player with an English browser but a
+     Russian Yandex account would see EN instead of RU.
+   - Fix: `YandexSDK.init()` now calls `getLanguage()` after
+     `YaGames.init()` resolves and writes the result to
+     `window.__yaSdkLang`.
+
+6. **Rewarded XP didn't recalculate level-up / achievements**
+   - ResultsScene's ×2 XP callback called
+     `ProgressionService.applyXp` directly and ignored the returned
+     `levelUp` object. If the rewarded XP crossed level 5 or 10:
+     - The `level_5` / `level_10` achievements were NOT unlocked
+       (`AchievementService.checkLevel` was never called).
+     - The "Level up!" banner didn't show (battleEnd.levelUp.leveledUp
+       stayed `false` from the original battle).
+     - `newlyUnlocked` was not updated, so achievement notifications
+       didn't fire.
+   - Fix: extracted a pure `applyRewardedXp` helper that runs
+     `applyXp` + `checkLevel`, merges new level-achievements with the
+     original `newlyUnlocked`, and returns an updated
+     `BattleEndOutput` with `xpDoubled: true`. ResultsScene now uses
+     this helper instead of calling `applyXp` directly.
+
+**Commits:** `5d1d183`
+**Tests:** 804 → 840 (+36)
+
+**New files:**
+- `src/game/scenes/PreloadScene.test.ts` — Bug 1 regression tests
+- `src/game/services/applyRewardedXp.ts` + `.test.ts` — Bug 7 helper
+- `src/game/yandex/SDK.test.ts` — Bug 5 regression tests
+
+---
+
+### v1.2.0 — Bugfixes from first code review (2026-06-25)
 
 Three bugs identified during code review, fixed via TDD (RED → GREEN):
 
@@ -139,7 +224,15 @@ Three integration bugs surfaced by QA:
 
 - **`processBattleEnd`** — pure helper that runs the end-of-battle
   pipeline. Input: `{profile, result, ctx}`. Output: `{updatedProfile,
-  xpGained, levelUp, newlyUnlocked, xpDoubled}`.
+  xpGained, levelUp, newlyUnlocked, xpDoubled, mode}`. In 2P-local mode
+  records stats with `outcome: "neutral"` (no XP, no streaks) so
+  `social` / `all_maps` / `veteran` are reachable via 2P play.
+- **`applyRewardedXp`** — pure helper for the ×2 XP rewarded-ad bonus.
+  Runs `applyXp` + `checkLevel`, merges new level-achievements with the
+  original `newlyUnlocked`, and returns an updated `BattleEndOutput`
+  with `xpDoubled: true`. Used by ResultsScene so level-ups from
+  rewarded XP correctly unlock `level_5` / `level_10` and show the
+  "Level up!" banner.
 - **`AchievementService`** — pure, immutable. `checkBattleEnd` (16
   battle-based achievements) + `checkLevel` (2 level-based:
   `level_5`, `level_10`). Returns `{updatedProfile, newlyUnlocked}`.
@@ -179,7 +272,7 @@ Three integration bugs surfaced by QA:
 
 ## Test coverage
 
-- **804 tests** across **48 test files**.
+- **840 tests** across **51 test files**.
 - **TDD methodology** — every bugfix and feature goes RED → GREEN:
   - RED: write failing tests that pin the desired behavior.
   - GREEN: implement the minimum code to make tests pass.
@@ -241,16 +334,16 @@ arena-slaps/
   on-screen buttons were visually inconsistent with the neon style. A
   proper touch joystick + slap button could be added later. Keyboard
   + click/tap on the arena works on all platforms.
-- **`all_powerups` achievement** requires all 6 power-up types in a
-  single battle — currently very unlikely since only one power-up is
-  active at a time and the despawn timer is 8s. Could be relaxed to
-  "across the player's career" (`powerUpTypesUsed` already tracks
-  this) for a more attainable goal.
-- **`all_maps` achievement** references 6 maps (`arena-default`,
-  `arena-ice`, `arena-lava`, `arena-jungle`, `arena-space`,
-  `arena-desert`) but only `arena-default` ships. The manifest has
-  placeholders for the other 5 — they need to be authored as PNGs
-  before the achievement is reachable.
+- **`all_powerups` achievement** is mathematically reachable (all 6
+  real power-up types now match `ALL_POWERUP_TYPES`), but in practice
+  it's hard — only one power-up is active at a time and the despawn
+  timer is 8s. Could be relaxed to "across the player's career"
+  (`powerUpTypesUsed` already tracks this) for a more attainable goal.
+- **`all_maps` achievement** is reachable — all 6 maps ship
+  (`arena-default`, `arena-neon`, `arena-cosmic`, `arena-volcano`,
+  `arena-ice`, `arena-grass`) and `ALL_MAPS` matches the manifest.
+  Note: 5 of the 6 maps are progression-gated, so the player must
+  reach level 10 to unlock all of them.
 - **Vite chunk-size warning** — the main bundle is 1.55 MB (361 KB
   gzip). Could be reduced via manual chunk splitting or by moving
   more scenes to dynamic imports.
