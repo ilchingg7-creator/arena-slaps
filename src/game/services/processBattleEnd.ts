@@ -56,6 +56,15 @@ export type BattleEndOutput = {
    * crossed the level_5 / level_10 threshold).
    */
   newlyUnlocked: string[];
+  /**
+   * Whether the player has already used the "×2 XP" rewarded-ad bonus for
+   * this battle. Starts false; ResultsScene flips it to true after granting
+   * the second XP portion. The flag is part of the output so it survives
+   * `scene.restart()` (the registry entry it's stored in lives across
+   * same-scene restarts) — without this, the player could restart the
+   * scene and click ×2 XP again to farm XP infinitely (Bug 3).
+   */
+  xpDoubled: boolean;
 };
 
 /**
@@ -78,6 +87,7 @@ export function processBattleEnd(input: BattleEndInput): BattleEndOutput {
         newUnlocks: [],
       },
       newlyUnlocked: [],
+      xpDoubled: false,
     };
   }
 
@@ -135,5 +145,9 @@ export function processBattleEnd(input: BattleEndInput): BattleEndOutput {
       newUnlocks: levelUp.newUnlocks,
     },
     newlyUnlocked,
+    // Fresh battle end — XP has not been doubled yet. ResultsScene flips
+    // this to true (via the registry) once the rewarded-ad bonus is
+    // applied, and hides the ×2 XP button on subsequent renders.
+    xpDoubled: false,
   };
 }

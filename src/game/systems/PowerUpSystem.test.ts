@@ -922,14 +922,54 @@ describe("PowerUpSystem", () => {
     });
 
     it("sets spawnedAt to the current time (Date.now)", () => {
+      // LEGACY: this test exercised the OLD behaviour where spawnPowerUp
+      // stamped `spawnedAt = Date.now()` internally. The function now
+      // accepts a `now` parameter so the caller (BattleScene) can pass
+      // Phaser's `this.time.now` and keep the same time-base as
+      // shouldDespawnPowerUp / isInDespawnWarning. We keep the test as a
+      // regression guard by passing `12345` explicitly and asserting the
+      // function does NOT call Date.now().
       const state = createPowerUpState();
       const { scene, arena } = makeSceneAndArena();
-      const nowSpy = vi.spyOn(Date, "now").mockReturnValue(12345);
-      spawnPowerUp(scene, state, arena, 16);
+      const nowSpy = vi.spyOn(Date, "now").mockReturnValue(99999);
+      spawnPowerUp(scene, state, arena, 16, undefined, 12345);
       nowSpy.mockRestore();
 
       expect(state.active).not.toBeNull();
       expect(state.active!.spawnedAt).toBe(12345);
+    });
+
+    it("RED: uses the caller-provided `now` (Phaser time) — NOT Date.now()", () => {
+      // The bug: spawnPowerUp stamped spawnedAt = Date.now() internally,
+      // while shouldDespawnPowerUp / isInDespawnWarning used the caller's
+      // `now` (which is Phaser's this.time.now). The two clocks drift
+      // when the browser throttles requestAnimationFrame in background
+      // tabs, so a power-up spawned in an active tab and queried in a
+      // background tab (or vice versa) would compute the wrong age and
+      // either despawn too early or never despawn.
+      //
+      // Fix: spawnPowerUp now accepts a `now` parameter and stores it as
+      // spawnedAt. Date.now() must NOT be called.
+      const state = createPowerUpState();
+      const { scene, arena } = makeSceneAndArena();
+      const nowSpy = vi.spyOn(Date, "now").mockReturnValue(99999);
+      spawnPowerUp(scene, state, arena, 16, undefined, 4242);
+      expect(nowSpy).not.toHaveBeenCalled();
+      nowSpy.mockRestore();
+
+      expect(state.active).not.toBeNull();
+      expect(state.active!.spawnedAt).toBe(4242);
+    });
+
+    it("RED: spawnedAt defaults to 0 when `now` is omitted (back-compat for tests)", () => {
+      const state = createPowerUpState();
+      const { scene, arena } = makeSceneAndArena();
+      // No `now` arg → should fall back to a deterministic default rather
+      // than Date.now() so the despawn timer's age (now - 0) is large
+      // enough to trigger despawn on the next tick.
+      spawnPowerUp(scene, state, arena, 16);
+      expect(state.active).not.toBeNull();
+      expect(state.active!.spawnedAt).toBe(0);
     });
 
     it("spawns at random positions within the arena (15% margin)", () => {

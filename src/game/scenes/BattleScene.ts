@@ -901,6 +901,10 @@ export class BattleScene extends Phaser.Scene {
       this.runtime.arena,
       battleConfig.powerUp.size,
       (key: string) => this.runtime?.i18n?.t(key as never) ?? key,
+      // Pass Phaser's this.time.now so the despawn timer uses the SAME
+      // time-base as shouldDespawnPowerUp / isInDespawnWarning / shouldBlink
+      // (which are called from update() with `now = this.time.now`).
+      this.time.now,
     );
     updateHud(this.runtime);
 
@@ -1336,7 +1340,11 @@ export class BattleScene extends Phaser.Scene {
     }
 
     if (!runtime.powerUp.active && now - runtime.lastPowerUpDespawnAt > 3000) {
-      spawnPowerUp(this, runtime.powerUp, runtime.arena, battleConfig.powerUp.size, (key: string) => runtime.i18n?.t(key as never) ?? key);
+      // `now` here is `this.time.now` (Phaser time) — pass it through so
+      // spawnPowerUp stamps spawnedAt in the SAME time-base as the despawn
+      // checks. Bugfix: previously spawnPowerUp stamped Date.now() internally,
+      // which drifted relative to Phaser time when the tab was backgrounded.
+      spawnPowerUp(this, runtime.powerUp, runtime.arena, battleConfig.powerUp.size, (key: string) => runtime.i18n?.t(key as never) ?? key, now);
     }
 
     // M2: capture the active power-up's effect key BEFORE calling

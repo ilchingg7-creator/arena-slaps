@@ -33,7 +33,11 @@ const COMBO_KNOCKBACK_TIER2 = 5;
 const COMBO_CAP = 5;
 const COMBO_MULT_BASE = 1.0;
 const COMBO_MULT_TIER1 = 1.5;
-const COMBO_MULT_TIER2 = 2.5;
+// BUGFIX: bumped from 2.5 → 3.0 to match the design spec described in this
+// file's JSDoc ("3.0 when comboStacks === 5 (mega-launch)"). The 5-stack is
+// the climax of the combo system — it should be a noticeably bigger punch
+// than the 1.5x tier-1, not a marginal bump to 2.5x.
+const COMBO_MULT_TIER2 = 3.0;
 
 /**
  * Resolve the combo multiplier for `attacker` at wall-clock time `now`.

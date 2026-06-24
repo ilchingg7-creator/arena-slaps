@@ -162,11 +162,16 @@ export class ResultsScene extends Phaser.Scene {
     // Rule 4.5: rewarded advertising is optional and grants the stated reward.
     // Rule 4.5.1: UI clearly explains both viewing and reward.
     // Rule 4.5.2: the rewarded bonus is not required to continue.
-    // Only show if the player actually earned XP (1P vs bot mode).
+    // Only show if the player actually earned XP (1P vs bot mode) AND
+    // has not already doubled (Bug 3a: previously the local `doubledXP`
+    // flag was reset on `scene.restart()`, allowing infinite re-press).
+    // The `xpDoubled` flag lives on `battleEnd` in the Phaser registry,
+    // which survives `scene.restart()` of this same scene.
+    const xpAlreadyDoubled = battleEnd?.xpDoubled === true;
     const showRewardedButton =
-      results?.mode === "1p-vs-bot" && YandexSDK.isAvailable();
-
-    let doubledXP = false;
+      results?.mode === "1p-vs-bot" &&
+      YandexSDK.isAvailable() &&
+      !xpAlreadyDoubled;
 
     // Compute the back-button Y based on whether the rewarded-ad button
     // is visible AND whether the end-of-battle block pushed lines down.
@@ -186,27 +191,35 @@ export class ResultsScene extends Phaser.Scene {
           height: 48,
           fontSize: 18,
           onClick: () => {
-            if (doubledXP) return; // prevent double-click
             audio.playMenuClick();
             YandexSDK.showRewardedAd(
               () => {
-                // onRewarded — double the last game's XP
-                if (!storage) return;
+                // onRewarded — grant the SECOND half of the ×2 XP bonus.
+                // Bug 3b: previously this granted only the base XP
+                // (win=100/loss=30/draw=50) as a "double approximation",
+                // ignoring ring-outs (×20) + power-ups (×10). The REAL
+                // first portion is `battleEnd.xpGained` (already applied
+                // to the profile in BattleScene via processBattleEnd). To
+                // truly double it, we apply the SAME amount again.
+                if (!storage || !battleEnd) return;
                 try {
                   const profile = loadProfile(storage);
-                  // Recalculate XP from the last result (same formula as
-                  // BattleScene's round-complete block). We can't read the
-                  // exact XP gained because it was already applied — so we
-                  // grant a bonus equal to the base XP (win=100, loss=30,
-                  // draw=50) as a "double" approximation.
-                  const outcome = results?.winner === "player" ? "win"
-                    : results?.winner === "bots" ? "loss" : "draw";
-                  const baseXp = outcome === "win" ? 100
-                    : outcome === "loss" ? 30 : 50;
-                  const { profile: updated } = ProgressionService.applyXp(profile, baseXp);
+                  const { profile: updated } = ProgressionService.applyXp(
+                    profile,
+                    battleEnd.xpGained,
+                  );
                   saveProfile(storage, updated);
-                  doubledXP = true;
-                  // Restart scene to show updated state
+                  // Flip the flag in the registry entry so the next
+                  // render of this scene (after `scene.restart()`)
+                  // hides the ×2 XP button. The registry survives
+                  // same-scene restarts, so the player can no longer
+                  // farm XP by re-pressing the button.
+                  this.registry.set("lastBattleEnd", {
+                    ...battleEnd,
+                    updatedProfile: updated,
+                    xpDoubled: true,
+                  });
+                  // Restart scene to show updated XP + hide the button.
                   this.scene.restart();
                 } catch {
                   // Non-critical

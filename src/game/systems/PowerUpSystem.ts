@@ -128,15 +128,24 @@ export function getNextPowerUpDefinition(index: number): PowerUpDefinition {
 }
 
 /**
- * Spawn the next power-up in the rotation. Picks a position from
- * {@link POWERUP_TIMINGS.spawnSlots} (rotating through all 5 slots),
- * derives its absolute pixel position from the arena rectangle, and
- * records `spawnedAt = Date.now()` so the despawn timer can run. After
+ * Spawn the next power-up in the rotation. Picks a random position within
+ * the arena (avoiding edges by 15% margin), picks a random power-up type,
+ * and records `spawnedAt = now` so the despawn timer can run. After
  * constructing the sprite, kicks off the spawn animation (scale 0 → 1
  * over 200ms with a `Back.out` ease) for a satisfying "pop in".
  *
  * Early-returns if a power-up is already active (the caller is expected
  * to despawn or collect the previous one first).
+ *
+ * **Time-base contract (bugfix):** the caller MUST pass the same `now`
+ * value it uses for `shouldDespawnPowerUp` / `isInDespawnWarning` /
+ * `shouldBlink` (i.e. Phaser's `this.time.now`). Mixing this with
+ * `Date.now()` would cause the despawn timer's age (`now - spawnedAt`)
+ * to drift when the browser throttles `requestAnimationFrame` in
+ * background tabs. The `now` argument is OPTIONAL only for back-compat
+ * with tests — when omitted, `spawnedAt` defaults to 0 (NOT
+ * `Date.now()`), so the despawn timer fires immediately on the next
+ * tick. Production callers should always pass `now`.
  */
 export function spawnPowerUp(
   scene: SceneLike,
@@ -144,6 +153,7 @@ export function spawnPowerUp(
   arena: ArenaLike,
   size: number,
   translator?: (key: string) => string,
+  now?: number,
 ): void {
   if (state.active) {
     return;
@@ -193,7 +203,12 @@ export function spawnPowerUp(
     definition,
     sprite,
     label,
-    spawnedAt: Date.now(),
+    // Use the caller-provided `now` (Phaser time) so the despawn timer
+    // computes ages in the SAME time-base as shouldDespawnPowerUp /
+    // isInDespawnWarning / shouldBlink. Default to 0 when omitted —
+    // production callers always pass `now`; tests that omit it get a
+    // deterministic value rather than the wall-clock.
+    spawnedAt: now ?? 0,
   };
   // Kick off the spawn animation (scale 0 → 1, Back.out ease, 200ms) so the
   // power-up "pops in" instead of appearing at full size. The animation is

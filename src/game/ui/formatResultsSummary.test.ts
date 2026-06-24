@@ -15,6 +15,7 @@ function makeBattleEnd(
       newUnlocks: [],
     },
     newlyUnlocked: [],
+    xpDoubled: false,
     ...overrides,
   };
 }

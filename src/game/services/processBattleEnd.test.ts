@@ -247,4 +247,57 @@ describe("processBattleEnd", () => {
     expect(input.profile.powerUpTypesUsed).toHaveLength(inputTypesLen);
     expect(input.profile.totalGames).toBe(0);
   });
+
+  // --- RED: ×2 XP exploit fix ---
+  describe("×2 XP exploit fix (Bug 3)", () => {
+    it("returns xpDoubled=false on a fresh battle end", () => {
+      // The output now carries an xpDoubled flag so ResultsScene can hide
+      // the rewarded-ad button after the player has already doubled.
+      const out = processBattleEnd(baseInput());
+      expect(out.xpDoubled).toBe(false);
+    });
+
+    it("xpGained includes ring-out + power-up bonuses (not just base)", () => {
+      // Bug 3b: the original ResultsScene "×2 XP" button granted only the
+      // base XP (win=100/loss=30/draw=50) as a "double approximation",
+      // completely ignoring ring-outs (×20) and power-ups (×10). The real
+      // xpGained is what ProgressionService.calculateXp returns — we now
+      // expose it on the output so ResultsScene can grant the SAME amount
+      // as the second portion (true double).
+      const out = processBattleEnd(
+        baseInput({
+          result: {
+            mode: "1p-vs-bot",
+            outcome: "win",
+            ringOutsInflicted: 5,
+            ringOutsSuffered: 0,
+            powerUpsCollected: 3,
+            powerUpTypes: ["speed", "shield", "knockback"],
+            mapKey: "arena-default",
+          },
+        }),
+      );
+      // base(100) + ringOuts(5*20=100) + powerUps(3*10=30) = 230
+      expect(out.xpGained).toBe(230);
+    });
+
+    it("xpDoubled defaults to false even when leveling up + unlocking achievements", () => {
+      // Make sure the flag is present regardless of which other fields
+      // are populated — ResultsScene reads it unconditionally.
+      const out = processBattleEnd(
+        baseInput({
+          profile: {
+            ...DEFAULT_PROFILE,
+            powerUpStats: {},
+            wins: 4,
+            totalGames: 4,
+            currentWinStreak: 4,
+            maxWinStreak: 4,
+          },
+        }),
+      );
+      expect(out.xpDoubled).toBe(false);
+      expect(out.newlyUnlocked.length).toBeGreaterThan(0);
+    });
+  });
 });

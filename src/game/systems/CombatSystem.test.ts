@@ -301,7 +301,7 @@ describe("applySlap", () => {
 });
 
 // --- Task 2ac: combo system ---
-// `getComboMultiplier` returns 1.0 / 1.5 / 2.5 depending on comboStacks,
+// `getComboMultiplier` returns 1.0 / 1.5 / 3.0 depending on comboStacks,
 // and resets stale combos (>3000ms since the last successful slap) to 0
 // before computing the multiplier. `applySlap` increments comboStacks on
 // a successful slap (capped at 5), stamps `lastSlapAt`, and resets the
@@ -330,9 +330,13 @@ describe("getComboMultiplier (Task 2ac)", () => {
     expect(getComboMultiplier(actor, 1000)).toBe(1.5);
   });
 
-  it("returns 2.5 when comboStacks is 5 (tier-2 mega-launch)", () => {
+  it("returns 3.0 when comboStacks is 5 (tier-2 mega-launch)", () => {
+    // BUGFIX: previously this returned 2.5, but the JSDoc + design spec
+    // describe the mega-launch as a 3.0x multiplier. The 5-stack is the
+    // climax of the combo system — it should be a noticeably bigger punch
+    // than the 1.5x tier-1, not a marginal bump to 2.5x.
     const actor = mockActor(0, 0, { comboStacks: 5, lastSlapAt: 1000 });
-    expect(getComboMultiplier(actor, 1000)).toBe(2.5);
+    expect(getComboMultiplier(actor, 1000)).toBe(3.0);
   });
 
   it("resets comboStacks to 0 when the combo has timed out (>3000ms since lastSlapAt)", () => {
@@ -348,11 +352,11 @@ describe("getComboMultiplier (Task 2ac)", () => {
     // Wait: 2500ms < 3000ms, so the combo is still live.
     const actor = mockActor(0, 0, { comboStacks: 5, lastSlapAt: 1000 });
     // 2999ms later — still live.
-    expect(getComboMultiplier(actor, 3999)).toBe(2.5);
+    expect(getComboMultiplier(actor, 3999)).toBe(3.0);
     expect(actor.comboStacks).toBe(5);
     // Exactly 3000ms later — boundary. Spec: reset when >3000ms, so at
     // exactly 3000ms the combo is still live.
-    expect(getComboMultiplier(actor, 4000)).toBe(2.5);
+    expect(getComboMultiplier(actor, 4000)).toBe(3.0);
     expect(actor.comboStacks).toBe(5);
     // 3001ms later — combo times out.
     expect(getComboMultiplier(actor, 4001)).toBe(1.0);
@@ -448,9 +452,9 @@ describe("applySlap combo bookkeeping (Task 2ac)", () => {
     expect(attacker.comboStacks).toBe(4);
   });
 
-  it("applies the 2.5x mega-launch multiplier at 5 stacks", () => {
+  it("applies the 3.0x mega-launch multiplier at 5 stacks", () => {
     // Attacker has 5 stacks from t=1000; slap at t=1100 (fresh combo).
-    // Multiplier = 2.5x. Base knockback = 560; with 2.5x = 1400.
+    // Multiplier = 3.0x (mega-launch). Base knockback = 560; with 3.0x = 1680.
     const attacker = mockActor(0, 0, {
       comboStacks: 5,
       lastSlapAt: 1000,
@@ -462,7 +466,7 @@ describe("applySlap combo bookkeeping (Task 2ac)", () => {
     };
     const hit = applySlap(attacker, defender, 1100);
     expect(hit).toBe(true);
-    expect(setVelocity.mock.calls[0][0]).toBe(1400);
+    expect(setVelocity.mock.calls[0][0]).toBe(1680);
     // Capped at 5.
     expect(attacker.comboStacks).toBe(5);
   });
