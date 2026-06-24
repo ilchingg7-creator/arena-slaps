@@ -2,8 +2,14 @@ import Phaser from "phaser";
 import { BootScene } from "./scenes/BootScene";
 import { MenuScene } from "./scenes/MenuScene";
 import { PreloadScene } from "./scenes/PreloadScene";
+import { AchievementsScene } from "./scenes/AchievementsScene";
 
-export const sceneClasses = [BootScene, PreloadScene, MenuScene];
+export const sceneClasses = [
+  BootScene,
+  PreloadScene,
+  MenuScene,
+  AchievementsScene,
+];
 
 export const gameConfig = {
   width: 1280,

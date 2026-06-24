@@ -312,6 +312,29 @@ export const MenuScene = {
       persist();
     });
 
+    // --- Achievements button ---
+    // Opens the AchievementsScene grid view. Placed below the settings rows
+    // and above the Start button so it's prominent but doesn't compete with
+    // the primary CTA. Uses the Russian label "Достижения" to match the
+    // game's primary audience; a future i18n pass can swap this for a
+    // translate() call keyed off the active language.
+    const achievementsButton = this.add
+      .text(width / 2, height * 0.76, "Достижения", {
+        align: "center",
+        backgroundColor: "#3d405b",
+        color: "#f4f1de",
+        fontFamily: "Arial",
+        fontSize: "24px",
+        padding: { x: 24, y: 10 },
+      })
+      .setOrigin(0.5)
+      .setInteractive();
+
+    achievementsButton.on?.("pointerup", () => {
+      audio.playMenuClick();
+      this.scene.start("AchievementsScene");
+    });
+
     // --- Title + tagline ---
     this.add
       .text(width / 2, height * 0.16, "Arena Slaps", {

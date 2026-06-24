@@ -38,6 +38,14 @@ import {
   shouldBotSlap,
   type BotAIState,
 } from "../systems/BotAI";
+import { AchievementService } from "../services/AchievementService";
+import {
+  loadProfile,
+  saveProfile,
+  type Profile,
+} from "../config/profile";
+import { getAchievementById } from "../config/achievements";
+import { translate, type Language } from "../config/translations";
 
 type Opponent =
   | { kind: "bot"; bot: Bot; ai: BotAIState }
@@ -617,6 +625,116 @@ export class BattleScene extends Phaser.Scene {
 
         if (storage) {
           saveBattleResults(storage, results);
+        }
+
+        // --- Achievements: evaluate unlock conditions + persist profile ---
+        // This block runs only on the first frame the round is complete
+        // (guarded by `runtime.resultsShown`). We:
+        //   1. Build a BattleContext from the runtime state.
+        //   2. Load the persisted profile.
+        //   3. Apply this battle's stat updates (totalGames++, wins++, streak,
+        //      ring-outs, power-ups, maps, p2GamesPlayed) to a working copy.
+        //   4. Call AchievementService.checkBattleEnd to evaluate unlock
+        //      conditions and get the new achievements list.
+        //   5. Persist the updated profile.
+        //   6. Console-log newly unlocked achievements (the AchievementNotification
+        //      UI component exists but isn't shown here because we immediately
+        //      transition to ResultsScene — a future iteration can show
+        //      notifications in ResultsScene instead).
+        const outcome: "win" | "loss" | "draw" =
+          runtime.round.winner === "player"
+            ? "win"
+            : runtime.round.winner === "bots"
+              ? "loss"
+              : "draw";
+        const battleMapKey = "arena-default"; // current codebase has only one map
+        const battleCtx = {
+          outcome,
+          playerScore: runtime.round.score.player,
+          botScore: runtime.round.score.bots,
+          roundDurationMs:
+            (runtime.settings.roundLengthSeconds -
+              runtime.round.timeLeft) *
+            1000,
+          powerUpsCollectedThisBattle: runtime.powerUpsCollected.player,
+          // powerUpTypesThisBattle / maxComboReached / dodgesThisBattle aren't
+          // tracked by the current runtime (would require extending the
+          // BattleRuntime type, which is outside the round-complete block).
+          // Defaulting to empty/0 means the corresponding achievements
+          // (all_powerups, combo_5, dodge_master) won't unlock from this
+          // wiring; the AchievementService tests verify the logic directly.
+          powerUpTypesThisBattle: [] as string[],
+          maxComboReached: 0,
+          dodgesThisBattle: 0,
+          // Each bot score point ≈ one player ring-out (Arena Slaps scores
+          // by ring-out, so botScore === ringOutsSufferedThisBattle).
+          ringOutsSufferedThisBattle: runtime.round.score.bots,
+          mode: runtime.settings.mode,
+          mapKey: battleMapKey,
+        };
+
+        if (storage) {
+          const loadedProfile: Profile = loadProfile(storage);
+          const nextWinStreak =
+            outcome === "win" ? loadedProfile.currentWinStreak + 1 : 0;
+          // Build the achievement-facing subset of the profile with this
+          // battle's stat updates applied. The full Profile also carries
+          // draws/xp/level (owned by the future progression system); we
+          // preserve those by spreading the loaded profile and overriding
+          // only the achievement-relevant fields.
+          const achProfile = {
+            ...loadedProfile,
+            totalGames: loadedProfile.totalGames + 1,
+            wins: loadedProfile.wins + (outcome === "win" ? 1 : 0),
+            losses: loadedProfile.losses + (outcome === "loss" ? 1 : 0),
+            draws:
+              loadedProfile.draws + (outcome === "draw" ? 1 : 0),
+            currentWinStreak: nextWinStreak,
+            maxWinStreak: Math.max(loadedProfile.maxWinStreak, nextWinStreak),
+            ringOutsInflicted:
+              loadedProfile.ringOutsInflicted + runtime.round.score.player,
+            ringOutsSuffered:
+              loadedProfile.ringOutsSuffered +
+              battleCtx.ringOutsSufferedThisBattle,
+            powerUpsCollected:
+              loadedProfile.powerUpsCollected +
+              battleCtx.powerUpsCollectedThisBattle,
+            powerUpTypesUsed: [...loadedProfile.powerUpTypesUsed],
+            mapsPlayed: loadedProfile.mapsPlayed.includes(battleMapKey)
+              ? [...loadedProfile.mapsPlayed]
+              : [...loadedProfile.mapsPlayed, battleMapKey],
+            p2GamesPlayed:
+              loadedProfile.p2GamesPlayed +
+              (battleCtx.mode === "2p-local" ? 1 : 0),
+            achievements: [...loadedProfile.achievements],
+          };
+
+          const achResult = AchievementService.checkBattleEnd(
+            achProfile,
+            battleCtx,
+          );
+
+          // Always persist — even if no new achievements unlocked, the
+          // stats (totalGames, wins, streak, etc.) need to be saved. The
+          // service returns a new object with `achievements` extended, so
+          // we merge the achievement-relevant fields back onto the loaded
+          // profile to preserve the full Profile shape (draws/xp/level).
+          const finalProfile: Profile = {
+            ...loadedProfile,
+            ...achResult.updatedProfile,
+          };
+          saveProfile(storage, finalProfile);
+
+          // Console-log newly unlocked achievements (useful for debugging
+          // and matches the task spec). Use the Russian name from the
+          // translations map for the log line so it's easy to grep.
+          const lang: Language = "ru";
+          for (const id of achResult.newlyUnlocked) {
+            const def = getAchievementById(id);
+            const name = def ? translate(def.nameKey, lang) : id;
+            // eslint-disable-next-line no-console
+            console.log(`[Achievement] Unlocked: ${id} — ${name}`);
+          }
         }
 
         // End-of-round sting. In 2P-local mode we always use round-win
