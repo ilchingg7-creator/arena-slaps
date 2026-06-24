@@ -6,8 +6,15 @@ export type GameSettings = {
   botDifficulty: BotDifficulty;
   roundLengthSeconds: number;
   winningScore: number;
-  muted: boolean;
-  masterVolume: number;
+  /**
+   * Selected map key (must exist in mapManifest.MAPS). Migrated forward to
+   * the default map when an older persisted payload is missing this field.
+   */
+  mapKey: string;
+  sfxMuted: boolean;
+  musicMuted: boolean;
+  sfxVolume: number; // 0..1
+  musicVolume: number; // 0..1
 };
 
 export const DEFAULT_SETTINGS: GameSettings = {
@@ -15,8 +22,11 @@ export const DEFAULT_SETTINGS: GameSettings = {
   botDifficulty: "medium",
   roundLengthSeconds: 60,
   winningScore: 5,
-  muted: false,
-  masterVolume: 0.7,
+  mapKey: "arena-default",
+  sfxMuted: false,
+  musicMuted: false,
+  sfxVolume: 0.7,
+  musicVolume: 0.5,
 };
 
 type StorageLike = {
@@ -25,6 +35,77 @@ type StorageLike = {
 };
 
 const storageKey = "arena-slaps:settings";
+
+/**
+ * Legacy shape persisted by older versions of the game. Used by
+ * {@link loadSettings} to migrate existing users forward.
+ */
+type LegacySettings = {
+  muted?: boolean;
+  masterVolume?: number;
+};
+
+/**
+ * Parse and migrate a stored settings JSON blob into the current
+ * {@link GameSettings} shape.
+ *
+ * Migration rules:
+ *   - If the payload already has the new `sfxMuted` / `musicMuted` /
+ *     `sfxVolume` / `musicVolume` fields, use them as-is (drop legacy).
+ *   - Otherwise, if legacy `muted` / `masterVolume` are present, map them:
+ *       `muted: true`  -> `sfxMuted: true, musicMuted: true`
+ *       `masterVolume: X` -> `sfxVolume: X, musicVolume: X`
+ *   - Anything missing falls back to {@link DEFAULT_SETTINGS}.
+ */
+function migrateSettings(parsed: Record<string, unknown>): GameSettings {
+  const base: GameSettings = { ...DEFAULT_SETTINGS };
+
+  const hasNewFields =
+    "sfxMuted" in parsed ||
+    "musicMuted" in parsed ||
+    "sfxVolume" in parsed ||
+    "musicVolume" in parsed;
+
+  const legacy = parsed as unknown as LegacySettings;
+
+  // Non-audio settings always come through directly.
+  if (typeof parsed.mode === "string") {
+    base.mode = parsed.mode as GameMode;
+  }
+  if (typeof parsed.botDifficulty === "string") {
+    base.botDifficulty = parsed.botDifficulty as BotDifficulty;
+  }
+  if (typeof parsed.roundLengthSeconds === "number") {
+    base.roundLengthSeconds = parsed.roundLengthSeconds;
+  }
+  if (typeof parsed.winningScore === "number") {
+    base.winningScore = parsed.winningScore;
+  }
+  if (typeof parsed.mapKey === "string" && parsed.mapKey.length > 0) {
+    base.mapKey = parsed.mapKey;
+  }
+
+  if (hasNewFields) {
+    if (typeof parsed.sfxMuted === "boolean") base.sfxMuted = parsed.sfxMuted;
+    if (typeof parsed.musicMuted === "boolean")
+      base.musicMuted = parsed.musicMuted;
+    if (typeof parsed.sfxVolume === "number") base.sfxVolume = parsed.sfxVolume;
+    if (typeof parsed.musicVolume === "number")
+      base.musicVolume = parsed.musicVolume;
+  } else if (legacy) {
+    // Migrate legacy fields when no new fields are present.
+    if (typeof legacy.muted === "boolean") {
+      base.sfxMuted = legacy.muted;
+      base.musicMuted = legacy.muted;
+    }
+    if (typeof legacy.masterVolume === "number") {
+      base.sfxVolume = legacy.masterVolume;
+      base.musicVolume = legacy.masterVolume;
+    }
+  }
+
+  return base;
+}
 
 export function loadSettings(
   storage: StorageLike | null | undefined,
@@ -40,11 +121,8 @@ export function loadSettings(
   }
 
   try {
-    const parsed = JSON.parse(raw) as Partial<GameSettings>;
-    return {
-      ...DEFAULT_SETTINGS,
-      ...parsed,
-    };
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    return migrateSettings(parsed);
   } catch {
     return { ...DEFAULT_SETTINGS };
   }
@@ -65,7 +143,6 @@ export const BOT_DIFFICULTY_OPTIONS: readonly BotDifficulty[] = [
   "hard",
 ];
 export const MODE_OPTIONS: readonly GameMode[] = ["1p-vs-bot", "2p-local"];
-export const MASTER_VOLUME_OPTIONS = [0, 0.25, 0.5, 0.7, 1] as const;
 
 export function cycleOption<T extends string | number>(
   options: readonly T[],

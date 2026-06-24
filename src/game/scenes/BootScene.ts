@@ -1,21 +1,16 @@
-type SceneScale = {
-  refresh?: () => void;
-};
+import Phaser from "phaser";
 
-type SceneController = {
-  start: (key: string) => void;
-};
+/**
+ * Boot scene — refreshes the scale manager and immediately transitions to
+ * the PreloadScene. The first scene in the game's scene list.
+ */
+export class BootScene extends Phaser.Scene {
+  constructor() {
+    super("BootScene");
+  }
 
-type BootSceneContext = {
-  scale?: SceneScale;
-  scene: SceneController;
-};
-
-export const BootScene = {
-  name: "BootScene",
-  key: "BootScene",
-  create(this: BootSceneContext) {
-    this.scale?.refresh?.();
+  create(): void {
+    this.scale.refresh();
     this.scene.start("PreloadScene");
-  },
-};
+  }
+}

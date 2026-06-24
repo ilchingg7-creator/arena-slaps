@@ -1,85 +1,115 @@
 import { describe, expect, it } from "vitest";
-
+import { MAPS } from "./mapManifest";
 import {
+  DEFAULT_LANGUAGE,
+  LANGUAGES,
   TRANSLATIONS,
-  getTranslationKeys,
-  translate,
-  type Language,
+  type TranslationKey,
 } from "./translations";
 
-describe("translations", () => {
-  it("exposes at least 40 keys (main menu + achievements scene + 18×2 achievement keys)", () => {
-    const keys = getTranslationKeys();
-    // 36 achievement name/desc keys + mainmenu + achievements scene UI.
-    expect(keys.length).toBeGreaterThanOrEqual(40);
+describe("translations config", () => {
+  it("LANGUAGES has exactly ['ru', 'en']", () => {
+    expect(LANGUAGES).toEqual(["ru", "en"]);
+    expect(LANGUAGES).toHaveLength(2);
   });
 
-  it("every translation entry has both ru and en strings", () => {
-    for (const [key, entry] of Object.entries(TRANSLATIONS)) {
+  it("DEFAULT_LANGUAGE is 'ru'", () => {
+    expect(DEFAULT_LANGUAGE).toBe("ru");
+  });
+
+  it("TRANSLATIONS is not empty", () => {
+    expect(Object.keys(TRANSLATIONS).length).toBeGreaterThan(0);
+  });
+
+  it("every key in TRANSLATIONS has both 'ru' and 'en' values", () => {
+    const keys = Object.keys(TRANSLATIONS) as TranslationKey[];
+    for (const key of keys) {
+      const entry = TRANSLATIONS[key];
+      expect(entry).toBeDefined();
       expect(typeof entry.ru).toBe("string");
-      expect(entry.ru.length).toBeGreaterThan(0);
       expect(typeof entry.en).toBe("string");
+    }
+  });
+
+  it("no translation value is an empty string", () => {
+    const keys = Object.keys(TRANSLATIONS) as TranslationKey[];
+    for (const key of keys) {
+      const entry = TRANSLATIONS[key];
+      expect(entry.ru.length).toBeGreaterThan(0);
       expect(entry.en.length).toBeGreaterThan(0);
-      void key;
     }
   });
 
-  it("all 18 achievement name + desc keys are present", () => {
-    const ids = [
-      "first_blood",
-      "first_loss",
-      "streak_5",
-      "comeback_king",
-      "flawless",
-      "speed_demon",
-      "power_collector",
-      "all_powerups",
-      "combo_5",
-      "dodge_master",
-      "ringout_master",
-      "first_flight",
-      "survivor",
-      "level_5",
-      "level_10",
-      "all_maps",
-      "social",
-      "veteran",
+  it("every TranslationKey maps to a { ru, en } object", () => {
+    const keys = Object.keys(TRANSLATIONS) as TranslationKey[];
+    expect(keys.length).toBeGreaterThan(0);
+    for (const key of keys) {
+      const entry = TRANSLATIONS[key];
+      expect(Object.keys(entry).sort()).toEqual(["en", "ru"]);
+    }
+  });
+
+  it("TranslationKey is assignable for known keys (type-level sanity)", () => {
+    // Smoke test that the type narrowing works for a sample of keys.
+    const sampleKeys: TranslationKey[] = [
+      "mainmenu.title",
+      "audio.title",
+      "battle.draw",
+      "results.back",
+      "pause.resume",
+      "preload.loading",
+      "mute.sound",
     ];
-    for (const id of ids) {
-      expect(TRANSLATIONS[`achievement.${id}.name`]).toBeDefined();
-      expect(TRANSLATIONS[`achievement.${id}.desc`]).toBeDefined();
+    for (const key of sampleKeys) {
+      expect(TRANSLATIONS[key].ru).toBeDefined();
+      expect(TRANSLATIONS[key].en).toBeDefined();
     }
   });
 
-  it("translate returns the localized string for each language", () => {
-    expect(translate("achievement.first_blood.name", "en")).toBe("First Blood");
-    expect(translate("achievement.first_blood.name", "ru")).toBe("Первая кровь");
+  it("provides a translated label for every power-up effect key (M3)", () => {
+    // ProfileScene maps raw power-up keys ("speed", "knockback", ...) to
+    // "powerup.<key>" translation keys. Every effect must have an entry
+    // so the favorite power-up row never falls back to the raw key.
+    const powerupKeys: TranslationKey[] = [
+      "powerup.speed",
+      "powerup.knockback",
+      "powerup.shield",
+      "powerup.mega-knockback",
+      "powerup.freeze",
+      "powerup.double-slap",
+    ];
+    for (const key of powerupKeys) {
+      const entry = TRANSLATIONS[key];
+      expect(entry).toBeDefined();
+      expect(entry.ru.length).toBeGreaterThan(0);
+      expect(entry.en.length).toBeGreaterThan(0);
+    }
   });
 
-  it("translate falls back to English when the language is missing the key", () => {
-    // All keys have both ru and en in this map; this test exists to lock the
-    // documented fallback behaviour in case a future key omits `ru`.
-    // We simulate by passing an unknown language — translate defaults to en.
-    expect(translate("achievement.first_blood.name", "fr" as Language)).toBe(
-      "First Blood",
-    );
+  it("provides a banned-nickname rejection message (MINOR-4)", () => {
+    const entry = TRANSLATIONS["profile.nicknameBanned"];
+    expect(entry).toBeDefined();
+    expect(entry.ru.length).toBeGreaterThan(0);
+    expect(entry.en.length).toBeGreaterThan(0);
   });
 
-  it("translate returns the key itself if the key is entirely missing", () => {
-    expect(translate("totally.missing.key", "en")).toBe("totally.missing.key");
-  });
+  it("all map keys have ru + en translations", () => {
+    // Iterate over every map in MAPS and assert that both its nameKey and
+    // descriptionKey resolve to a TRANSLATIONS entry with non-empty ru + en.
+    for (const map of MAPS) {
+      const nameEntry = TRANSLATIONS[map.nameKey];
+      expect(nameEntry).toBeDefined();
+      expect(typeof nameEntry.ru).toBe("string");
+      expect(nameEntry.ru.length).toBeGreaterThan(0);
+      expect(typeof nameEntry.en).toBe("string");
+      expect(nameEntry.en.length).toBeGreaterThan(0);
 
-  it("exposes the achievements-scene UI keys", () => {
-    expect(TRANSLATIONS["achievements.title"].ru).toBe("Достижения");
-    expect(TRANSLATIONS["achievements.title"].en).toBe("Achievements");
-    expect(TRANSLATIONS["achievements.back"].ru).toBe("Назад");
-    expect(TRANSLATIONS["achievements.back"].en).toBe("Back");
-    expect(TRANSLATIONS["achievements.unlocked"].en).toBe("Unlocked");
-    expect(TRANSLATIONS["achievements.locked"].en).toBe("Locked");
-  });
-
-  it("exposes mainmenu.achievements key for the menu button", () => {
-    expect(TRANSLATIONS["mainmenu.achievements"].ru).toBe("Достижения");
-    expect(TRANSLATIONS["mainmenu.achievements"].en).toBe("Achievements");
+      const descEntry = TRANSLATIONS[map.descriptionKey];
+      expect(descEntry).toBeDefined();
+      expect(typeof descEntry.ru).toBe("string");
+      expect(descEntry.ru.length).toBeGreaterThan(0);
+      expect(typeof descEntry.en).toBe("string");
+      expect(descEntry.en.length).toBeGreaterThan(0);
+    }
   });
 });

@@ -43,30 +43,32 @@ export function createBattleResults(input: {
   };
 }
 
-function opponentLabel(mode: GameMode): string {
-  return mode === "2p-local" ? "P2" : "Bot";
-}
+export type Translator = (key: string) => string;
 
-function playerLabel(mode: GameMode): string {
-  return mode === "2p-local" ? "P1" : "Player";
-}
-
-export function createBattleResultsSummary(results: BattleResults): string[] {
-  const p1 = playerLabel(results.mode);
-  const p2 = opponentLabel(results.mode);
+export function createBattleResultsSummary(
+  results: BattleResults,
+  t?: Translator,
+): string[] {
+  const tr = (key: string, fallback: string) => t ? t(key) : fallback;
+  const p1 = results.mode === "2p-local"
+    ? tr("battle.p1", "P1")
+    : tr("battle.player", "Player");
+  const p2 = results.mode === "2p-local"
+    ? tr("battle.p2", "P2")
+    : tr("battle.bot", "Bot");
 
   const winnerLine =
     results.winner === "draw"
-      ? "Draw"
+      ? tr("battle.draw", "Draw")
       : results.winner === "player"
-        ? `${p1} wins`
-        : `${p2} wins`;
+        ? `${p1} ${tr("results.wins", "wins")}`
+        : `${p2} ${tr("results.wins", "wins")}`;
 
   return [
     winnerLine,
-    `Score ${results.playerScore} - ${results.botScore}`,
-    `Rounds ${results.roundsPlayed}`,
-    `Power-ups ${results.powerUpsCollected.player} / ${results.powerUpsCollected.bot}`,
+    `${tr("results.score", "Score")} ${results.playerScore} - ${results.botScore}`,
+    `${tr("results.rounds", "Rounds")} ${results.roundsPlayed}`,
+    `${tr("results.powerUps", "Power-ups")} ${results.powerUpsCollected.player} / ${results.powerUpsCollected.bot}`,
   ];
 }
 

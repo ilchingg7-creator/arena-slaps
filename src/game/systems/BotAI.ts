@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import type { ActorState } from "../entities/Player";
 import type { PowerUpState } from "./PowerUpSystem";
+import { isShieldActive } from "./PowerUpSystem";
 import type { BotDifficulty } from "../config/gameSettings";
 import { AI_CONFIG } from "../config/aiConfig";
 
@@ -12,13 +13,16 @@ export type BotAIState = {
   lastPlayerAttackSeenAt: number;
   lastSlapAttemptAt: number;
   currentDir: Vec2;
-  /**
-   * Timestamp (ms) until which the bot should keep committing to its most
-   * recent perpendicular dodge direction. While `now < dodgeUntil`, the
-   * smoothing lerp in `computeBotDirection` is bypassed so the evasive
-   * move is not blended back toward the chase direction.
-   */
   dodgeUntil: number;
+  /**
+   * When the bot decides to chase a power-up, it commits to that decision
+   * until the power-up is collected/despawns. This prevents per-frame RNG
+   * dithering between "chase power-up" and "chase player" which caused
+   * visible jitter in the bot's movement direction.
+   * - `committedPowerUpSpawnedAt`: the spawnedAt timestamp of the power-up
+   *   the bot is currently chasing, or null if not chasing.
+   */
+  committedPowerUpSpawnedAt: number | null;
 };
 
 type DifficultyParams = {
@@ -62,6 +66,7 @@ export function createBotAI(difficulty: BotDifficulty): BotAIState {
     lastPlayerAttackSeenAt: 0,
     lastSlapAttemptAt: 0,
     currentDir: { x: 0, y: 0 },
+    committedPowerUpSpawnedAt: null,
     dodgeUntil: 0,
   };
 }
@@ -98,8 +103,8 @@ export function computeRawBotDirection(
 ): Vec2 {
   const params = DIFFICULTY_PARAMS[ai.difficulty];
 
-  if (player.lastAttackAt > ai.lastPlayerAttackSeenAt) {
-    ai.lastPlayerAttackSeenAt = player.lastAttackAt;
+  if (player.lastSlapAttemptAt > ai.lastPlayerAttackSeenAt) {
+    ai.lastPlayerAttackSeenAt = player.lastSlapAttemptAt;
 
     if (now - ai.lastDodgeAt > params.reactionMs) {
       const dist = distance(
@@ -122,28 +127,45 @@ export function computeRawBotDirection(
     }
   }
 
-  if (powerUp.active && random() < params.powerUpPriority) {
-    const distToPowerUp = distance(
-      bot.sprite.x,
-      bot.sprite.y,
-      powerUp.active.sprite.x,
-      powerUp.active.sprite.y,
-    );
-    const distPlayerToPowerUp = distance(
-      player.sprite.x,
-      player.sprite.y,
-      powerUp.active.sprite.x,
-      powerUp.active.sprite.y,
-    );
+  // --- Power-up chase decision (per-spawn, NOT per-frame) ---
+  // Previously this was `if (powerUp.active && random() < powerUpPriority)`
+  // checked every frame, causing the bot to dither between chasing the
+  // power-up and chasing the player — visible as jittery movement.
+  // Now: when a new power-up appears, the bot rolls ONCE whether to commit
+  // to chasing it. The commitment persists until the power-up is gone.
+  if (powerUp.active) {
+    const powerUpSpawnedAt = (powerUp.active as { spawnedAt?: number }).spawnedAt ?? 0;
 
-    if (
-      distToPowerUp < AI_CONFIG.powerUpChaseDistance &&
-      distToPowerUp < distPlayerToPowerUp + AI_CONFIG.powerUpAdvantageMargin
-    ) {
+    // Check if this is a new power-up (different from what we committed to)
+    if (powerUpSpawnedAt !== ai.committedPowerUpSpawnedAt) {
+      // New power-up — decide whether to chase it
+      ai.committedPowerUpSpawnedAt = null;
+      const distToPowerUp = distance(
+        bot.sprite.x, bot.sprite.y,
+        powerUp.active.sprite.x, powerUp.active.sprite.y,
+      );
+      const distPlayerToPowerUp = distance(
+        player.sprite.x, player.sprite.y,
+        powerUp.active.sprite.x, powerUp.active.sprite.y,
+      );
+      if (
+        distToPowerUp < AI_CONFIG.powerUpChaseDistance &&
+        distToPowerUp < distPlayerToPowerUp + AI_CONFIG.powerUpAdvantageMargin &&
+        random() < params.powerUpPriority
+      ) {
+        ai.committedPowerUpSpawnedAt = powerUpSpawnedAt;
+      }
+    }
+
+    // If committed to this power-up, chase it
+    if (ai.committedPowerUpSpawnedAt === powerUpSpawnedAt) {
       const dx = powerUp.active.sprite.x - bot.sprite.x;
       const dy = powerUp.active.sprite.y - bot.sprite.y;
       return normalize(dx, dy);
     }
+  } else {
+    // No active power-up — clear commitment
+    ai.committedPowerUpSpawnedAt = null;
   }
 
   const dx = player.sprite.x - bot.sprite.x;
@@ -231,6 +253,15 @@ export function shouldBotSlap(
   const params = DIFFICULTY_PARAMS[ai.difficulty];
 
   if (now - ai.lastSlapAttemptAt < params.slapIntervalMs) {
+    return false;
+  }
+
+  // Fix E: don't waste a slap attempt on a shielded player. Without this
+  // gate the bot swings into the shield, gets blocked (no cooldown consumed
+  // for the attacker), but STILL pays the bot-side `slapIntervalMs` (800ms
+  // on easy = a long self-stun). Holding the slap until the shield drops
+  // lets the bot keep its swing cadence.
+  if (isShieldActive(player, now)) {
     return false;
   }
 

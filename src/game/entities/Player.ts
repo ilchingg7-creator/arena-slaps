@@ -35,6 +35,16 @@ export type ActorState = {
   knockbackBoostUntil: number;
   knockbackUntil: number;
   lastAttackAt: number;
+  /**
+   * Wall-clock timestamp (ms) of the most recent slap ATTEMPT — stamped at
+   * the top of `applySlap` before any cooldown / range / shield gates fire.
+   * Unlike `lastAttackAt` (which only stamps on a successful hit), this fires
+   * on EVERY attempt (cooldown miss, out-of-range, shield block, hit). Used
+   * by `BotAI.computeRawBotDirection` to key the dodge trigger so the bot
+   * can react to the player's swing windup instead of waiting for the
+   * knockback to actually land (which only happens on a clean hit).
+   */
+  lastSlapAttemptAt: number;
   moveSpeed: number;
   size: number;
   slapRange: number;
@@ -46,6 +56,41 @@ export type ActorState = {
   shieldHitsRemaining: number;
   /** Wall-clock timestamp (ms) until which the shield can still block slaps. */
   shieldUntil: number;
+  /** Wall-clock timestamp (ms) until which the actor is frozen (cannot move). 0 = not frozen. */
+  frozenUntil: number;
+  /** Wall-clock timestamp (ms) until which the next slap hits twice. 0 = no double-slap ready. */
+  doubleSlapUntil: number;
+  /**
+   * Wall-clock timestamp (ms) until which the actor is mid-dodge (i-frames
+   * active). Set by `DodgeSystem.startDodge` to `now + DODGE_DURATION_MS`
+   * (200ms). While `now < dodgeUntil`, `applySlap` short-circuits and the
+   * BattleScene movement block bypasses the `isKnockedBack` gate.
+   * 0 = not dodging.
+   */
+  dodgeUntil: number;
+  /**
+   * Wall-clock timestamp (ms) until which dodge is on cooldown. Set by
+   * `DodgeSystem.startDodge` to `now + DODGE_COOLDOWN_MS` (1500ms).
+   * `DodgeSystem.canDodge` returns false while `now < dodgeCooldownUntil`.
+   * 0 = dodge available.
+   */
+  dodgeCooldownUntil: number;
+  /**
+   * Current combo count (0-5). Incremented by `applySlap` on a successful
+   * slap; reset to 0 by `getComboMultiplier` when the combo times out
+   * (>3000ms since the last successful slap) and reset to 0 on the defender
+   * when they get hit. At 3 stacks `getComboMultiplier` returns 1.5x
+   * knockback; at 5 stacks it returns 3.0x (mega-launch).
+   */
+  comboStacks: number;
+  /**
+   * Wall-clock timestamp (ms) of the last SUCCESSFUL slap by this actor.
+   * Used by `getComboMultiplier` to time out the combo (resets comboStacks
+   * to 0 when `now - lastSlapAt > 3000`). Distinct from `lastAttackAt`
+   * (cooldown tracking) and `lastSlapAttemptAt` (windup signal for the
+   * bot's dodge logic) — `lastSlapAt` is specifically the combo timer.
+   */
+  lastSlapAt: number;
   sprite: Phaser.GameObjects.Rectangle;
 };
 
@@ -85,6 +130,7 @@ export function createActor(
     knockbackBoostUntil: 0,
     knockbackUntil: 0,
     lastAttackAt: Number.NEGATIVE_INFINITY,
+    lastSlapAttemptAt: Number.NEGATIVE_INFINITY,
     moveSpeed: config.speed,
     size: config.size,
     slapRange: config.slapRange,
@@ -93,6 +139,12 @@ export function createActor(
     speedMultiplier: 1,
     shieldHitsRemaining: 0,
     shieldUntil: 0,
+    frozenUntil: 0,
+    doubleSlapUntil: 0,
+    dodgeUntil: 0,
+    dodgeCooldownUntil: 0,
+    comboStacks: 0,
+    lastSlapAt: Number.NEGATIVE_INFINITY,
     sprite,
   };
 }
@@ -137,14 +189,26 @@ export function moveActor(
 }
 
 export function resetActor(actor: ActorState): void {
+  // Use the spawn point (set at creation time). The caller (BattleScene)
+  // updates actor.spawn to a random position within their half of the
+  // arena before calling resetActor, so each respawn is random.
   actor.sprite.setPosition(actor.spawn.x, actor.spawn.y);
   actor.body.setVelocity(0, 0);
   actor.facing.set(1, 0);
   actor.knockbackMultiplier = 1;
   actor.knockbackBoostUntil = 0;
   actor.knockbackUntil = 0;
+  actor.lastSlapAttemptAt = Number.NEGATIVE_INFINITY;
   actor.speedBoostUntil = 0;
   actor.speedMultiplier = 1;
   actor.shieldHitsRemaining = 0;
   actor.shieldUntil = 0;
+  actor.frozenUntil = 0;
+  actor.doubleSlapUntil = 0;
+  // Combat-mechanics (Task 2ac): reset dodge windows + combo state so a
+  // fresh round starts with no carried-over i-frames, cooldowns, or combo.
+  actor.dodgeUntil = 0;
+  actor.dodgeCooldownUntil = 0;
+  actor.comboStacks = 0;
+  actor.lastSlapAt = Number.NEGATIVE_INFINITY;
 }

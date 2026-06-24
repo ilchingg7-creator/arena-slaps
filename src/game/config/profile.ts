@@ -1,157 +1,202 @@
-/**
- * Player profile persisted in localStorage.
- *
- * Holds long-term cross-session state: total games, wins/losses, ring-outs,
- * power-ups collected, maps played, achievements unlocked, etc. Used by
- * {@link ../services/AchievementService.ts AchievementService} to evaluate
- * unlock conditions and by the AchievementsScene to render the grid.
- *
- * Storage shape is forward-compatible: {@link migrateProfile} fills in any
- * fields missing from older persisted profiles, so older clients don't break
- * when new fields are added.
- */
+export type GameMode = "1p-vs-bot" | "2p-local";
 
 export type Profile = {
-  /** Total battles played (1P-vs-bot + 2P-local). */
+  nickname: string;
+  avatar: "player-idle"; // only one option for now
   totalGames: number;
   wins: number;
   losses: number;
   draws: number;
-  /** XP earned from battles. Used by the (future) progression system. */
-  xp: number;
-  /** Current player level (derived from xp; 1-based). */
-  level: number;
-  /** Active win streak; reset on any non-win. */
-  currentWinStreak: number;
-  /** Longest win streak ever achieved. */
-  maxWinStreak: number;
-  /** Lifetime ring-outs the player has inflicted on opponents. */
   ringOutsInflicted: number;
-  /** Lifetime ring-outs the player has suffered. */
   ringOutsSuffered: number;
-  /** Lifetime power-ups collected. */
   powerUpsCollected: number;
-  /** Distinct power-up types ever collected (string ids). */
-  powerUpTypesUsed: string[];
-  /** Distinct map keys ever played on. */
-  mapsPlayed: string[];
-  /** Total battles played in 2P-local mode. */
-  p2GamesPlayed: number;
-  /** Unlocked achievement ids (permanent — never reset on stats reset). */
-  achievements: string[];
+  powerUpStats: Record<string, number>; // by power-up type
+  favoriteMode: GameMode;
+  createdAt: number; // set on first creation
+  lastPlayedAt: number;
+  xp: number; // total XP accumulated across all games
+  level: number; // current progression level (1..MAX_LEVEL)
 };
 
 export const DEFAULT_PROFILE: Profile = {
+  nickname: "Player",
+  avatar: "player-idle",
   totalGames: 0,
   wins: 0,
   losses: 0,
   draws: 0,
-  xp: 0,
-  level: 1,
-  currentWinStreak: 0,
-  maxWinStreak: 0,
   ringOutsInflicted: 0,
   ringOutsSuffered: 0,
   powerUpsCollected: 0,
-  powerUpTypesUsed: [],
-  mapsPlayed: [],
-  p2GamesPlayed: 0,
-  achievements: [],
+  powerUpStats: {},
+  favoriteMode: "1p-vs-bot",
+  createdAt: 0,
+  lastPlayedAt: 0,
+  xp: 0,
+  level: 1,
 };
 
 const STORAGE_KEY = "arena-slaps:profile";
 
-type StorageLike = {
+const MODE_VALUES: readonly GameMode[] = ["1p-vs-bot", "2p-local"];
+
+export type StorageLike = {
   getItem?: (key: string) => string | null;
   setItem?: (key: string, value: string) => void;
 };
 
-/**
- * Apply defaults to a partially-loaded profile. Old persisted profiles that
- * pre-date the achievements system will be missing fields like
- * `currentWinStreak`, `powerUpTypesUsed`, etc. — fill them in so the rest of
- * the app can assume the full {@link Profile} shape.
- */
-export function migrateProfile(input: Partial<Profile> | null | undefined): Profile {
-  if (!input) {
-    return { ...DEFAULT_PROFILE };
-  }
-  const base: Profile = { ...DEFAULT_PROFILE };
-  // Spread known numeric defaults then override with whatever was persisted.
-  const out: Profile = {
-    ...base,
-    ...input,
-  };
-  // Arrays: if missing or wrong type, fall back to defaults. (Spread above
-  // would copy a non-array through, so we re-coerce here.)
-  if (!Array.isArray(out.achievements)) {
-    out.achievements = [];
-  }
-  if (!Array.isArray(out.powerUpTypesUsed)) {
-    out.powerUpTypesUsed = [];
-  }
-  if (!Array.isArray(out.mapsPlayed)) {
-    out.mapsPlayed = [];
-  }
-  // Numeric coercion: if the persisted value was a string or null, fall back.
-  for (const key of [
-    "totalGames",
-    "wins",
-    "losses",
-    "draws",
-    "xp",
-    "level",
-    "currentWinStreak",
-    "maxWinStreak",
-    "ringOutsInflicted",
-    "ringOutsSuffered",
-    "powerUpsCollected",
-    "p2GamesPlayed",
-  ] as const) {
-    if (typeof out[key] !== "number" || Number.isNaN(out[key])) {
-      out[key] = base[key];
-    }
-  }
-  return out;
+function isGameMode(value: unknown): value is GameMode {
+  return (
+    typeof value === "string" &&
+    (MODE_VALUES as readonly string[]).includes(value)
+  );
 }
 
-/** Load the profile from localStorage (or return defaults if not stored). */
+/**
+ * Returns a fresh copy of {@link DEFAULT_PROFILE} with its own
+ * `powerUpStats` object so callers can mutate the result without affecting
+ * the shared default.
+ */
+function freshDefault(): Profile {
+  return { ...DEFAULT_PROFILE, powerUpStats: {} };
+}
+
+/**
+ * Merge a parsed stored profile over {@link DEFAULT_PROFILE}. Missing or
+ * type-mismatched fields fall back to the defaults so that older persisted
+ * payloads (or partial / corrupt writes) are migrated forward gracefully.
+ *
+ * `powerUpStats` is rebuilt entry-by-entry — only string keys with numeric
+ * values survive — so the returned profile always owns a fresh object.
+ */
+function migrateProfile(parsed: Record<string, unknown>): Profile {
+  const base = freshDefault();
+
+  if (typeof parsed.nickname === "string") {
+    base.nickname = parsed.nickname;
+  }
+  if (parsed.avatar === "player-idle") {
+    base.avatar = "player-idle";
+  }
+  if (typeof parsed.totalGames === "number") {
+    base.totalGames = parsed.totalGames;
+  }
+  if (typeof parsed.wins === "number") {
+    base.wins = parsed.wins;
+  }
+  if (typeof parsed.losses === "number") {
+    base.losses = parsed.losses;
+  }
+  if (typeof parsed.draws === "number") {
+    base.draws = parsed.draws;
+  }
+  if (typeof parsed.ringOutsInflicted === "number") {
+    base.ringOutsInflicted = parsed.ringOutsInflicted;
+  }
+  if (typeof parsed.ringOutsSuffered === "number") {
+    base.ringOutsSuffered = parsed.ringOutsSuffered;
+  }
+  if (typeof parsed.powerUpsCollected === "number") {
+    base.powerUpsCollected = parsed.powerUpsCollected;
+  }
+  if (parsed.powerUpStats && typeof parsed.powerUpStats === "object") {
+    const stats = parsed.powerUpStats as Record<string, unknown>;
+    const cleaned: Record<string, number> = {};
+    for (const [key, value] of Object.entries(stats)) {
+      if (typeof value === "number") {
+        cleaned[key] = value;
+      }
+    }
+    base.powerUpStats = cleaned;
+  }
+  if (isGameMode(parsed.favoriteMode)) {
+    base.favoriteMode = parsed.favoriteMode;
+  }
+  if (typeof parsed.createdAt === "number") {
+    base.createdAt = parsed.createdAt;
+  }
+  if (typeof parsed.lastPlayedAt === "number") {
+    base.lastPlayedAt = parsed.lastPlayedAt;
+  }
+  if (typeof parsed.xp === "number" && Number.isFinite(parsed.xp)) {
+    base.xp = Math.max(0, parsed.xp);
+  }
+  if (
+    typeof parsed.level === "number" &&
+    Number.isFinite(parsed.level) &&
+    Number.isInteger(parsed.level)
+  ) {
+    base.level = Math.max(1, Math.floor(parsed.level));
+  }
+
+  return base;
+}
+
+/**
+ * Load a {@link Profile} from the supplied storage. Returns a fresh
+ * {@link DEFAULT_PROFILE} (with its own `powerUpStats` object) when:
+ *   - storage is null/undefined (no persistence layer available),
+ *   - storage has no entry under {@link STORAGE_KEY},
+ *   - the stored JSON is corrupt / unparseable,
+ *   - the stored payload is partial — missing fields fall back to defaults.
+ */
 export function loadProfile(
   storage: StorageLike | null | undefined,
 ): Profile {
   if (!storage) {
-    return { ...DEFAULT_PROFILE };
+    return freshDefault();
   }
+
   const raw = storage.getItem?.(STORAGE_KEY);
+
   if (!raw) {
-    return { ...DEFAULT_PROFILE };
+    return freshDefault();
   }
+
   try {
-    const parsed = JSON.parse(raw) as Partial<Profile>;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
     return migrateProfile(parsed);
   } catch {
-    return { ...DEFAULT_PROFILE };
+    return freshDefault();
   }
 }
 
-/** Persist the profile to localStorage. No-op if storage is unavailable. */
-export function saveProfile(
-  storage: StorageLike,
-  profile: Profile,
-): void {
+/**
+ * Serialize {@link profile} to JSON and persist it via `storage.setItem`.
+ * Mirrors the {@link loadProfile} storage key so the two stay in sync.
+ */
+export function saveProfile(storage: StorageLike, profile: Profile): void {
   storage.setItem?.(STORAGE_KEY, JSON.stringify(profile));
 }
 
 /**
- * Reset the player's transient stats (games, wins, streaks, ring-outs, etc.)
- * but KEEP unlocked achievements — achievements are permanent career records
- * and shouldn't be wiped just because the player wanted to reset their stats.
+ * Returns a fresh {@link DEFAULT_PROFILE} with `createdAt` set to the current
+ * time. Used the first time a player launches the game (or after a full wipe).
+ */
+export function createDefaultProfile(): Profile {
+  return {
+    ...DEFAULT_PROFILE,
+    powerUpStats: {},
+    createdAt: Date.now(),
+  };
+}
+
+/**
+ * Returns a NEW profile with all gameplay stats zeroed. Preserves the
+ * player's identity fields (`nickname`, `avatar`, `createdAt`) — `createdAt`
+ * reflects when the profile was first created, not when stats were last
+ * reset, so it survives a stats wipe. Progression fields (`xp`, `level`) are
+ * also preserved — a stats reset only wipes per-game counters, not the
+ * player's long-term level progression. Does NOT mutate the input.
  */
 export function resetProfileStats(profile: Profile): Profile {
   return {
     ...DEFAULT_PROFILE,
-    achievements: [...profile.achievements],
-    powerUpTypesUsed: [...profile.powerUpTypesUsed],
-    mapsPlayed: [...profile.mapsPlayed],
+    powerUpStats: {},
+    nickname: profile.nickname,
+    avatar: profile.avatar,
+    createdAt: profile.createdAt,
+    xp: profile.xp,
+    level: profile.level,
   };
 }

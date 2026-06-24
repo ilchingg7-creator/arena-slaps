@@ -46,6 +46,7 @@ export type SliderSceneLike = {
 type SliderRectangle = {
   setOrigin: (x?: number, y?: number) => SliderRectangle;
   setDepth: (depth: number) => SliderRectangle;
+  setVisible: (visible: boolean) => SliderRectangle;
   width: number;
   height: number;
   x: number;
@@ -121,13 +122,17 @@ export function createVolumeSlider(
     .setOrigin(0.5, 0.5)
     .setDepth(1);
 
-  // Fill (left-anchored). Phaser rectangles are centered by default, so we
-  // compute the fill's center x as: left edge of track + half the fill width.
+  // Fill (left-anchored) — removed entirely. The green fill was visually
+  // distracting during drag; the handle position + percentage label are
+  // sufficient indicators. We create a zero-width invisible rectangle
+  // so the applyValue() code still works (it sets fill.width / fill.x),
+  // but the rectangle is never rendered.
   const trackLeft = centerX - trackWidth / 2;
   const fill = scene.add
-    .rectangle(centerX, centerY, 0, TRACK_HEIGHT, FILL_COLOR)
+    .rectangle(centerX, centerY, 0, 0, FILL_COLOR)
     .setOrigin(0.5, 0.5)
-    .setDepth(2);
+    .setDepth(2)
+    .setVisible(false);
 
   // Handle (draggable square)
   const handle = scene.add
@@ -152,11 +157,23 @@ export function createVolumeSlider(
 
   function applyValue(next: number): void {
     value = clamp01(snapToStep(next, SNAP_STEP));
-    const fillWidth = value * trackWidth;
+    // Constrain the handle's centre to the inner range
+    // [trackLeft + HANDLE_SIZE/2, trackLeft + trackWidth - HANDLE_SIZE/2]
+    // so the 22px square never spills past either edge of the track.
+    // The fill ends at the handle's LEFT edge, so the green can never
+    // overshoot the handle (and therefore never the track either). At
+    // value=0 the fill collapses to zero width — no green sliver under
+    // the handle. (Bug 2: previously fill.width = value * trackWidth,
+    // which hit the right edge at value=1 and clipped past it during
+    // pointer overshoot / anti-aliasing.)
+    const handleMinX = trackLeft + HANDLE_SIZE / 2;
+    const handleMaxX = trackLeft + trackWidth - HANDLE_SIZE / 2;
+    const handleRange = Math.max(0, handleMaxX - handleMinX);
+    handle.x = handleMinX + value * handleRange;
+    const handleLeftEdge = handle.x - HANDLE_SIZE / 2;
+    const fillWidth = Math.max(0, handleLeftEdge - trackLeft);
     fill.width = fillWidth;
-    // Reposition fill so its left edge stays at trackLeft.
     fill.x = trackLeft + fillWidth / 2;
-    handle.x = trackLeft + value * trackWidth;
     label.setText(formatPercent(value));
   }
 

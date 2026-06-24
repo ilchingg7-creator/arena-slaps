@@ -20,12 +20,15 @@ function mockActor(
     knockbackSpeed: 500,
     knockbackMultiplier: 1,
     lastAttackAt: Number.NEGATIVE_INFINITY,
+    lastSlapAttemptAt: Number.NEGATIVE_INFINITY,
     moveSpeed: 250,
     size: 36,
     slapRange: 84,
     spawn: { x, y },
     speedMultiplier: 1,
     shieldedUntil: 0,
+    shieldHitsRemaining: 0,
+    shieldUntil: 0,
     sprite: { x, y },
     ...overrides,
   } as unknown as ActorState;
@@ -103,7 +106,7 @@ describe("BotAI", () => {
   it("computeRawBotDirection dodges perpendicular when player just attacked in range", () => {
     const bot = mockActor(100, 0);
     const player = mockActor(100, 60, {
-      lastAttackAt: 1500,
+      lastSlapAttemptAt: 1500,
       slapRange: 84,
     });
     const ai = createBotAI("hard");
@@ -133,7 +136,7 @@ describe("BotAI", () => {
 
   it("computeRawBotDirection does not dodge when player attack is out of range", () => {
     const bot = mockActor(0, 0);
-    const player = mockActor(500, 500, { lastAttackAt: 1500, slapRange: 84 });
+    const player = mockActor(500, 500, { lastSlapAttemptAt: 1500, slapRange: 84 });
     const ai = createBotAI("hard");
     ai.lastPlayerAttackSeenAt = 0;
     const dir = computeRawBotDirection(
@@ -232,7 +235,7 @@ describe("BotAI", () => {
     // and picks sign = +1 (0 < 0.5), yielding a perpendicular dodge of (1, 0).
     const bot = mockActor(100, 0);
     const player = mockActor(100, 60, {
-      lastAttackAt: 1500,
+      lastSlapAttemptAt: 1500,
       slapRange: 84,
     });
     const ai = createBotAI("hard");
@@ -304,5 +307,35 @@ describe("BotAI", () => {
     ai.lastSlapAttemptAt = 0;
     expect(shouldBotSlap(bot, player, ai, 600)).toBe(true);
     expect(ai.lastSlapAttemptAt).toBe(600);
+  });
+
+  it("shouldBotSlap returns false when the player is shielded (Fix E)", () => {
+    // Bot is in range and the interval has elapsed — but the player's shield
+    // is active. The bot must NOT slap (otherwise it would block, waste its
+    // slapIntervalMs, and self-stun for up to 800ms on easy).
+    const bot = mockActor(0, 0, { slapRange: 100 });
+    const player = mockActor(50, 0, {
+      shieldHitsRemaining: 1,
+      shieldUntil: 5000,
+    });
+    const ai = createBotAI("medium");
+    ai.lastSlapAttemptAt = 0;
+    expect(shouldBotSlap(bot, player, ai, 600)).toBe(false);
+    // The bot did NOT slap, so its slap-interval timer must NOT advance.
+    expect(ai.lastSlapAttemptAt).toBe(0);
+  });
+
+  it("shouldBotSlap slaps normally once the shield expires (Fix E)", () => {
+    // Same setup as above, but `now` is past the shield's expiry. The shield
+    // is no longer active, so the bot slaps normally.
+    const bot = mockActor(0, 0, { slapRange: 100 });
+    const player = mockActor(50, 0, {
+      shieldHitsRemaining: 1,
+      shieldUntil: 4000,
+    });
+    const ai = createBotAI("medium");
+    ai.lastSlapAttemptAt = 0;
+    expect(shouldBotSlap(bot, player, ai, 5000)).toBe(true);
+    expect(ai.lastSlapAttemptAt).toBe(5000);
   });
 });

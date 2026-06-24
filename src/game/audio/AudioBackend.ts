@@ -7,7 +7,7 @@ import { getSoundDefinition } from "../assets/soundManifest";
  *   - {@link NoopAudioBackend}    — tests, SSR, browsers without WebAudio
  *
  * The audio backend never reads settings; the {@link AudioService} is
- * responsible for applying mute / master volume before calling into the
+ * responsible for applying per-category mute / volume before calling into the
  * backend.
  */
 export interface IAudioBackend {
@@ -18,23 +18,51 @@ export interface IAudioBackend {
   /**
    * Play a sound. Returns true iff the sound actually started.
    * Implementations must accept `volume` in [0, 1] and clamp out-of-range.
+   * `loop` defaults to false; pass `true` for music tracks that should loop.
    */
-  play(key: SoundKey, volume: number): boolean;
+  play(key: SoundKey, volume: number, loop?: boolean): boolean;
+  /**
+   * Stop a single currently-playing sound by key. Safe to call when the
+   * sound is not playing (implementations must no-op gracefully).
+   */
+  stop(key: SoundKey): void;
+  /**
+   * Change the volume of a currently-playing sound. Safe to call when the
+   * sound is not playing (implementations must no-op gracefully).
+   * Used for live volume adjustments without restarting the track.
+   */
+  setVolume(key: SoundKey, volume: number): void;
   /** Stop every sound this backend knows about. */
   stopAll(): void;
 }
+
+type PhaserSound = {
+  stop?: () => void;
+  setVolume?: (volume: number) => void;
+  destroy?: () => void;
+  isPlaying?: boolean;
+  // Use a permissive play signature — Phaser's BaseSound.play has a
+  // complex overload (markerName?: string | SoundConfig, config?:
+  // SoundConfig) that doesn't structurally match our duck type. We
+  // cast to access it at runtime.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  play?: (...args: any[]) => boolean;
+};
 
 type PhaserLike = {
   load?: {
     audio: (key: string, urls: string | string[]) => void;
   };
   sound?: {
-    get?: (key: string) => unknown;
+    get?: (key: string) => PhaserSound | null | undefined;
     play: (
       key: string,
-      config?: { volume?: number },
-    ) => unknown;
+      config?: { volume?: number; loop?: boolean },
+    ) => boolean;
+    add?: (key: string, config?: { volume?: number; loop?: boolean }) => PhaserSound;
     stopAll?: () => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    remove?: (sound: any) => boolean;
   };
   cache?: {
     audio?: { exists: (key: string) => boolean };
@@ -44,13 +72,15 @@ type PhaserLike = {
 /**
  * Production audio backend that delegates to Phaser's loader and SoundManager.
  *
- * `scene` should be the active Phaser.Scene during create(); we only touch
- * the loader + sound + cache, so a real Scene works fine and a duck-typed
- * stub works fine in tests.
+ * Uses `sound.add(key, config)` to create a `BaseSound` instance, then calls
+ * `BaseSound.play()` to start it. This gives us a DIRECT reference to the
+ * sound object, which we store in `playingSounds` for reliable `setVolume()`
+ * and `stop()` calls — `sound.get(key)` is unreliable after stopAll() cycles.
  */
 export class PhaserAudioBackend implements IAudioBackend {
   private scene: PhaserLike;
   private loaded = new Set<SoundKey>();
+  private playingSounds = new Map<string, PhaserSound>();
 
   constructor(scene: PhaserLike) {
     this.scene = scene;
@@ -72,18 +102,97 @@ export class PhaserAudioBackend implements IAudioBackend {
     return this.scene.cache?.audio?.exists(key) ?? true;
   }
 
-  play(key: SoundKey, volume: number): boolean {
+  play(key: SoundKey, volume: number, loop?: boolean): boolean {
     const v = clamp01(volume);
+    const config: { volume: number; loop?: boolean } = { volume: v };
+    if (loop) {
+      config.loop = true;
+    }
 
     try {
-      this.scene.sound?.play(key, { volume: v });
+      // If a sound with this key is already tracked, stop + remove it
+      // first to avoid duplicate instances (sound.add() creates a NEW
+      // BaseSound each time, so calling play() twice without cleanup
+      // would leave the old one playing).
+      const existing = this.playingSounds.get(key);
+      if (existing) {
+        try {
+          existing.stop?.();
+          if (this.scene.sound?.remove) {
+            this.scene.sound.remove(existing);
+          }
+        } catch {
+          // Best-effort
+        }
+        this.playingSounds.delete(key);
+      }
+
+      // Prefer sound.add() + BaseSound.play() — gives us a direct reference.
+      // Fall back to sound.play() if add() is unavailable.
+      if (this.scene.sound?.add) {
+        const sound = this.scene.sound.add(key, config);
+        if (sound) {
+          this.playingSounds.set(key, sound);
+          sound.play?.(undefined, config);
+          return true;
+        }
+      }
+      // Fallback: SoundManager.play() returns boolean (not the sound).
+      this.scene.sound?.play(key, config);
       return true;
     } catch {
       return false;
     }
   }
 
+  stop(key: SoundKey): void {
+    try {
+      const sound = this.playingSounds.get(key) ?? this.scene.sound?.get?.(key);
+      sound?.stop?.();
+      // Also remove from the SoundManager if possible.
+      if (sound && this.scene.sound?.remove) {
+        try {
+          this.scene.sound.remove(sound);
+        } catch {
+          // Best-effort
+        }
+      }
+    } catch {
+      // Best-effort
+    }
+    this.playingSounds.delete(key);
+  }
+
+  setVolume(key: SoundKey, volume: number): void {
+    const v = clamp01(volume);
+    try {
+      // Use the stored direct reference first (most reliable).
+      const sound = this.playingSounds.get(key) ?? this.scene.sound?.get?.(key);
+      if (sound) {
+        if (typeof sound.setVolume === "function") {
+          sound.setVolume(v);
+        }
+      }
+    } catch {
+      // Best-effort
+    }
+  }
+
   stopAll(): void {
+    // Stop AND destroy each tracked sound individually first. `stopAll()`
+    // on the SoundManager only stops playback — it leaves the BaseSound
+    // instances in the manager's internal list, which leaks memory across
+    // repeated mute/unmute cycles (MINOR-5). Calling `destroy()` releases
+    // the BaseSound from the SoundManager and frees its WebAudio nodes.
+    for (const [, sound] of this.playingSounds) {
+      try {
+        sound.stop?.();
+        sound.destroy?.();
+      } catch {
+        // Best-effort
+      }
+    }
+    this.playingSounds.clear();
     this.scene.sound?.stopAll?.();
   }
 }
@@ -94,9 +203,10 @@ export class PhaserAudioBackend implements IAudioBackend {
  */
 export class NoopAudioBackend implements IAudioBackend {
   calls: Array<{
-    op: "load" | "play" | "stopAll";
+    op: "load" | "play" | "stop" | "setVolume" | "stopAll";
     key?: SoundKey;
     volume?: number;
+    loop?: boolean;
   }> = [];
   private loaded = new Set<SoundKey>();
 
@@ -109,9 +219,22 @@ export class NoopAudioBackend implements IAudioBackend {
     return this.loaded.has(key);
   }
 
-  play(key: SoundKey, volume: number): boolean {
-    this.calls.push({ op: "play", key, volume: clamp01(volume) });
+  play(key: SoundKey, volume: number, loop?: boolean): boolean {
+    this.calls.push({
+      op: "play",
+      key,
+      volume: clamp01(volume),
+      loop: loop === true,
+    });
     return true;
+  }
+
+  stop(key: SoundKey): void {
+    this.calls.push({ op: "stop", key });
+  }
+
+  setVolume(key: SoundKey, volume: number): void {
+    this.calls.push({ op: "setVolume", key, volume: clamp01(volume) });
   }
 
   stopAll(): void {

@@ -9,4 +9,17 @@ body,
 body {
   overflow: hidden;
   background: #101820;
+  /* Prevent pull-to-refresh on mobile (Rule 1.10.2) */
+  overscroll-behavior: none;
+  /* Prevent text selection / context menu on long-press (Rules 1.6.1.8, 1.6.2.7) */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  /* Prevent default touch gestures from interfering with game input */
+  touch-action: none;
+}
+
+canvas {
+  display: block;
+  touch-action: none;
 }

@@ -17,6 +17,7 @@ vi.mock("phaser", () => {
           W: "W",
           SPACE: "SPACE",
           ENTER: "ENTER",
+          SHIFT: "SHIFT",
         },
       },
     },
@@ -63,7 +64,9 @@ vi.mock("phaser", () => {
   return { default: Phaser, ...Phaser };
 });
 
-import { resetOffender, computeP1Direction, computeP2Direction, applyBotSlap, type BattleRuntimeLike, type BotSlapRuntimeLike } from "./BattleScene";
+import { resetOffender, computeP1Direction, computeP2Direction, applyBotSlap, handleRingOut, type BattleRuntimeLike, type BotSlapRuntimeLike, type RingOutRuntimeLike } from "./BattleScene";
+import { getComboMultiplier } from "../systems/CombatSystem";
+import { canDodge, isDodging, startDodge, getDodgeDurationMs, getDodgeCooldownMs } from "../systems/DodgeSystem";
 import type { ActorState } from "../entities/Player";
 import type { GameSettings } from "../config/gameSettings";
 import type { DirectionInput } from "../systems/InputDirection";
@@ -79,6 +82,7 @@ function mockActor(overrides: Partial<ActorState> = {}): ActorState {
     knockbackBoostUntil: 9999,
     knockbackUntil: 0,
     lastAttackAt: Number.NEGATIVE_INFINITY,
+    lastSlapAttemptAt: Number.NEGATIVE_INFINITY,
     moveSpeed: 260,
     size: 36,
     slapRange: 84,
@@ -87,6 +91,13 @@ function mockActor(overrides: Partial<ActorState> = {}): ActorState {
     speedMultiplier: 2,
     shieldHitsRemaining: 1,
     shieldUntil: 9999,
+    frozenUntil: 0,
+    doubleSlapUntil: 0,
+    dodgeUntil: 0,
+    committedPowerUpSpawnedAt: null,
+    dodgeCooldownUntil: 0,
+    comboStacks: 0,
+    lastSlapAt: Number.NEGATIVE_INFINITY,
     sprite: {
       x: 999,
       y: 999,
@@ -240,8 +251,11 @@ const settings1p: GameSettings = {
   botDifficulty: "medium",
   roundLengthSeconds: 60,
   winningScore: 5,
-  muted: false,
-  masterVolume: 0.7,
+  mapKey: "arena-default",
+  sfxMuted: false,
+  musicMuted: false,
+  sfxVolume: 0.7,
+  musicVolume: 0.5,
 };
 
 const settings2p: GameSettings = { ...settings1p, mode: "2p-local" };
@@ -326,6 +340,7 @@ function makeBotAI(): BotAIState {
     lastSlapAttemptAt: 0,
     currentDir: { x: 0, y: 0 },
     dodgeUntil: 0,
+    committedPowerUpSpawnedAt: null,
   };
 }
 
@@ -344,7 +359,6 @@ function makeBotSlapRuntime(opts: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   player?: any;
   ai?: BotAIState;
-  winningScore?: number;
 }): BotSlapRuntimeLike {
   const bot = mockActor({
     sprite: { x: 100, y: 0, setPosition: () => void 0 },
@@ -372,8 +386,6 @@ function makeBotSlapRuntime(opts: {
   return {
     player,
     opponent: { kind: "bot", bot, ai: opts.ai ?? makeBotAI() },
-    round: makeRound(),
-    settings: { winningScore: opts.winningScore ?? 5 },
     audio,
   } as unknown as BotSlapRuntimeLike;
 }
@@ -392,7 +404,14 @@ describe("applyBotSlap (B9)", () => {
     expect(runtime.audio.playSlapHit).not.toHaveBeenCalled();
   });
 
-  it("plays slap-miss when the bot's slap is blocked by shield", () => {
+  it("does NOT slap (no audio) when the player's shield is active (Fix E)", () => {
+    // Fix E: the bot must respect the player's shield. Previously the bot
+    // would slap into the shield, get blocked (no cooldown consumed for the
+    // attacker), but STILL pay the bot-side `slapIntervalMs` (800ms on easy
+    // = a long self-stun). Now `shouldBotSlap` returns false when the player
+    // is shielded — so applyBotSlap never reaches applySlap, and neither
+    // slap-hit NOR slap-miss audio fires. This is the new correct behavior;
+    // the previous "plays slap-miss on shield block" expectation is obsolete.
     const now = 1000;
     const runtime = makeBotSlapRuntime({
       bot: { lastAttackAt: Number.NEGATIVE_INFINITY },
@@ -402,8 +421,13 @@ describe("applyBotSlap (B9)", () => {
       },
     });
     applyBotSlap(runtime, now);
-    expect(runtime.audio.playSlapMiss).toHaveBeenCalledTimes(1);
+    expect(runtime.audio.playSlapMiss).not.toHaveBeenCalled();
     expect(runtime.audio.playSlapHit).not.toHaveBeenCalled();
+    // The bot did NOT consume its slap-interval timer.
+    expect(runtime.opponent.kind).toBe("bot");
+    if (runtime.opponent.kind === "bot") {
+      expect(runtime.opponent.ai.lastSlapAttemptAt).toBe(0);
+    }
   });
 
   it("plays slap-hit when the bot's slap succeeds", () => {
@@ -425,5 +449,221 @@ describe("applyBotSlap (B9)", () => {
     applyBotSlap(runtime, now);
     expect(runtime.audio.playSlapHit).not.toHaveBeenCalled();
     expect(runtime.audio.playSlapMiss).not.toHaveBeenCalled();
+  });
+
+  // --- C2: frozen actors cannot slap ---
+  // The freeze power-up was checked before `moveActor` (movement blocked)
+  // but NOT before the three slap paths (P1, P2, bot). A frozen bot would
+  // still slap the player. The fix adds an `isFrozen` gate inside
+  // `applyBotSlap` (the bot path) — the P1 and P2 paths are gated in
+  // BattleScene.update() directly. shouldBotSlap itself doesn't check
+  // frozen state, so without the gate the bot would still attempt a slap
+  // (and applySlap would succeed) while frozen.
+  it("C2: does nothing when the bot is frozen (no slap attempt, no audio)", () => {
+    const now = 1000;
+    const runtime = makeBotSlapRuntime({
+      bot: {
+        lastAttackAt: Number.NEGATIVE_INFINITY,
+        // Bot is frozen for the next 5s — should be unable to slap.
+        frozenUntil: now + 5000,
+      },
+    });
+    applyBotSlap(runtime, now);
+    expect(runtime.audio.playSlapHit).not.toHaveBeenCalled();
+    expect(runtime.audio.playSlapMiss).not.toHaveBeenCalled();
+  });
+});
+
+// --- fix-scoring: points awarded on ring-out, not slap ---
+// Previously applySlap called registerPoint on every successful slap, which
+// meant a round could be won by slapping alone. Scoring has now moved to the
+// ring-out handler: when an actor is knocked out of the arena, the OPPOSITE
+// side is awarded the point. Slaps apply knockback only.
+
+function makeRingOutRuntime(opts: {
+  opponentKind?: "bot" | "player2";
+}): RingOutRuntimeLike {
+  const player = mockActor();
+  const opponent = mockActor();
+  const audio = {
+    playRingOut: vi.fn(),
+  };
+  return {
+    player,
+    opponent: {
+      kind: opts.opponentKind ?? "bot",
+      bot: opts.opponentKind === "player2" ? undefined : opponent,
+      player: opts.opponentKind === "player2" ? opponent : undefined,
+    },
+    round: makeRound(),
+    audio,
+  } as unknown as RingOutRuntimeLike;
+}
+
+describe("handleRingOut (fix-scoring)", () => {
+  it("awards the point to the BOTS side when the PLAYER rings out", () => {
+    const runtime = makeRingOutRuntime({});
+    handleRingOut(runtime, "player", 5);
+    expect(runtime.round.score.bots).toBe(1);
+    expect(runtime.round.score.player).toBe(0);
+    expect(runtime.audio.playRingOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("awards the point to the PLAYER side when the OPPONENT rings out (bot)", () => {
+    const runtime = makeRingOutRuntime({ opponentKind: "bot" });
+    handleRingOut(runtime, "opponent", 5);
+    expect(runtime.round.score.player).toBe(1);
+    expect(runtime.round.score.bots).toBe(0);
+    expect(runtime.audio.playRingOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("awards the point to the PLAYER side when the OPPONENT rings out (player2)", () => {
+    const runtime = makeRingOutRuntime({ opponentKind: "player2" });
+    handleRingOut(runtime, "opponent", 5);
+    expect(runtime.round.score.player).toBe(1);
+    expect(runtime.round.score.bots).toBe(0);
+    expect(runtime.audio.playRingOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("does NOT reset the offender inside handleRingOut (deferred to playRingOutFX)", () => {
+    // Task 2b: handleRingOut no longer calls resetOffender — the caller
+    // (BattleScene.update) invokes playRingOutFX and passes resetOffender
+    // as the onComplete callback. So after handleRingOut, the offender's
+    // multipliers should still be their pre-ring-out values.
+    const runtime = makeRingOutRuntime({});
+    handleRingOut(runtime, "player", 5);
+    // Player NOT reset (speedMultiplier still 2, shield still 1).
+    expect(runtime.player.speedMultiplier).toBe(2);
+    expect(runtime.player.shieldHitsRemaining).toBe(1);
+    // Opponent also untouched.
+    const opp =
+      runtime.opponent.kind === "bot"
+        ? runtime.opponent.bot
+        : runtime.opponent.player;
+    expect(opp.speedMultiplier).toBe(2);
+    expect(opp.shieldHitsRemaining).toBe(1);
+  });
+
+  it("resetOffender can be called separately to reset the offender", () => {
+    const runtime = makeRingOutRuntime({});
+    handleRingOut(runtime, "opponent", 5);
+    // After handleRingOut, opponent is NOT reset.
+    const opp =
+      runtime.opponent.kind === "bot"
+        ? runtime.opponent.bot
+        : runtime.opponent.player;
+    expect(opp.speedMultiplier).toBe(2);
+    // Now call resetOffender separately (as playRingOutFX's onComplete would).
+    resetOffender(runtime, "opponent");
+    expect(opp.speedMultiplier).toBe(1);
+    expect(opp.shieldHitsRemaining).toBe(0);
+  });
+
+  it("completes the round when winningScore is reached via ring-out", () => {
+    const runtime = makeRingOutRuntime({});
+    handleRingOut(runtime, "player", 1); // bots reaches winningScore=1
+    expect(runtime.round.isComplete).toBe(true);
+    expect(runtime.round.winner).toBe("bots");
+  });
+
+  it("does not complete the round before winningScore is reached", () => {
+    const runtime = makeRingOutRuntime({});
+    handleRingOut(runtime, "player", 5); // bots=1, winningScore=5
+    expect(runtime.round.isComplete).toBe(false);
+    expect(runtime.round.winner).toBeNull();
+  });
+});
+
+// --- Task 2ac: combat mechanics (combo + dodge) ---
+// These tests exercise the pure helpers from CombatSystem + DodgeSystem that
+// the BattleScene wiring depends on. The BattleScene itself isn't instantiated
+// (Phaser isn't available under the node test env), so we test the contract
+// at the helper level — same pattern as the existing resetOffender /
+// applyBotSlap / handleRingOut tests above.
+
+describe("getComboMultiplier (Task 2ac)", () => {
+  it("returns 1.0 when comboStacks is 0", () => {
+    const actor = mockActor();
+    expect(getComboMultiplier(actor, 1000)).toBe(1.0);
+  });
+
+  it("returns 1.5 when comboStacks is 3", () => {
+    const actor = mockActor({ comboStacks: 3, lastSlapAt: 1000 });
+    expect(getComboMultiplier(actor, 1000)).toBe(1.5);
+  });
+
+  it("returns 2.5 when comboStacks is 5 (mega-launch)", () => {
+    const actor = mockActor({ comboStacks: 5, lastSlapAt: 1000 });
+    expect(getComboMultiplier(actor, 1000)).toBe(2.5);
+  });
+
+  it("resets stale combo (returns 1.0 + clears comboStacks) after 3000ms", () => {
+    const actor = mockActor({ comboStacks: 5, lastSlapAt: 1000 });
+    // 3500ms later — combo times out.
+    expect(getComboMultiplier(actor, 4500)).toBe(1.0);
+    expect(actor.comboStacks).toBe(0);
+  });
+});
+
+describe("startDodge (Task 2ac)", () => {
+  it("sets dodgeUntil = now + DODGE_DURATION_MS on success", () => {
+    const actor = mockActor();
+    const ok = startDodge(actor, { x: 1, y: 0 }, 1000);
+    expect(ok).toBe(true);
+    expect(actor.dodgeUntil).toBe(1000 + getDodgeDurationMs());
+  });
+
+  it("sets dodgeCooldownUntil = now + DODGE_COOLDOWN_MS on success", () => {
+    const actor = mockActor();
+    const ok = startDodge(actor, { x: 1, y: 0 }, 1000);
+    expect(ok).toBe(true);
+    expect(actor.dodgeCooldownUntil).toBe(1000 + getDodgeCooldownMs());
+  });
+
+  it("returns false (no mutation) when on cooldown", () => {
+    const actor = mockActor({ dodgeCooldownUntil: 2500 });
+    const ok = startDodge(actor, { x: 1, y: 0 }, 1200);
+    expect(ok).toBe(false);
+    // dodgeCooldownUntil stays at 2500 (not overwritten).
+    expect(actor.dodgeCooldownUntil).toBe(2500);
+  });
+});
+
+describe("canDodge (Task 2ac)", () => {
+  it("returns true when no cooldown is active", () => {
+    const actor = mockActor({ dodgeCooldownUntil: 0 });
+    expect(canDodge(actor, 1000)).toBe(true);
+  });
+
+  it("returns false during the cooldown window", () => {
+    // Dodge fired at t=1000, cooldown ends at t=2500 (1500ms).
+    const actor = mockActor({ dodgeCooldownUntil: 2500 });
+    expect(canDodge(actor, 1000)).toBe(false);
+    expect(canDodge(actor, 2499)).toBe(false);
+  });
+
+  it("returns true once the cooldown has elapsed", () => {
+    const actor = mockActor({ dodgeCooldownUntil: 2500 });
+    expect(canDodge(actor, 2500)).toBe(true);
+  });
+});
+
+describe("isDodging (Task 2ac)", () => {
+  it("returns true during the dodge window", () => {
+    // Dodge started at t=1000, dodgeUntil = 1200 (200ms window).
+    const actor = mockActor({ dodgeUntil: 1200 });
+    expect(isDodging(actor, 1000)).toBe(true);
+    expect(isDodging(actor, 1199)).toBe(true);
+  });
+
+  it("returns false once the dodge window has elapsed", () => {
+    const actor = mockActor({ dodgeUntil: 1200 });
+    expect(isDodging(actor, 1200)).toBe(false);
+    expect(isDodging(actor, 5000)).toBe(false);
+  });
+
+  it("returns false when the actor has never dodged (dodgeUntil = 0)", () => {
+    const actor = mockActor({ dodgeUntil: 0 });
+    expect(isDodging(actor, 1000)).toBe(false);
   });
 });

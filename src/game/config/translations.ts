@@ -1,180 +1,162 @@
-/**
- * i18n strings for Arena Slaps.
- *
- * Single source of truth for every user-visible string. Each key maps to a
- * `{ ru, en }` pair. Lookups go through {@link translate} which falls back to
- * English if the active language lacks a key, then to the key itself if the
- * key is entirely missing (so missing translations show up as the key string
- * rather than crashing the UI).
- *
- * Adding a new string:
- *   1. Add a key with `{ ru, en }` to {@link TRANSLATIONS} below.
- *   2. Use `translate(t, "your.key", lang)` at the call site.
- */
-
 export type Language = "ru" | "en";
 
-export type TranslationEntry = {
-  ru: string;
-  en: string;
-};
+export const LANGUAGES: readonly Language[] = ["ru", "en"];
 
-export type TranslationMap = Record<string, TranslationEntry>;
-
-export const TRANSLATIONS: TranslationMap = {
-  // --- Main menu ---
-  "mainmenu.title": { ru: "Arena Slaps", en: "Arena Slaps" },
-  "mainmenu.tagline": {
-    ru: "Залетай, давай пощёчину, повторяй.",
-    en: "Load-in, slap in, repeat.",
-  },
-  "mainmenu.start": { ru: "Начать", en: "Start" },
-  "mainmenu.loading": { ru: "Загрузка...", en: "Loading..." },
-  "mainmenu.mode": { ru: "Режим", en: "Mode" },
-  "mainmenu.difficulty": { ru: "Сложность бота", en: "Bot Difficulty" },
-  "mainmenu.round_length": { ru: "Длина раунда", en: "Round Length" },
-  "mainmenu.win_score": { ru: "Очки победы", en: "Win Score" },
-  "mainmenu.volume": { ru: "Громкость", en: "Volume" },
-  "mainmenu.mute": { ru: "Без звука", en: "Mute" },
-  "mainmenu.achievements": { ru: "Достижения", en: "Achievements" },
-
-  // --- Achievements scene ---
-  "achievements.title": { ru: "Достижения", en: "Achievements" },
-  "achievements.back": { ru: "Назад", en: "Back" },
-  "achievements.unlocked": { ru: "Открыто", en: "Unlocked" },
-  "achievements.locked": { ru: "Закрыто", en: "Locked" },
-
-  // --- Achievement name + desc (18 × 2 = 36 keys) ---
-  "achievement.first_blood.name": { ru: "Первая кровь", en: "First Blood" },
-  "achievement.first_blood.desc": {
-    ru: "Выиграй первый бой",
-    en: "Win your first battle",
-  },
-  "achievement.first_loss.name": { ru: "Первый синяк", en: "First Bruise" },
-  "achievement.first_loss.desc": {
-    ru: "Проиграй первый бой",
-    en: "Lose your first battle",
-  },
-  "achievement.streak_5.name": { ru: "Непобедимый", en: "Unstoppable" },
-  "achievement.streak_5.desc": {
-    ru: "Победи 5 раз подряд",
-    en: "Win 5 battles in a row",
-  },
-  "achievement.comeback_king.name": {
-    ru: "Король камбэков",
-    en: "Comeback King",
-  },
-  "achievement.comeback_king.desc": {
-    ru: "Победи после счёта 0-3",
-    en: "Win after being down 0-3",
-  },
-  "achievement.flawless.name": { ru: "Безупречный", en: "Flawless" },
-  "achievement.flawless.desc": { ru: "Победи со счётом 5-0", en: "Win 5-0" },
-  "achievement.speed_demon.name": {
-    ru: "Скоростной демон",
-    en: "Speed Demon",
-  },
-  "achievement.speed_demon.desc": {
-    ru: "Победи быстрее, чем за 30 секунд",
-    en: "Win in under 30 seconds",
-  },
-  "achievement.power_collector.name": {
-    ru: "Коллекционер",
-    en: "Collector",
-  },
-  "achievement.power_collector.desc": {
-    ru: "Собери 5 бонусов за один бой",
-    en: "Collect 5 power-ups in one battle",
-  },
-  "achievement.all_powerups.name": {
-    ru: "Энциклопедист",
-    en: "Encyclopedia",
-  },
-  "achievement.all_powerups.desc": {
-    ru: "Собери все 6 типов бонусов",
-    en: "Collect all 6 power-up types",
-  },
-  "achievement.combo_5.name": { ru: "Мега-комбо", en: "Mega Combo" },
-  "achievement.combo_5.desc": {
-    ru: "Достигни комбо x5",
-    en: "Reach combo x5",
-  },
-  "achievement.dodge_master.name": {
-    ru: "Мастер уклонения",
-    en: "Dodge Master",
-  },
-  "achievement.dodge_master.desc": {
-    ru: "10 уклонений за один бой",
-    en: "10 dodges in one battle",
-  },
-  "achievement.ringout_master.name": {
-    ru: "Мастер выбивания",
-    en: "Ring-out Master",
-  },
-  "achievement.ringout_master.desc": {
-    ru: "100 выбиваний за карьеру",
-    en: "100 total ring-outs inflicted",
-  },
-  "achievement.first_flight.name": {
-    ru: "Первый полёт",
-    en: "First Flight",
-  },
-  "achievement.first_flight.desc": {
-    ru: "Будь выбит впервые",
-    en: "Get knocked out for the first time",
-  },
-  "achievement.survivor.name": { ru: "Выживший", en: "Survivor" },
-  "achievement.survivor.desc": {
-    ru: "Будь выбит 3 раза за бой и победи",
-    en: "Get knocked out 3x in one battle AND win",
-  },
-  "achievement.level_5.name": { ru: "Половина пути", en: "Halfway There" },
-  "achievement.level_5.desc": {
-    ru: "Достигни 5 уровня",
-    en: "Reach level 5",
-  },
-  "achievement.level_10.name": { ru: "Максимум", en: "Maxed Out" },
-  "achievement.level_10.desc": {
-    ru: "Достигни 10 уровня",
-    en: "Reach level 10",
-  },
-  "achievement.all_maps.name": { ru: "Исследователь", en: "Explorer" },
-  "achievement.all_maps.desc": {
-    ru: "Сыграй на всех 6 картах",
-    en: "Play on all 6 maps",
-  },
-  "achievement.social.name": { ru: "Дуэлянт", en: "Duelist" },
-  "achievement.social.desc": {
-    ru: "Сыграй 10 боёв в режиме 2P",
-    en: "Play 10 battles in 2P mode",
-  },
-  "achievement.veteran.name": { ru: "Ветеран", en: "Veteran" },
-  "achievement.veteran.desc": {
-    ru: "Сыграй 50 боев всего",
-    en: "Play 50 battles total",
-  },
-};
+export const DEFAULT_LANGUAGE: Language = "ru";
 
 /**
- * Resolve a translation key to a localized string. Falls back to English if
- * the active language lacks the key, then to the key itself if the key is
- * entirely missing from the map (so the UI never throws on a typo).
+ * All UI strings for both languages. Edit values here to change text
+ * without touching scene code. Keys are namespaced by scene/feature.
+ *
+ * To add a new string:
+ *   1. Add a key to the `TranslationKey` union type.
+ *   2. Add the key with RU + EN values to TRANSLATIONS.
+ *   3. Use t("key") in the scene code.
  */
-export function translate(
-  key: string,
-  lang: Language = "en",
-): string {
-  const entry = TRANSLATIONS[key];
-  if (!entry) {
-    return key;
-  }
-  if (lang === "ru") {
-    return entry.ru;
-  }
-  return entry.en;
-}
+export const TRANSLATIONS = {
+  // --- MainMenu ---
+  "mainmenu.title": { ru: "Arena Slaps", en: "Arena Slaps" },
+  "mainmenu.tagline": { ru: "Заходи, шлёпай, повторяй.", en: "Load-in, slap in, repeat." },
+  "mainmenu.start": { ru: "Начать", en: "Start" },
+  "mainmenu.profile": { ru: "Профиль", en: "Profile" },
+  "mainmenu.audioSettings": { ru: "Настройки звука", en: "Audio Settings" },
+  "mainmenu.progression": { ru: "Прогрессия", en: "Progression" },
 
-/** Get the list of all translation keys (used to validate coverage). */
-export function getTranslationKeys(): readonly string[] {
-  return Object.keys(TRANSLATIONS);
-}
+  // --- Progression ---
+  "progression.title": { ru: "Прогрессия", en: "Progression" },
+  "progression.level": { ru: "Уровень", en: "Level" },
+  "progression.xp": { ru: "Опыт", en: "XP" },
+  "progression.unlocks": { ru: "Открыто", en: "Unlocks" },
+  "progression.maxLevel": { ru: "Максимальный уровень!", en: "Max level!" },
+  "progression.back": { ru: "Назад", en: "Back" },
+
+  // --- Unlock display names ---
+  "unlock.bot-easy": { ru: "Бот: Лёгкий", en: "Bot: Easy" },
+  "unlock.bot-medium": { ru: "Бот: Средний", en: "Bot: Medium" },
+  "unlock.bot-hard": { ru: "Бот: Сложный", en: "Bot: Hard" },
+  "unlock.arena-default": { ru: "Карта: Базовая", en: "Map: Default" },
+  "unlock.arena-neon": { ru: "Карта: Неон", en: "Map: Neon" },
+  "unlock.arena-cosmic": { ru: "Карта: Космос", en: "Map: Cosmic" },
+  "unlock.arena-volcano": { ru: "Карта: Вулкан", en: "Map: Volcano" },
+  "unlock.arena-ice": { ru: "Карта: Лёд", en: "Map: Ice" },
+  "unlock.arena-grass": { ru: "Карта: Трава", en: "Map: Grass" },
+  "unlock.all-maps": { ru: "Все карты", en: "All Maps" },
+  "unlock.title-rookie": { ru: "Титул: Новичок", en: "Title: Rookie" },
+  "unlock.title-fighter": { ru: "Титул: Боец", en: "Title: Fighter" },
+  "unlock.title-master": { ru: "Титул: Мастер", en: "Title: Master" },
+  "unlock.title-champion": { ru: "Титул: Чемпион", en: "Title: Champion" },
+  "unlock.title-legend": { ru: "Титул: Легенда", en: "Title: Legend" },
+
+  // --- BattleSetup ---
+  "battlesetup.title": { ru: "Настройка боя", en: "Battle Setup" },
+  "battlesetup.mode": { ru: "Режим", en: "Mode" },
+  "battlesetup.mode.1p": { ru: "1И против бота", en: "1P vs Bot" },
+  "battlesetup.mode.2p": { ru: "2И локально", en: "2P Local" },
+  "battlesetup.botDifficulty": { ru: "Сложность бота", en: "Bot Difficulty" },
+  "battlesetup.difficulty.easy": { ru: "Лёгкий", en: "Easy" },
+  "battlesetup.difficulty.medium": { ru: "Средний", en: "Medium" },
+  "battlesetup.difficulty.hard": { ru: "Сложный", en: "Hard" },
+  "battlesetup.roundLength": { ru: "Длина раунда", en: "Round Length" },
+  "battlesetup.winScore": { ru: "Очки для победы", en: "Win Score" },
+  "battlesetup.map": { ru: "Карта", en: "Map" },
+  "battlesetup.startBattle": { ru: "Начать бой", en: "Start Battle" },
+  "battlesetup.back": { ru: "Назад", en: "Back" },
+  "battlesetup.loading": { ru: "Загрузка...", en: "Loading..." },
+
+  // --- AudioSettings ---
+  "audio.title": { ru: "Настройки звука", en: "Audio Settings" },
+  "audio.sfxVolume": { ru: "Громкость SFX", en: "SFX Volume" },
+  "audio.sfxMute": { ru: "Заглушить SFX", en: "SFX Mute" },
+  "audio.musicVolume": { ru: "Громкость музыки", en: "Music Volume" },
+  "audio.musicMute": { ru: "Заглушить музыку", en: "Music Mute" },
+  "audio.muted": { ru: "Заглушено", en: "Muted" },
+  "audio.on": { ru: "Вкл", en: "On" },
+  "audio.back": { ru: "Назад", en: "Back" },
+
+  // --- Profile ---
+  "profile.title": { ru: "Профиль", en: "Profile" },
+  "profile.nickname": { ru: "Никнейм", en: "Nickname" },
+  "profile.totalGames": { ru: "Всего игр", en: "Total Games" },
+  "profile.wins": { ru: "Побед", en: "Wins" },
+  "profile.losses": { ru: "Поражений", en: "Losses" },
+  "profile.draws": { ru: "Ничьих", en: "Draws" },
+  "profile.winRate": { ru: "Процент побед", en: "Win Rate" },
+  "profile.ringOutsInflicted": { ru: "Выбил с арены", en: "Ring Outs (Inflicted)" },
+  "profile.ringOutsSuffered": { ru: "Выбит с арены", en: "Ring Outs (Suffered)" },
+  "profile.powerUpsCollected": { ru: "Собрано усилений", en: "Power-ups Collected" },
+  "profile.favoritePowerUp": { ru: "Любимое усиление", en: "Favorite Power-up" },
+  "profile.favoriteMode": { ru: "Любимый режим", en: "Favorite Mode" },
+  "profile.changeNickname": { ru: "Сменить ник", en: "Change Nickname" },
+  "profile.resetStats": { ru: "Сбросить статистику", en: "Reset Stats" },
+  "profile.back": { ru: "Назад", en: "Back" },
+  "profile.changeNicknamePrompt": { ru: "Введите новый никнейм:", en: "Enter new nickname:" },
+  "profile.resetConfirm": { ru: "Сбросить всю статистику? Это действие нельзя отменить.", en: "Reset all statistics? This cannot be undone." },
+  "profile.nicknameBanned": { ru: "Этот никнейм содержит запрещённые слова. Выберите другой.", en: "This nickname contains banned words. Please choose another." },
+
+  // --- Power-up display labels (used by ProfileScene favorite power-up row) ---
+  "powerup.speed": { ru: "Ускорение", en: "Boost" },
+  "powerup.knockback": { ru: "Тяжёлая рука", en: "Heavy Hand" },
+  "powerup.shield": { ru: "Щит", en: "Shield" },
+  "powerup.mega-knockback": { ru: "Мега-рука", en: "Mega Hand" },
+  "powerup.freeze": { ru: "Заморозка", en: "Freeze" },
+  "powerup.double-slap": { ru: "Двойной слэп", en: "Double Slap" },
+
+  // --- Battle HUD ---
+  "battle.time": { ru: "Время", en: "Time" },
+  "battle.controls.1p": { ru: "Движение: WASD / Стрелки   |   Шлёпок: Пробел или клик   |   Пауза: Esc", en: "Move: WASD / Arrows   |   Slap: Space or click   |   Pause: Esc" },
+  "battle.controls.2p": { ru: "И1: WASD + Пробел   |   И2: Стрелки + Enter   |   Пауза: Esc", en: "P1: WASD + Space   |   P2: Arrows + Enter   |   Pause: Esc" },
+  "battle.draw": { ru: "Ничья", en: "Draw" },
+  "battle.playerWins": { ru: "Победил игрок", en: "Player wins" },
+  "battle.botWins": { ru: "Бот победил", en: "Bot wins" },
+  "battle.p1Wins": { ru: "И1 победил", en: "P1 wins" },
+  "battle.p2Wins": { ru: "И2 победил", en: "P2 wins" },
+
+  // --- Results ---
+  "results.title": { ru: "Результаты матча", en: "Match Results" },
+  "results.back": { ru: "В главное меню", en: "Back to menu" },
+  "results.doubleXp": { ru: "×2 Опыт (Реклама)", en: "×2 XP (Watch Ad)" },
+  "results.noResult": { ru: "Результатов пока нет.", en: "No result stored yet." },
+  "results.score": { ru: "Счёт", en: "Score" },
+  "results.rounds": { ru: "Раундов", en: "Rounds" },
+  "results.powerUps": { ru: "Усилений", en: "Power-ups" },
+  "results.wins": { ru: "победил", en: "wins" },
+  "battle.player": { ru: "Игрок", en: "Player" },
+  "battle.bot": { ru: "Бот", en: "Bot" },
+  "battle.p1": { ru: "И1", en: "P1" },
+  "battle.p2": { ru: "И2", en: "P2" },
+
+  // --- Pause menu ---
+  "pause.title": { ru: "Пауза", en: "Paused" },
+  "pause.resume": { ru: "Продолжить", en: "Resume" },
+  "pause.settings": { ru: "Настройки", en: "Settings" },
+  "pause.mainMenu": { ru: "Главное меню", en: "Main Menu" },
+  "pause.settingsTitle": { ru: "Настройки", en: "Settings" },
+  "pause.back": { ru: "Назад", en: "Back" },
+
+  // --- Preload ---
+  "preload.loading": { ru: "Загрузка...", en: "Loading..." },
+
+  // --- TopRightMuteButton ---
+  "mute.sound": { ru: "🔊 Звук", en: "🔊 Sound" },
+  "mute.muted": { ru: "🔇 Заглушено", en: "🔇 Muted" },
+
+  // --- Mode descriptions (for describeMode helper) ---
+  "mode.1p-vs-bot": { ru: "1И против бота", en: "1P vs Bot" },
+  "mode.2p-local": { ru: "2И локально", en: "2P Local" },
+
+  // --- Maps ---
+  "map.default": { ru: "Базовая арена", en: "Default Arena" },
+  "map.default.desc": { ru: "Классическая арена для начинающих", en: "Classic arena for beginners" },
+  "map.neon": { ru: "Неоновая арена", en: "Neon Arena" },
+  "map.neon.desc": { ru: "Яркие неоновые огни", en: "Bright neon lights" },
+  "map.cosmic": { ru: "Космическая арена", en: "Cosmic Arena" },
+  "map.cosmic.desc": { ru: "Среди звёзд и туманностей", en: "Among stars and nebulae" },
+  "map.volcano": { ru: "Вулканическая арена", en: "Volcano Arena" },
+  "map.volcano.desc": { ru: "У жерла вулкана", en: "At the volcano's mouth" },
+  "map.ice": { ru: "Ледяная арена", en: "Ice Arena" },
+  "map.ice.desc": { ru: "Скользкий лёд и мороз", en: "Slippery ice and frost" },
+  "map.grass": { ru: "Травяная арена", en: "Grass Arena" },
+  "map.grass.desc": { ru: "Зелёные просторы", en: "Green fields" },
+} as const;
+
+export type TranslationKey = keyof typeof TRANSLATIONS;
