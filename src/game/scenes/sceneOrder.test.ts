@@ -33,12 +33,10 @@ describe("sceneClasses", () => {
     expect(sceneClasses.some((scene) => scene.name === "ProfileScene")).toBe(true);
   });
 
-  it("includes ProgressionScene", () => {
-    expect(sceneClasses.some((scene) => scene.name === "ProgressionScene")).toBe(true);
-  });
-
-  it("includes AchievementsScene", () => {
-    expect(sceneClasses.some((scene) => scene.name === "AchievementsScene")).toBe(true);
+  it("includes ProgressScene (replaces ProgressionScene + AchievementsScene)", () => {
+    expect(sceneClasses.some((scene) => scene.name === "ProgressScene")).toBe(true);
+    expect(sceneClasses.some((scene) => scene.name === "ProgressionScene")).toBe(false);
+    expect(sceneClasses.some((scene) => scene.name === "AchievementsScene")).toBe(false);
   });
 
   it("includes CosmeticsScene", () => {
@@ -49,8 +47,12 @@ describe("sceneClasses", () => {
     expect(sceneClasses.some((scene) => scene.name === "ShopScene")).toBe(true);
   });
 
-  it("has 10 scenes in the correct order", () => {
-    expect(sceneClasses).toHaveLength(10);
+  it("includes ProgressScene", () => {
+    expect(sceneClasses.some((scene) => scene.name === "ProgressScene")).toBe(true);
+  });
+
+  it("has 9 scenes in the correct order", () => {
+    expect(sceneClasses).toHaveLength(9);
     expect(sceneClasses.map((s) => s.name)).toEqual([
       "BootScene",
       "PreloadScene",
@@ -58,8 +60,7 @@ describe("sceneClasses", () => {
       "BattleSetupScene",
       "AudioSettingsScene",
       "ProfileScene",
-      "ProgressionScene",
-      "AchievementsScene",
+      "ProgressScene",
       "CosmeticsScene",
       "ShopScene",
     ]);

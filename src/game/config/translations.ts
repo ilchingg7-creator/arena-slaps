@@ -21,6 +21,7 @@ export const TRANSLATIONS = {
   "mainmenu.profile": { ru: "Профиль", en: "Profile" },
   "mainmenu.audioSettings": { ru: "Настройки звука", en: "Audio Settings" },
   "mainmenu.progression": { ru: "Прогрессия", en: "Progression" },
+  "mainmenu.progress": { ru: "Прогресс", en: "Progress" },
 
   // --- Progression ---
   "progression.title": { ru: "Прогрессия", en: "Progression" },
@@ -29,6 +30,11 @@ export const TRANSLATIONS = {
   "progression.unlocks": { ru: "Открыто", en: "Unlocks" },
   "progression.maxLevel": { ru: "Максимальный уровень!", en: "Max level!" },
   "progression.back": { ru: "Назад", en: "Back" },
+
+  // --- Progress (combined scene) ---
+  "progress.title": { ru: "Прогресс", en: "Progress" },
+  "progress.tab.levels": { ru: "Уровни", en: "Levels" },
+  "progress.tab.achievements": { ru: "Достижения", en: "Achievements" },
 
   // --- Unlock display names ---
   "unlock.bot-easy": { ru: "Бот: Лёгкий", en: "Bot: Easy" },
