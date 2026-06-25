@@ -157,12 +157,10 @@ export class CosmeticsScene extends Phaser.Scene {
 
     // --- Category tabs ---
     const categories: CosmeticCategory[] = [
-      "color",
       "outline",
       "trail",
       "slapFx",
       "title",
-      "powerUpSkin",
       "headwear",
     ];
     const tabY = height * 0.22;
@@ -412,19 +410,7 @@ export class CosmeticsScene extends Phaser.Scene {
         ? this.profile.cosmetics.equipped
         : this.profile.cosmetics.p2Equipped;
 
-    // Show a colored rectangle for the equipped color.
-    if (equipped.color) {
-      const def = COSMETICS.find((c) => c.id === equipped.color);
-      if (def) {
-        const colorVal = (def.effect as { value: number }).value;
-        const previewRect = this.add
-          .rectangle(width / 2 - 30, previewY, 40, 40, colorVal, 1)
-          .setStrokeStyle(2, 0xf4f1de)
-          .setOrigin(0.5);
-        this.previewObjects.push(previewRect);
-      }
-    }
-
+    // Issue 1 fix: removed color preview (color category removed).
     // Show headwear overlay on the preview.
     if (equipped.headwear) {
       const def = COSMETICS.find((c) => c.id === equipped.headwear);
@@ -432,8 +418,8 @@ export class CosmeticsScene extends Phaser.Scene {
         const spriteKey = (def.effect as { spriteKey: string }).spriteKey;
         if (spriteKey && this.textures.exists(spriteKey)) {
           const hat = this.add
-            .image(width / 2 - 30, previewY - 22, spriteKey)
-            .setDisplaySize(32, 32)
+            .image(width / 2, previewY - 10, spriteKey)
+            .setDisplaySize(48, 48)
             .setOrigin(0.5);
           this.previewObjects.push(hat);
         }

@@ -98,11 +98,14 @@ export function createCosmeticVisuals(
         alpha: { start: 0.7, end: 0 },
         // Tint with the trail's color.
         tint: cosmetics.trail.color,
-        // Slight random offset so particles don't all stack on one
-        // point.
-        speed: { min: 0, max: 20 },
+        // Particles spawn at the emitter's x/y (set in update). No
+        // radial speed — they stay where emitted, creating a trail.
+        speed: 0,
         // Don't emit by gravity (top-down game).
         gravityY: 0,
+        // Spawn particles slightly below the actor center so the trail
+        // appears at the actor's feet, not center.
+        followOffset: { x: 0, y: 16 },
       });
       // Start paused; update() will resume when the actor moves.
       trailEmitter.pause();
@@ -124,10 +127,13 @@ export function createCosmeticVisuals(
     }
     // Update trail emitter position + emit while moving.
     if (trailEmitter) {
-      trailEmitter.setPosition(actorX, actorY);
+      // Issue 4 fix: use emitter.x / emitter.y directly instead of
+      // setPosition — Phaser 3.80's particle emitter tracks position
+      // via these properties. setPosition doesn't always work on
+      // emitters created with add.particles().
+      trailEmitter.x = actorX;
+      trailEmitter.y = actorY;
       // Emit only when the actor is actually moving (velocity > threshold).
-      // 100 (px/s)^2 = ~10 px/s in any direction — well below intentional
-      // movement but above float jitter.
       const shouldEmit = velocitySq > 100;
       if (shouldEmit && trailPaused) {
         trailEmitter.resume();

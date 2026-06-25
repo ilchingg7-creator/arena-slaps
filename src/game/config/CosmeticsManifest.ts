@@ -67,77 +67,11 @@ export type CosmeticDefinition = {
 };
 
 export const COSMETICS: readonly CosmeticDefinition[] = [
-  // --- Colors (free, level-gated) ---
-  {
-    id: "color-navy",
-    category: "color",
-    nameKey: "cosmetic.color.navy",
-    source: { kind: "free", unlockLevel: 1 },
-    effect: { value: 0x3d405b },
-  },
-  {
-    id: "color-orange",
-    category: "color",
-    nameKey: "cosmetic.color.orange",
-    source: { kind: "free", unlockLevel: 1 },
-    effect: { value: 0xe07a5f },
-  },
-  {
-    id: "color-crimson",
-    category: "color",
-    nameKey: "cosmetic.color.crimson",
-    source: { kind: "free", unlockLevel: 2 },
-    effect: { value: 0xc0392b },
-  },
-  {
-    id: "color-emerald",
-    category: "color",
-    nameKey: "cosmetic.color.emerald",
-    source: { kind: "free", unlockLevel: 2 },
-    effect: { value: 0x27ae60 },
-  },
-  {
-    id: "color-gold",
-    category: "color",
-    nameKey: "cosmetic.color.gold",
-    source: { kind: "free", unlockLevel: 4 },
-    effect: { value: 0xf1c40f },
-  },
-  {
-    id: "color-sky",
-    category: "color",
-    nameKey: "cosmetic.color.sky",
-    source: { kind: "free", unlockLevel: 4 },
-    effect: { value: 0x3498db },
-  },
-  {
-    id: "color-violet",
-    category: "color",
-    nameKey: "cosmetic.color.violet",
-    source: { kind: "free", unlockLevel: 6 },
-    effect: { value: 0x8e44ad },
-  },
-  {
-    id: "color-magenta",
-    category: "color",
-    nameKey: "cosmetic.color.magenta",
-    source: { kind: "free", unlockLevel: 6 },
-    effect: { value: 0xe84393 },
-  },
-  {
-    id: "color-mint",
-    category: "color",
-    nameKey: "cosmetic.color.mint",
-    source: { kind: "free", unlockLevel: 8 },
-    effect: { value: 0x00b894 },
-  },
-  {
-    id: "color-coral",
-    category: "color",
-    nameKey: "cosmetic.color.coral",
-    source: { kind: "free", unlockLevel: 8 },
-    effect: { value: 0xff7675 },
-  },
+  // Issue 1 fix: removed the entire "color" category. The color tint
+  // didn't work reliably on PNG sprites (Phaser's setTint multiplies
+  // the texture color, making most cosmetics look muddy or invisible).
+  // Instead, the game now focuses on more visible cosmetics: headwear,
+  // trails, slap FX, outlines, and titles.
 
   // --- Outlines (free, level-gated) ---
   // Issue 4 fix: removed "outline-none" — it was a duplicate of
@@ -292,15 +226,22 @@ export const COSMETICS: readonly CosmeticDefinition[] = [
     source: { kind: "free", unlockLevel: 9 },
     effect: { spriteKey: "headwear-horns", offsetY: -26 },
   },
+  {
+    id: "headwear-halo",
+    category: "headwear",
+    nameKey: "cosmetic.headwear.halo",
+    source: { kind: "free", unlockLevel: 5 },
+    effect: { spriteKey: "headwear-halo", offsetY: -28 },
+  },
+  {
+    id: "headwear-helmet",
+    category: "headwear",
+    nameKey: "cosmetic.headwear.helmet",
+    source: { kind: "free", unlockLevel: 7 },
+    effect: { spriteKey: "headwear-helmet", offsetY: -28 },
+  },
 
   // --- 2P-free cosmetics (only available in 2P-local mode) ---
-  {
-    id: "color-2p-azure",
-    category: "color",
-    nameKey: "cosmetic.color.2p-azure",
-    source: { kind: "2p-free" },
-    effect: { value: 0x74b9ff },
-  },
   {
     id: "headwear-2p-party-hat",
     category: "headwear",

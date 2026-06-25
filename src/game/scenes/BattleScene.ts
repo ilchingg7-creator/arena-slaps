@@ -681,11 +681,8 @@ export class BattleScene extends Phaser.Scene {
       x: arena.left + 160,
       y: arena.centerY,
     });
-    // Bug 2 fix: apply the cosmetic color as a BASE tint on the visible
-    // AnimatedSprite (not just the invisible physics rectangle). The
-    // base tint is overruled by effect tints (power-ups) via
-    // setEffectTint, and re-applied when the effect clears.
-    playerAnim.setBaseTint(p1Cosmetics.color);
+    // Issue 1 fix: removed setBaseTint — color cosmetic category removed.
+    // The player PNG sprite shows its natural colors.
     // Hide the physics rectangle — keep alpha at 0 so the physics body
     // still works but only the AnimatedSprite is visible.
     player.sprite.setAlpha(0);
@@ -735,12 +732,7 @@ export class BattleScene extends Phaser.Scene {
       x: arena.right - 160,
       y: arena.centerY,
     });
-    // Bug 2 fix: apply P2's cosmetic color as base tint in 2P-local mode.
-    // Bots don't equip cosmetics — they keep their default orange tint.
-    if (settings.mode === "2p-local" && opponent.kind === "player2") {
-      const oppCosmetics = resolveP2Cosmetics(profile, battleConfig.bot.color);
-      opponentAnim.setBaseTint(oppCosmetics.color);
-    }
+    // Issue 1 fix: removed P2 color tint — color cosmetic category removed.
     opponentSprite.setAlpha(0);
 
     this.physics.add.collider(player.sprite, opponentSprite);

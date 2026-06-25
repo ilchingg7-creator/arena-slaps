@@ -28,7 +28,7 @@ describe("CosmeticsManifest — structure", () => {
 
   it("every cosmetic has a valid category", () => {
     const validCategories: CosmeticCategory[] = [
-      "color",
+      "headwear",
       "outline",
       "trail",
       "slapFx",
@@ -79,10 +79,10 @@ describe("CosmeticsManifest — getCosmeticById", () => {
 
 describe("CosmeticsManifest — getCosmeticsByCategory", () => {
   it("returns only cosmetics matching the category", () => {
-    const colors = getCosmeticsByCategory("color");
+    const colors = getCosmeticsByCategory("headwear");
     expect(colors.length).toBeGreaterThan(0);
     for (const c of colors) {
-      expect(c.category).toBe("color");
+      expect(c.category).toBe("headwear");
     }
   });
 
@@ -91,7 +91,7 @@ describe("CosmeticsManifest — getCosmeticsByCategory", () => {
     // removed — they had no visual effect). The remaining 6 categories
     // must have at least one cosmetic each.
     const categories: CosmeticCategory[] = [
-      "color",
+      "headwear",
       "outline",
       "trail",
       "slapFx",
@@ -174,18 +174,18 @@ describe("CosmeticsManifest — getOwnedCosmetics", () => {
   }
 
   it("returns the cosmetic definitions for each owned id", () => {
-    const profile = profileWith(["color-navy", "color-crimson"]);
+    const profile = profileWith(["headwear-none", "headwear-cap"]);
     const owned = getOwnedCosmetics(profile);
     expect(owned).toHaveLength(2);
-    expect(owned[0].id).toBe("color-navy");
-    expect(owned[1].id).toBe("color-crimson");
+    expect(owned[0].id).toBe("headwear-none");
+    expect(owned[1].id).toBe("headwear-cap");
   });
 
   it("skips unknown ids (defensive — old saves may reference deleted cosmetics)", () => {
-    const profile = profileWith(["color-navy", "nonexistent-id"]);
+    const profile = profileWith(["headwear-none", "nonexistent-id"]);
     const owned = getOwnedCosmetics(profile);
     expect(owned).toHaveLength(1);
-    expect(owned[0].id).toBe("color-navy");
+    expect(owned[0].id).toBe("headwear-none");
   });
 
   it("returns [] for a profile with no cosmetics field", () => {

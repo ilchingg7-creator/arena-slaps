@@ -98,15 +98,12 @@ describe("spriteManifest", () => {
     expect(keys).toContain("powerup-shield");
   });
 
-  it("has 48 total sprite definitions (was 40 + 8 cosmetic sprites)", () => {
+  it("has 50 total sprite definitions (was 40 + 10 cosmetic sprites)", () => {
     // Breakdown:
-    //   - 40 existing (5 originals + 12 character states + 6 power-ups
-    //     + 3 backgrounds + 2 logo/mute + 4 sfx/music toggles + 10 map
-    //     backgrounds/platforms)
-    //   - 8 new cosmetic sprites: 4 headwear (cap, crown, horns,
-    //     party-hat) + 2 trail particles (dust, sparkle) + 2 slap FX
-    //     (star, lightning)
-    expect(SPRITE_DEFINITIONS).toHaveLength(48);
+    //   - 40 existing + 10 cosmetic sprites: 6 headwear (cap, crown,
+    //     horns, halo, helmet, party-hat) + 2 trail particles (dust,
+    //     sparkle) + 2 slap FX (star, lightning)
+    expect(SPRITE_DEFINITIONS).toHaveLength(50);
   });
 
   it("ships the 12 new character state keys (player + bot × run-n/s/e/w + slap + fall)", () => {
@@ -166,15 +163,15 @@ describe("spriteManifest", () => {
     }
   });
 
-  it("getSpritesByCategory('character') returns 18 entries (7 player + 7 bot + 4 headwear)", () => {
+  it("getSpritesByCategory('character') returns 20 entries (7 player + 7 bot + 6 headwear)", () => {
     const chars = getSpritesByCategory("character");
-    expect(chars).toHaveLength(18);
+    expect(chars).toHaveLength(20);
     const playerStates = chars.filter((d) => d.key.startsWith("player-"));
     const botStates = chars.filter((d) => d.key.startsWith("bot-"));
     const headwear = chars.filter((d) => d.key.startsWith("headwear-"));
     expect(playerStates).toHaveLength(7);
     expect(botStates).toHaveLength(7);
-    expect(headwear).toHaveLength(4);
+    expect(headwear).toHaveLength(6);
   });
 
   it("getSpritesByCategory('effect') returns 10 entries (6 power-ups + 2 trails + 2 slapFx)", () => {

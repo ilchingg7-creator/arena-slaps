@@ -65,6 +65,25 @@ def make_headwear_party_hat():
     img.save(os.path.join(OUTPUT_DIR, "headwear-party-hat.png"))
 
 
+def make_headwear_halo():
+    """Golden angel halo."""
+    img = Image.new("RGBA", (48, 48), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.ellipse([6, 18, 42, 30], outline=(255, 220, 60, 255), width=4)
+    d.ellipse([10, 20, 38, 28], outline=(255, 240, 120, 200), width=2)
+    img.save(os.path.join(OUTPUT_DIR, "headwear-halo.png"))
+
+
+def make_headwear_helmet():
+    """Grey knight's helmet."""
+    img = Image.new("RGBA", (48, 48), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.ellipse([8, 14, 40, 38], fill=(120, 120, 130, 255), outline=(80, 80, 90, 255), width=2)
+    d.rectangle([12, 22, 36, 26], fill=(40, 40, 50, 255))
+    d.rectangle([22, 8, 26, 16], fill=(180, 180, 190, 255), outline=(120, 120, 130, 255))
+    img.save(os.path.join(OUTPUT_DIR, "headwear-helmet.png"))
+
+
 # ─── Trail particles ────────────────────────────────────────────────────
 
 def make_radial_particle(filename, color_rgb, size=16):
@@ -141,6 +160,8 @@ if __name__ == "__main__":
     make_headwear_crown()
     make_headwear_horns()
     make_headwear_party_hat()
+    make_headwear_halo()
+    make_headwear_helmet()
 
     print("Generating trail particles...")
     make_trail_dust()

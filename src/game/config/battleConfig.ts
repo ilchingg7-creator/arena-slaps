@@ -3,33 +3,32 @@
  * parity — the bot's AI is simpler than a human (no real strategy, just
  * chase + slap), so giving it equal stats would make it frustrating.
  *
- *   - easy:   much slower / short range / weak knockback (160 / 60 / 400)
- *   - medium: moderate speed / decent range (200 / 70 / 470)
- *   - hard:   fast / good range / strong knockback (240 / 80 / 530)
+ *   - easy:   much slower / short range / weak knockback (200 / 44 / 400)
+ *   - medium: moderate speed / decent range (250 / 54 / 470)
+ *   - hard:   fast / good range / strong knockback (300 / 64 / 530)
  *
- * Player stats for reference: speed=260, slapRange=84, knockback=560.
- * Hard bot is ~92% of player speed, ~95% range, ~95% knockback —
- * competitive but beatable with good play.
+ * Player stats for reference: speed=320, slapRange=58, knockback=560.
+ * Hard bot is ~94% of player speed, competitive but beatable.
  */
 export const botByDifficulty = {
   easy: {
     color: 0xe07a5f,
     knockbackSpeed: 400,
-    speed: 160,
+    speed: 200,
     slapRange: 44,
     size: 36,
   },
   medium: {
     color: 0xe07a5f,
     knockbackSpeed: 470,
-    speed: 200,
+    speed: 250,
     slapRange: 54,
     size: 36,
   },
   hard: {
     color: 0xe07a5f,
     knockbackSpeed: 530,
-    speed: 240,
+    speed: 300,
     slapRange: 64,
     size: 36,
   },
@@ -85,7 +84,7 @@ export const battleConfig = {
   player: {
     color: 0x3d405b,
     knockbackSpeed: 560,
-    speed: 260,
+    speed: 320,
     slapRange: 58,
     size: 36,
   },

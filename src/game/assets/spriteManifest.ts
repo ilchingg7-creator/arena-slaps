@@ -342,6 +342,14 @@ export const SPRITE_DEFINITIONS: readonly SpriteDefinition[] = [
     width: 48, height: 48, fallback: "rectangle", fallbackColor: 0xb41e1e,
   },
   {
+    key: "headwear-halo", path: png("headwear-halo"), category: "character",
+    width: 48, height: 48, fallback: "rectangle", fallbackColor: 0xffdc3c,
+  },
+  {
+    key: "headwear-helmet", path: png("headwear-helmet"), category: "character",
+    width: 48, height: 48, fallback: "rectangle", fallbackColor: 0x787880,
+  },
+  {
     key: "headwear-party-hat", path: png("headwear-party-hat"), category: "character",
     width: 48, height: 48, fallback: "rectangle", fallbackColor: 0xb432c8,
   },

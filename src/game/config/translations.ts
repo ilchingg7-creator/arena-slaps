@@ -268,6 +268,8 @@ export const TRANSLATIONS = {
   "cosmetic.headwear.cap": { ru: "Кепка", en: "Cap" },
   "cosmetic.headwear.crown": { ru: "Корона", en: "Crown" },
   "cosmetic.headwear.horns": { ru: "Рога", en: "Horns" },
+  "cosmetic.headwear.halo": { ru: "Нимб", en: "Halo" },
+  "cosmetic.headwear.helmet": { ru: "Шлем", en: "Helmet" },
   "cosmetic.headwear.2p-party-hat": { ru: "Колпак (2P)", en: "Party Hat (2P)" },
 } as const;
 

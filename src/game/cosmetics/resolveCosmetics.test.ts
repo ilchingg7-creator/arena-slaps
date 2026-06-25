@@ -57,25 +57,9 @@ describe("resolveCosmetics — defaults", () => {
   });
 });
 
-describe("resolveCosmetics — color resolution", () => {
-  it("resolves color-crimson to its hex value", () => {
-    const equipped: EquippedCosmetics = { color: "color-crimson" };
-    const result = resolveCosmetics(baseInput({ equipped }));
-    expect(result.color).toBe(0xc0392b);
-  });
-
-  it("resolves color-gold to its hex value", () => {
-    const equipped: EquippedCosmetics = { color: "color-gold" };
-    const result = resolveCosmetics(baseInput({ equipped }));
-    expect(result.color).toBe(0xf1c40f);
-  });
-
-  it("falls back to defaultColor for an unknown color id", () => {
-    const equipped: EquippedCosmetics = { color: "nonexistent-color" };
-    const result = resolveCosmetics(baseInput({ equipped }));
-    expect(result.color).toBe(DEFAULT_COLOR);
-  });
-});
+// Issue 1 fix: color category removed — color resolution tests removed.
+// resolveCosmetics still returns the defaultColor when no color cosmetic
+// is equipped, but there are no manifest entries to resolve.
 
 describe("resolveCosmetics — outline resolution", () => {
   it("resolves outline-white to its hex value", () => {
@@ -196,11 +180,10 @@ describe("resolveCosmetics — headwear resolution", () => {
 });
 
 describe("resolveCosmetics — combined loadout", () => {
-  it("resolves all 6 non-empty categories at once (Issue 4)", () => {
-    // Issue 4 fix: powerUpSkin removed — combined loadout now covers
-    // the 6 remaining categories.
+  it("resolves all 5 non-empty categories at once (Issue 1 + 4)", () => {
+    // Issue 1 fix: color category removed.
+    // Issue 4 fix: powerUpSkin category removed.
     const equipped: EquippedCosmetics = {
-      color: "color-violet",
       outline: "outline-cyan",
       trail: "trail-sparkle",
       slapFx: "slapfx-lightning",
@@ -208,7 +191,6 @@ describe("resolveCosmetics — combined loadout", () => {
       headwear: "headwear-crown",
     };
     const result = resolveCosmetics(baseInput({ equipped }));
-    expect(result.color).toBe(0x8e44ad);
     expect(result.outline).toBe(0x00ffff);
     expect(result.trail).toEqual({ textureKey: "trail-sparkle", color: 0xffffff });
     expect(result.slapFx).toBe("slapfx-lightning");
@@ -233,26 +215,32 @@ describe("resolveP1Cosmetics / resolveP2Cosmetics", () => {
   }
 
   it("resolveP1Cosmetics reads from profile.cosmetics.equipped", () => {
-    const profile = profileWith({ color: "color-crimson" });
+    const profile = profileWith({ headwear: "headwear-cap" });
     const result = resolveP1Cosmetics(profile, DEFAULT_COLOR);
-    expect(result.color).toBe(0xc0392b);
+    expect(result.headwear).toEqual({
+      spriteKey: "headwear-cap",
+      offsetY: -28,
+    });
   });
 
   it("resolveP2Cosmetics reads from profile.cosmetics.p2Equipped", () => {
-    const profile = profileWith({}, { color: "color-emerald" });
+    const profile = profileWith({}, { headwear: "headwear-crown" });
     const result = resolveP2Cosmetics(profile, DEFAULT_COLOR);
-    expect(result.color).toBe(0x27ae60);
+    expect(result.headwear).toEqual({
+      spriteKey: "headwear-crown",
+      offsetY: -28,
+    });
   });
 
-  it("P1 and P2 can have different colors in 2P mode", () => {
+  it("P1 and P2 can have different headwear in 2P mode", () => {
     const profile = profileWith(
-      { color: "color-crimson" },
-      { color: "color-emerald" },
+      { headwear: "headwear-cap" },
+      { headwear: "headwear-crown" },
     );
     const p1 = resolveP1Cosmetics(profile, DEFAULT_COLOR);
     const p2 = resolveP2Cosmetics(profile, DEFAULT_COLOR);
-    expect(p1.color).toBe(0xc0392b);
-    expect(p2.color).toBe(0x27ae60);
-    expect(p1.color).not.toBe(p2.color);
+    expect(p1.headwear?.spriteKey).toBe("headwear-cap");
+    expect(p2.headwear?.spriteKey).toBe("headwear-crown");
+    expect(p1.headwear).not.toEqual(p2.headwear);
   });
 });
