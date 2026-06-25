@@ -369,19 +369,18 @@ export function getOwnedCosmetics(
 /**
  * Whether the given cosmetic is available for the player to equip.
  *
- * Rules:
- *   - If `is2P` is true, returns true for EVERY cosmetic in the manifest
- *     (the 2P-local free-cosmetics rule). Returns false for unknown ids.
- *   - Else, returns true when:
- *       - The cosmetic is in `profile.cosmetics.owned` (purchased or
- *         otherwise explicitly granted), OR
- *       - The cosmetic is `free` AND its unlockLevel <= profile.level, OR
- *       - The cosmetic is `2p-free` (always available to everyone —
- *         Issue 5 fix: previously these were only available in 2P mode,
- *         but that left P1 unable to equip them. Now 2p-free cosmetics
- *         are treated as "always free for everyone" in both 1P and 2P
- *         modes).
- *   - Returns false for paid cosmetics not in `owned` (when not 2P).
+ * Rules (Issue 5 correct fix):
+ *   - **1P-vs-bot mode** (`is2P = false`): cosmetics are available
+ *     according to progression. A cosmetic is available when:
+ *       - It's in `profile.cosmetics.owned` (purchased or granted), OR
+ *       - It's `free` AND its unlockLevel <= profile.level.
+ *     - `2p-free` cosmetics are NOT available in 1P mode (they're
+ *       2P-exclusive bonus cosmetics).
+ *     - `paid` cosmetics are NOT available unless in `owned`.
+ *   - **2P-local mode** (`is2P = true`): ALL cosmetics are available
+ *     to BOTH players regardless of progression. This includes paid,
+ *     2p-free, and level-gated cosmetics — everything is unlocked for
+ *     the session.
  *   - Returns false for unknown ids.
  */
 export function isCosmeticAvailable(
@@ -395,18 +394,12 @@ export function isCosmeticAvailable(
   const def = getCosmeticById(cosmeticId);
   if (!def) return false;
 
-  // 2P-local: everything is available.
+  // 2P-local mode: ALL cosmetics available to both players.
   if (is2P) return true;
 
+  // 1P-vs-bot mode: progression-gated.
   // Owned cosmetics (purchased or granted) are always available.
   if (profile.cosmetics?.owned?.includes(cosmeticId)) return true;
-
-  // Issue 5 fix: 2p-free cosmetics are available to EVERYONE, not just
-  // in 2P mode. The "2p-free" source type now means "always free" —
-  // these are bonus cosmetics that don't require a level unlock.
-  if (def.source.kind === "2p-free") {
-    return true;
-  }
 
   // Free cosmetics gated by level.
   if (def.source.kind === "free") {
@@ -414,6 +407,7 @@ export function isCosmeticAvailable(
     return (profile.level ?? 1) >= requiredLevel;
   }
 
-  // Paid (not in owned) → unavailable.
+  // 2p-free and paid cosmetics are NOT available in 1P mode (unless
+  // they're in the owned list, checked above).
   return false;
 }

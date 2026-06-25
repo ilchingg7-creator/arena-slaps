@@ -254,16 +254,45 @@ describe("CosmeticsManifest — isCosmeticAvailable", () => {
     }
   });
 
-  it("returns true for 2p-free cosmetics in BOTH 1P and 2P modes (Issue 5)", () => {
-    // Issue 5 fix: 2p-free cosmetics are now available to everyone,
-    // not just in 2P mode. The "2p-free" source type means "always
-    // free" — these are bonus cosmetics that don't require a level
-    // unlock.
+  it("returns FALSE for 2p-free cosmetics in 1P mode (progression-gated)", () => {
+    // Issue 5 correct fix: in 1P-vs-bot mode, cosmetics are available
+    // according to progression. 2p-free cosmetics are 2P-exclusive —
+    // they're NOT available in 1P mode regardless of player level.
+    const profile = profileWith([], 10);
+    const twoFree = COSMETICS.find((c) => c.source.kind === "2p-free");
+    if (twoFree) {
+      expect(isCosmeticAvailable(profile, twoFree.id, false)).toBe(false);
+    }
+  });
+
+  it("returns TRUE for 2p-free cosmetics in 2P mode (all cosmetics unlocked)", () => {
+    // In 2P-local mode, ALL cosmetics are available to both players
+    // regardless of progression.
     const profile = profileWith([], 1);
     const twoFree = COSMETICS.find((c) => c.source.kind === "2p-free");
     if (twoFree) {
-      expect(isCosmeticAvailable(profile, twoFree.id, false)).toBe(true);
       expect(isCosmeticAvailable(profile, twoFree.id, true)).toBe(true);
+    }
+  });
+
+  it("returns FALSE for level-gated cosmetics in 1P mode when level too low", () => {
+    const profile = profileWith([], 1);
+    const freeLvl5 = COSMETICS.find(
+      (c) => c.source.kind === "free" && c.source.unlockLevel === 5,
+    );
+    if (freeLvl5) {
+      expect(isCosmeticAvailable(profile, freeLvl5.id, false)).toBe(false);
+    }
+  });
+
+  it("returns TRUE for level-gated cosmetics in 2P mode even when level too low", () => {
+    // 2P mode: progression doesn't matter — everything is unlocked.
+    const profile = profileWith([], 1);
+    const freeLvl5 = COSMETICS.find(
+      (c) => c.source.kind === "free" && c.source.unlockLevel === 5,
+    );
+    if (freeLvl5) {
+      expect(isCosmeticAvailable(profile, freeLvl5.id, true)).toBe(true);
     }
   });
 

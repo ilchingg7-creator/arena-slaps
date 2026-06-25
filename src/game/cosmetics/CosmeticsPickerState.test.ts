@@ -60,14 +60,14 @@ describe("buildPickerModel — color category", () => {
     expect(gold!.lockReason).toBeUndefined();
   });
 
-  it("marks 2p-free colors as AVAILABLE in 1P mode (Issue 5)", () => {
-    // Issue 5 fix: 2p-free cosmetics are now available to everyone,
-    // not just in 2P mode.
+  it("marks 2p-free colors as LOCKED in 1P mode (progression-gated)", () => {
+    // Issue 5 correct fix: in 1P mode, 2p-free cosmetics are NOT
+    // available. They're 2P-exclusive bonus cosmetics.
     const profile = profileWith({}, 10);
     const model = buildPickerModel(profile, "color", false, "p1");
     const azure = model.cells.find((c) => c.def.id === "color-2p-azure");
     expect(azure).toBeDefined();
-    expect(azure!.available).toBe(true);
+    expect(azure!.available).toBe(false);
   });
 
   it("marks 2p-free colors as available in 2P mode", () => {
