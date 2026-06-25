@@ -63,16 +63,16 @@ describe("moveActor — anti-camp penalty integration", () => {
     expect(last.x).toBe(260); // full speed within grace
   });
 
-  it("applies REDUCED speed for a fresh actor PAST grace of battleStartAt (Bug 5)", () => {
-    // Camper never slapped, but battleStartAt + grace + 2s has elapsed.
+  it("applies FULL speed for a fresh actor regardless of battleStartAt (no penalty)", () => {
+    // Fresh actors (lastSlapAt = -Infinity) are NEVER slowed, even if
+    // battleStartAt is far in the past. This prevents the slow-start
+    // bug when the player sat in the menu for a long time.
     const battleStartAt = 1000;
     const actor = mockActor({ lastSlapAt: Number.NEGATIVE_INFINITY });
-    const now = battleStartAt + INACTIVITY_GRACE_MS + 2000;
-    moveActor(actor, unitDirection(), now, battleStartAt);
+    moveActor(actor, unitDirection(), 100_000, battleStartAt);
     const calls = (actor as unknown as { __velocityCalls: Array<{ x: number; y: number }> }).__velocityCalls;
     const last = calls[calls.length - 1];
-    expect(last.x).toBeLessThan(260);
-    expect(last.x).toBeGreaterThan(260 * 0.4);
+    expect(last.x).toBe(260); // full speed — no penalty
   });
 
   it("applies full speed immediately after a successful slap", () => {

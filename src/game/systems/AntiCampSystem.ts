@@ -87,25 +87,15 @@ export function getSpeedPenaltyMultiplier(
   now: number,
   battleStartAt = 0,
 ): number {
-  // Issue 2 fix: the first 5 seconds of the round are ALWAYS full speed,
-  // regardless of whether the actor has slapped or not. This gives both
-  // players a guaranteed grace period from the battle's start to engage
-  // without feeling sluggish. After that, the reference point switches
-  // to the last successful slap (or battleStartAt for fresh actors).
-  const timeSinceBattleStart = now - battleStartAt;
-  if (timeSinceBattleStart <= INACTIVITY_GRACE_MS) {
+  // Fresh actors (never slapped) — no penalty. Anti-camp activates ONLY
+  // after the first successful slap + subsequent inactivity. This avoids
+  // any dependency on battleStartAt (which was unreliable when Phaser
+  // reuses scene instances and the clock doesn't reset).
+  if (actor.lastSlapAt === Number.NEGATIVE_INFINITY) {
     return 1.0;
   }
 
-  // Bug 5 fix: fresh actors (never slapped) fall back to battleStartAt
-  // as the reference point. This prevents a camper from avoiding the
-  // penalty by simply never engaging.
-  const referenceTime =
-    actor.lastSlapAt === Number.NEGATIVE_INFINITY
-      ? battleStartAt
-      : actor.lastSlapAt;
-
-  const elapsed = now - referenceTime;
+  const elapsed = now - actor.lastSlapAt;
 
   // Within the grace window after the last slap — full speed.
   if (elapsed <= INACTIVITY_GRACE_MS) {
@@ -139,15 +129,10 @@ export function isSlowed(
   now: number,
   battleStartAt = 0,
 ): boolean {
-  // Issue 2 fix: the first 5 seconds of the round are never slowed.
-  const timeSinceBattleStart = now - battleStartAt;
-  if (timeSinceBattleStart <= INACTIVITY_GRACE_MS) {
+  // Fresh actors — never slowed.
+  if (actor.lastSlapAt === Number.NEGATIVE_INFINITY) {
     return false;
   }
-  const referenceTime =
-    actor.lastSlapAt === Number.NEGATIVE_INFINITY
-      ? battleStartAt
-      : actor.lastSlapAt;
-  const elapsed = now - referenceTime;
+  const elapsed = now - actor.lastSlapAt;
   return elapsed > INACTIVITY_GRACE_MS;
 }

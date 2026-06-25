@@ -40,46 +40,14 @@ function mockActor(
 }
 
 describe("AntiCampSystem — getSpeedPenaltyMultiplier", () => {
-  it("returns 1.0 for a fresh actor WITHIN grace of battleStartAt (Bug 5 fix)", () => {
-    // Bug 5: previously fresh actors (lastSlapAt = -Infinity) were
-    // exempt from anti-camp, allowing a camper to never engage and
-    // never be slowed. Fix: when lastSlapAt is -Infinity, fall back to
-    // battleStartAt as the reference point. The grace window starts
-    // from the battle's beginning.
-    const battleStartAt = 1000;
+  it("returns 1.0 for a fresh actor (never slapped) — no penalty", () => {
+    // Fresh actors (lastSlapAt = -Infinity) are NEVER slowed. Anti-camp
+    // activates only after the first successful slap + subsequent
+    // inactivity. This avoids dependency on battleStartAt which was
+    // unreliable when Phaser reuses scene instances.
     const actor = mockActor({ lastSlapAt: Number.NEGATIVE_INFINITY });
-    // Within grace (battleStartAt + 5000 = 6000; now = 5000 < 6000).
-    expect(getSpeedPenaltyMultiplier(actor, 5000, battleStartAt)).toBe(1.0);
-  });
-
-  it("returns < 1.0 for a fresh actor PAST grace of battleStartAt (Bug 5 fix)", () => {
-    // The camper never slapped, but 6 seconds into the battle the grace
-    // window (5s) has elapsed — they should start being slowed.
-    const battleStartAt = 1000;
-    const actor = mockActor({ lastSlapAt: Number.NEGATIVE_INFINITY });
-    const now = battleStartAt + INACTIVITY_GRACE_MS + 1000; // 1s past grace
-    const mult = getSpeedPenaltyMultiplier(actor, now, battleStartAt);
-    expect(mult).toBeLessThan(1.0);
-    expect(mult).toBeGreaterThan(INACTIVITY_MIN_MULTIPLIER);
-  });
-
-  it("returns INACTIVITY_MIN_MULTIPLIER for a fresh actor long past battleStartAt", () => {
-    const battleStartAt = 1000;
-    const actor = mockActor({ lastSlapAt: Number.NEGATIVE_INFINITY });
-    const now = battleStartAt + INACTIVITY_GRACE_MS + INACTIVITY_RAMP_MS + 5000;
-    expect(getSpeedPenaltyMultiplier(actor, now, battleStartAt)).toBe(
-      INACTIVITY_MIN_MULTIPLIER,
-    );
-  });
-
-  it("falls back to battleStartAt=0 (no penalty) when omitted — back-compat", () => {
-    // When the caller doesn't pass battleStartAt, the function should
-    // treat a fresh actor as having battleStartAt = 0. If `now` is also
-    // small, no penalty. This keeps the old call sites working until
-    // they're updated.
-    const actor = mockActor({ lastSlapAt: Number.NEGATIVE_INFINITY });
-    // now = 1000, battleStartAt defaults to 0 → elapsed = 1000 < grace.
-    expect(getSpeedPenaltyMultiplier(actor, 1000)).toBe(1.0);
+    expect(getSpeedPenaltyMultiplier(actor, 100_000)).toBe(1.0);
+    expect(getSpeedPenaltyMultiplier(actor, 100_000, 99_000)).toBe(1.0);
   });
 
   it("returns 1.0 immediately after a successful slap (penalty reset)", () => {
@@ -152,24 +120,13 @@ describe("AntiCampSystem — getSpeedPenaltyMultiplier", () => {
 });
 
 describe("AntiCampSystem — isSlowed", () => {
-  it("returns false for a fresh actor WITHIN grace of battleStartAt (Bug 5)", () => {
-    // Bug 5: fresh actors now use battleStartAt. Within grace → not slowed.
-    const battleStartAt = 1000;
+  it("returns false for a fresh actor (never slapped) — no penalty", () => {
     const actor = mockActor({ lastSlapAt: Number.NEGATIVE_INFINITY });
-    expect(isSlowed(actor, battleStartAt + 1000, battleStartAt)).toBe(false);
-  });
-
-  it("returns true for a fresh actor PAST grace of battleStartAt (Bug 5)", () => {
-    // Camper never slapped, but battleStartAt + grace + 1s elapsed.
-    const battleStartAt = 1000;
-    const actor = mockActor({ lastSlapAt: Number.NEGATIVE_INFINITY });
-    const now = battleStartAt + INACTIVITY_GRACE_MS + 1000;
-    expect(isSlowed(actor, now, battleStartAt)).toBe(true);
+    expect(isSlowed(actor, 100_000)).toBe(false);
+    expect(isSlowed(actor, 100_000, 99_000)).toBe(false);
   });
 
   it("returns false for a fresh actor when battleStartAt is omitted (back-compat)", () => {
-    // Without battleStartAt, fresh actors default to battleStartAt=0.
-    // If now is also small, no penalty. This keeps old call sites working.
     const actor = mockActor({ lastSlapAt: Number.NEGATIVE_INFINITY });
     expect(isSlowed(actor, 1000)).toBe(false);
   });
