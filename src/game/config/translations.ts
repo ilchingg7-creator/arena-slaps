@@ -157,17 +157,17 @@ export const TRANSLATIONS = {
   "mode.2p-local": { ru: "2И локально", en: "2P Local" },
 
   // --- Maps ---
-  "map.default": { ru: "Базовая арена", en: "Default Arena" },
+  "map.default": { ru: "Базовая", en: "Default" },
   "map.default.desc": { ru: "Классическая арена для начинающих", en: "Classic arena for beginners" },
-  "map.neon": { ru: "Неоновая арена", en: "Neon Arena" },
+  "map.neon": { ru: "Неон", en: "Neon" },
   "map.neon.desc": { ru: "Яркие неоновые огни", en: "Bright neon lights" },
-  "map.cosmic": { ru: "Космическая арена", en: "Cosmic Arena" },
+  "map.cosmic": { ru: "Космос", en: "Cosmic" },
   "map.cosmic.desc": { ru: "Среди звёзд и туманностей", en: "Among stars and nebulae" },
-  "map.volcano": { ru: "Вулканическая арена", en: "Volcano Arena" },
+  "map.volcano": { ru: "Вулкан", en: "Volcano" },
   "map.volcano.desc": { ru: "У жерла вулкана", en: "At the volcano's mouth" },
-  "map.ice": { ru: "Ледяная арена", en: "Ice Arena" },
+  "map.ice": { ru: "Лёд", en: "Ice" },
   "map.ice.desc": { ru: "Скользкий лёд и мороз", en: "Slippery ice and frost" },
-  "map.grass": { ru: "Травяная арена", en: "Grass Arena" },
+  "map.grass": { ru: "Трава", en: "Grass" },
   "map.grass.desc": { ru: "Зелёные просторы", en: "Green fields" },
 
   // --- Achievements ---

@@ -296,7 +296,7 @@ describe("BotAI", () => {
     const player = mockActor(50, 0);
     const ai = createBotAI("medium");
     ai.lastSlapAttemptAt = 900;
-    // Medium interval = 500ms, so at 1000ms only 100ms has passed -> false
+    // Medium interval = 700ms, so at 1000ms only 100ms has passed -> false
     expect(shouldBotSlap(bot, player, ai, 1000)).toBe(false);
   });
 
@@ -305,8 +305,8 @@ describe("BotAI", () => {
     const player = mockActor(50, 0);
     const ai = createBotAI("medium");
     ai.lastSlapAttemptAt = 0;
-    expect(shouldBotSlap(bot, player, ai, 600)).toBe(true);
-    expect(ai.lastSlapAttemptAt).toBe(600);
+    expect(shouldBotSlap(bot, player, ai, 800)).toBe(true);
+    expect(ai.lastSlapAttemptAt).toBe(800);
   });
 
   it("shouldBotSlap returns false when the player is shielded (Fix E)", () => {
