@@ -1,12 +1,65 @@
 # Arena Slaps — Status
 
-**Version:** v1.6.0
-**Last updated:** 2026-06-25
-**Build:** `4.55s` · **Tests:** `976/976 passed (56 files)` · **tsc:** clean · **Bundle:** `361 KB gzip`
+**Version:** v1.7.0
+**Last updated:** 2026-06-26
+**Build:** `5.09s` · **Tests:** `1015/1015 passed (60 files)` · **tsc:** clean · **Bundle:** `364 KB gzip`
 
 ---
 
 ## Recent work (latest first)
+
+### v1.7.0 — Cloud save + In-App Purchases (2026-06-26)
+
+Two major platform features added in this release:
+
+**Cloud Save (Yandex Player Data):**
+- `CloudSaveService` — loads cloud data on init, merges with local using
+  `lastPlayedAt` timestamp comparison (newer wins). Handles corrupt data,
+  network errors, and empty cloud gracefully.
+- `saveProfile` / `saveSettings` now trigger a **debounced (3s) cloud
+  write** via dynamic import — no changes to any scene.
+- `CloudSaveService.flush()` on tab hide + `beforeunload` — pending
+  writes are pushed before the tab closes.
+- Dev mode: cloud operations are no-ops, localStorage works as before.
+- Cross-device: play on device A → open on B → cloud wins → progress
+  synced. Play offline on B → open online → local wins → push to cloud.
+
+**In-App Purchases (Yandex IAP):**
+- `YandexSDK` extended with `getPayments()`, `iapGetCatalog()`,
+  `iapPurchase()`, `iapGetPurchases()` — all with graceful dev fallback.
+- `IAPService` — `init()` restores purchases from Yandex →
+  `profile.cosmetics.owned`. `purchase()` calls Yandex dialog → adds
+  cosmetics → `saveProfile`. `isPurchased()` / `getCatalog()` for UI.
+- `IAPManifest` — 27 products: 21 individual cosmetics (19 ₽ each) +
+  5 category packs (29-49 ₽) + 1 Everything Bundle (149 ₽).
+- **21 paid cosmetics** added to `CosmeticsManifest`:
+  - 6 headwear: wizard, pirate, space, ninja, viking, tophat
+  - 4 trails: fire, rainbow, galaxy, poison
+  - 4 slap FX: explosion, confetti, skull, heart
+  - 4 outlines: gold, rainbow, neon-pink, neon-green
+  - 3 titles: titan, legend+, patrician
+- **14 new PNG assets** generated via `scripts/generate_premium_sprites.py`
+- **ShopScene** — full-screen shop with two sections (Individual Items +
+  Discount Packs), buy buttons, restore purchases, dev mode notice.
+- **MainMenuScene** — 6th button "Магазин" (warning variant) added.
+- `IAPService.init()` in `main.ts` after `CloudSaveService.init()` —
+  restores purchases before the game starts.
+
+**Also in this version:**
+- P2 cosmetics now applied in battle (registry → profile merge fix).
+- `CosmeticsScene` default category changed from "color" (removed) to
+  "outline". Back button text fixed.
+- Removed dead `battleStartAt` from anti-camp API (parameter + comments).
+- Cleaned up `CosmeticCategory` / `EquippedCosmetics` types (removed
+  `color` + `powerUpSkin`).
+- `CosmeticCategory` now: outline, trail, slapFx, title, headwear.
+- 50 → 64 sprite definitions (14 premium assets registered).
+
+**Commits:** `9aa2573`, `85c52f4`, `610ee60`, `73e9cbb`
+**Tests:** 976 → 1015 (+39)
+**Scenes:** 9 → 11 (+CosmeticsScene was already there, +ShopScene)
+
+---
 
 ### v1.6.0 — Cosmetics overhaul + anti-camp stabilization (2026-06-25)
 
@@ -359,20 +412,21 @@ Three integration bugs surfaced by QA:
 
 ## Architecture
 
-### Scenes (10 total, registered in `gameConfig.ts`)
+### Scenes (11 total, registered in `gameConfig.ts`)
 
 | # | Scene | Role |
 |---|---|---|
 | 1 | `BootScene` | Initial setup, hands off to Preload |
 | 2 | `PreloadScene` | Asset loading, "Loading..." text, emits `ready` |
-| 3 | `MainMenuScene` | Title + 5 navigation buttons |
+| 3 | `MainMenuScene` | Title + 6 navigation buttons (incl. Shop) |
 | 4 | `BattleSetupScene` | Mode selection, nickname resolution, "Внешний вид" button, dynamic-imports BattleScene + ResultsScene |
 | 5 | `AudioSettingsScene` | Volume sliders for SFX + Music, mute toggles |
 | 6 | `ProfileScene` | Player nickname, stats, win rate, favorite mode/power-up |
 | 7 | `ProgressionScene` | Level + XP bar + unlocks grid |
 | 8 | `AchievementsScene` | 18-achievement grid (6×3), unlocked count |
-| 9 | `CosmeticsScene` | 7-category cosmetic picker (P1/P2 toggle in 2P) |
-| 10 | `BattleScene` (lazy) + `ResultsScene` (lazy) | Code-split via dynamic import |
+| 9 | `CosmeticsScene` | 5-category cosmetic picker (P1/P2 toggle in 2P) |
+| 10 | `ShopScene` | IAP shop — 21 items + 6 packs, buy/restore |
+| 11 | `BattleScene` (lazy) + `ResultsScene` (lazy) | Code-split via dynamic import |
 
 ### Key systems
 
@@ -426,7 +480,7 @@ Three integration bugs surfaced by QA:
 
 ## Test coverage
 
-- **976 tests** across **56 test files**.
+- **1015 tests** across **60 test files**.
 - **TDD methodology** — every bugfix and feature goes RED → GREEN:
   - RED: write failing tests that pin the desired behavior.
   - GREEN: implement the minimum code to make tests pass.
@@ -507,18 +561,21 @@ arena-slaps/
   customization is desired in the future, it would require
   reskinned PNGs per color (not tinting) or a vector-based sprite
   system.
-- **Cosmetics: power-up skin removed** — the `powerUpSkin` category
-  was removed (both entries had no visual effect). Re-adding it
-  requires implementing actual reskinned PNGs in PowerUpSystem.
-- **Cosmetics: paid pack reserved** — the `paid` source type is
-  declared in `CosmeticsManifest` but no paid cosmetics are shipped
-  yet. Yandex IAP integration (getProducts / purchase / getPurchases)
-  is the next major milestone for monetization.
+- **IAP: products must be registered in Yandex Developer Console** —
+  the 27 product IDs in `IAPManifest.ts` must be manually registered
+  in the Yandex Developer Console (developer.yandex.ru) with matching
+  IDs, prices, descriptions (RU/EN), and icons. Until registered,
+  `iapGetCatalog()` returns [] and purchases will fail. This is a
+  manual step outside the codebase.
+- **IAP: no server-side verification** — purchases are verified
+  client-side only (via Yandex SDK's signed purchase tokens). For
+  production, server-side verification is recommended but not
+  required for MVP.
 - **Anti-camp: campers who never slap aren't slowed** — fresh actors
   (lastSlapAt = -Infinity) are always full speed. This was a
   deliberate trade-off: depending on `battleStartAt` caused worse UX
   (slow start after long menu idle due to Phaser scene reuse). A
   camper who never engages isn't a real threat anyway.
-- **Vite chunk-size warning** — the main bundle is 1.55 MB (361 KB
+- **Vite chunk-size warning** — the main bundle is 1.6 MB (364 KB
   gzip). Could be reduced via manual chunk splitting or by moving
   more scenes to dynamic imports.
