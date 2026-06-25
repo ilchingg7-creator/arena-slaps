@@ -72,12 +72,15 @@ describe("progression", () => {
   });
 
   it("getAllUnlocksUpTo(4) returns 4 unlocks", () => {
+    // Variant B layout: levels 1-4 unlock bot-easy, bot-medium,
+    // arena-neon (NOT arena-default — that's always available via
+    // mapManifest.unlockKey=null), bot-hard.
     const unlocks = getAllUnlocksUpTo(4);
     expect(unlocks).toHaveLength(4);
     expect(unlocks.map((u) => u.key)).toEqual([
       "bot-easy",
       "bot-medium",
-      "arena-default",
+      "arena-neon",
       "bot-hard",
     ]);
   });
@@ -94,10 +97,89 @@ describe("progression", () => {
     expect(isUnlocked(unlocks, "nonexistent")).toBe(false);
   });
 
-  it("Level 10 unlocks all-maps + gives legend title", () => {
-    const def = getLevelDefinition(10);
-    expect(def.unlocks.some((u) => u.key === "all-maps")).toBe(true);
-    expect(def.reward).toEqual({ type: "title", key: "legend" });
+  // --- RED: Variant B — fix fake + redundant map unlocks ---
+  describe("Variant B: honest map progression", () => {
+    it("Level 3 unlocks arena-neon (NOT arena-default — that's always available)", () => {
+      const def = getLevelDefinition(3);
+      expect(def.unlocks.some((u) => u.key === "arena-neon")).toBe(true);
+      expect(def.unlocks.some((u) => u.key === "arena-default")).toBe(false);
+    });
+
+    it("Level 5 unlocks arena-cosmic (was neon in old layout)", () => {
+      const def = getLevelDefinition(5);
+      expect(def.unlocks.some((u) => u.key === "arena-cosmic")).toBe(true);
+    });
+
+    it("Level 6 unlocks arena-volcano (was cosmic in old layout)", () => {
+      const def = getLevelDefinition(6);
+      expect(def.unlocks.some((u) => u.key === "arena-volcano")).toBe(true);
+    });
+
+    it("Level 7 unlocks arena-ice (was volcano in old layout)", () => {
+      const def = getLevelDefinition(7);
+      expect(def.unlocks.some((u) => u.key === "arena-ice")).toBe(true);
+    });
+
+    it("Level 8 unlocks arena-grass (was ice in old layout)", () => {
+      const def = getLevelDefinition(8);
+      expect(def.unlocks.some((u) => u.key === "arena-grass")).toBe(true);
+    });
+
+    it("Level 9 gives the veteran title (was grass + no reward in old layout)", () => {
+      const def = getLevelDefinition(9);
+      expect(def.unlocks).toHaveLength(0);
+      expect(def.reward).toEqual({ type: "title", key: "veteran" });
+    });
+
+    it("Level 10 gives only the legend title (NOT all-maps — redundant)", () => {
+      const def = getLevelDefinition(10);
+      // all-maps removed: by level 8 all 5 non-default maps are already
+      // unlocked individually, so a "master key" makes no sense.
+      expect(def.unlocks.some((u) => u.key === "all-maps")).toBe(false);
+      expect(def.unlocks).toHaveLength(0);
+      expect(def.reward).toEqual({ type: "title", key: "legend" });
+    });
+
+    it("arena-default is NOT in any level's unlocks (always available via mapManifest)", () => {
+      // The arena-default map has unlockKey=null in mapManifest.ts, so
+      // it's available from level 1 without needing a progression unlock.
+      // Listing it as a level-3 unlock was misleading — players saw
+      // "opened: arena-default" but the map was already selectable.
+      for (const def of LEVELS) {
+        expect(def.unlocks.some((u) => u.key === "arena-default")).toBe(false);
+      }
+    });
+
+    it("all-maps is NOT in any level's unlocks (redundant master key)", () => {
+      for (const def of LEVELS) {
+        expect(def.unlocks.some((u) => u.key === "all-maps")).toBe(false);
+      }
+    });
+
+    it("each of the 5 non-default maps unlocks exactly once across all levels", () => {
+      const expectedMaps = [
+        "arena-neon",
+        "arena-cosmic",
+        "arena-volcano",
+        "arena-ice",
+        "arena-grass",
+      ];
+      for (const mapKey of expectedMaps) {
+        const occurrences = LEVELS.filter((def) =>
+          def.unlocks.some((u) => u.key === mapKey),
+        ).length;
+        expect(occurrences, `${mapKey} should unlock exactly once`).toBe(1);
+      }
+    });
+
+    it("levels 3-8 unlock one new map each (the 5 non-default maps)", () => {
+      // Verify the spread: levels 3, 5, 6, 7, 8 each have exactly one
+      // map unlock (level 4 has a bot, not a map).
+      const mapUnlockLevels = LEVELS.filter(
+        (def) => def.unlocks.some((u) => u.type === "map"),
+      ).map((def) => def.level);
+      expect(mapUnlockLevels).toEqual([3, 5, 6, 7, 8]);
+    });
   });
 
   it("Each level has at least one unlock or a reward", () => {

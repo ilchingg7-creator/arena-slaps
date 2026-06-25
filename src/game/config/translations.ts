@@ -45,6 +45,7 @@ export const TRANSLATIONS = {
   "unlock.title-fighter": { ru: "Титул: Боец", en: "Title: Fighter" },
   "unlock.title-master": { ru: "Титул: Мастер", en: "Title: Master" },
   "unlock.title-champion": { ru: "Титул: Чемпион", en: "Title: Champion" },
+  "unlock.title-veteran": { ru: "Титул: Ветеран", en: "Title: Veteran" },
   "unlock.title-legend": { ru: "Титул: Легенда", en: "Title: Legend" },
 
   // --- BattleSetup ---

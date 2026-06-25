@@ -35,17 +35,39 @@ export const XP_REWARDS = {
   powerUpCollected: 10,
 } as const;
 
+/**
+ * Variant B layout — fixes two design issues from the old table:
+ *
+ *   1. Level 3 used to "unlock" arena-default, but that map has
+ *      `unlockKey: null` in mapManifest.ts (always available). The
+ *      "unlock" was therefore fake — players saw the notification but
+ *      the map was already selectable from level 1.
+ *
+ *   2. Level 10 used to "unlock" all-maps (a master key that bypasses
+ *      every map's individual unlockKey). By level 9 in the old layout
+ *      all 5 non-default maps were already unlocked individually, so
+ *      the master key was redundant — it unlocked nothing new.
+ *
+ * Variant B fixes both:
+ *   - arena-default removed from LEVELS entirely (always available).
+ *   - The 5 non-default maps shift DOWN by one level: levels 3, 5, 6,
+ *     7, 8 (was 5, 6, 7, 8, 9).
+ *   - Level 9 gets a NEW reward — the "veteran" title — so it's not
+ *     empty after the map-shift.
+ *   - Level 10 keeps the "legend" title but loses the redundant
+ *     all-maps unlock.
+ */
 export const LEVELS: readonly LevelDefinition[] = [
   { level: 1,  xpRequired: 0,    unlocks: [{ type: "bot", key: "bot-easy" }], reward: null },
   { level: 2,  xpRequired: 100,  unlocks: [{ type: "bot", key: "bot-medium" }], reward: { type: "title", key: "rookie" } },
-  { level: 3,  xpRequired: 300,  unlocks: [{ type: "map", key: "arena-default" }], reward: null },
+  { level: 3,  xpRequired: 300,  unlocks: [{ type: "map", key: "arena-neon" }], reward: null },
   { level: 4,  xpRequired: 600,  unlocks: [{ type: "bot", key: "bot-hard" }], reward: { type: "title", key: "fighter" } },
-  { level: 5,  xpRequired: 1000, unlocks: [{ type: "map", key: "arena-neon" }], reward: null },
-  { level: 6,  xpRequired: 1500, unlocks: [{ type: "map", key: "arena-cosmic" }], reward: { type: "title", key: "master" } },
-  { level: 7,  xpRequired: 2200, unlocks: [{ type: "map", key: "arena-volcano" }], reward: null },
-  { level: 8,  xpRequired: 3000, unlocks: [{ type: "map", key: "arena-ice" }], reward: { type: "title", key: "champion" } },
-  { level: 9,  xpRequired: 4000, unlocks: [{ type: "map", key: "arena-grass" }], reward: null },
-  { level: 10, xpRequired: 5500, unlocks: [{ type: "map", key: "all-maps" }], reward: { type: "title", key: "legend" } },
+  { level: 5,  xpRequired: 1000, unlocks: [{ type: "map", key: "arena-cosmic" }], reward: null },
+  { level: 6,  xpRequired: 1500, unlocks: [{ type: "map", key: "arena-volcano" }], reward: { type: "title", key: "master" } },
+  { level: 7,  xpRequired: 2200, unlocks: [{ type: "map", key: "arena-ice" }], reward: null },
+  { level: 8,  xpRequired: 3000, unlocks: [{ type: "map", key: "arena-grass" }], reward: { type: "title", key: "champion" } },
+  { level: 9,  xpRequired: 4000, unlocks: [], reward: { type: "title", key: "veteran" } },
+  { level: 10, xpRequired: 5500, unlocks: [], reward: { type: "title", key: "legend" } },
 ];
 
 export const MAX_LEVEL = LEVELS.length;
