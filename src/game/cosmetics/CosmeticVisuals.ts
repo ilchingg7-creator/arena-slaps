@@ -92,12 +92,13 @@ export function createCosmeticVisuals(
         // disables auto-emission so particles only spawn when we call
         // emitParticleAt.
         frequency: -1,
-        lifespan: 400,
-        scale: { start: 0.6, end: 0 },
-        alpha: { start: 0.7, end: 0 },
+        lifespan: 600,
+        scale: { start: 1.0, end: 0 },
+        alpha: { start: 1.0, end: 0 },
         tint: cosmetics.trail.color,
-        speed: 0,
+        speed: { min: 0, max: 30 },
         gravityY: 0,
+        quantity: 2,
       });
     }
   }
@@ -122,8 +123,8 @@ export function createCosmeticVisuals(
     if (trailEmitter) {
       const shouldEmit = velocitySq > 100;
       if (shouldEmit) {
-        // Emit at the actor's feet (slightly below center).
-        trailEmitter.emitParticleAt(actorX, actorY + 12);
+        // Emit at the actor's feet (below the sprite, 20px down).
+        trailEmitter.emitParticleAt(actorX, actorY + 20);
       }
     }
   }
