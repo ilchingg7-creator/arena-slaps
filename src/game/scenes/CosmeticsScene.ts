@@ -45,6 +45,14 @@ export class CosmeticsScene extends Phaser.Scene {
   private i18n: I18nService | null = null;
   private audio: ReturnType<typeof getAudioService> | null = null;
   private storage: Storage | null = null;
+  /**
+   * Issue 3 fix: re-entrancy guard for refreshGrid(). When the player
+   * clicks rapidly, multiple pointerup events can fire before the
+   * previous refreshGrid() finishes destroying + re-creating objects.
+   * This causes Phaser to leak objects and stutter. The guard skips
+   * re-entry while a refresh is in progress.
+   */
+  private refreshInProgress = false;
 
   constructor() {
     super("CosmeticsScene");
@@ -229,14 +237,23 @@ export class CosmeticsScene extends Phaser.Scene {
 
   /** Destroy old grid cells + render new ones. Does NOT restart the scene. */
   private refreshGrid(): void {
-    // Destroy old grid cells.
-    for (const obj of this.gridObjects) {
-      obj.destroy();
+    // Issue 3 fix: re-entrancy guard. If a refresh is already in
+    // progress, skip this call — the in-progress refresh will pick up
+    // the latest state when it finishes.
+    if (this.refreshInProgress) return;
+    this.refreshInProgress = true;
+    try {
+      // Destroy old grid cells.
+      for (const obj of this.gridObjects) {
+        obj.destroy();
+      }
+      this.gridObjects = [];
+      this.renderGrid();
+      // Also refresh the preview to reflect any equip changes.
+      this.renderPreview();
+    } finally {
+      this.refreshInProgress = false;
     }
-    this.gridObjects = [];
-    this.renderGrid();
-    // Also refresh the preview to reflect any equip changes.
-    this.renderPreview();
   }
 
   /** Render the grid of cosmetic cells for the selected category. */

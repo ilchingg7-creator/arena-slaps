@@ -86,14 +86,16 @@ describe("CosmeticsManifest — getCosmeticsByCategory", () => {
     }
   });
 
-  it("returns at least one cosmetic for each documented category", () => {
+  it("returns at least one cosmetic for each NON-EMPTY category", () => {
+    // Issue 4 fix: powerUpSkin category is now empty (both entries
+    // removed — they had no visual effect). The remaining 6 categories
+    // must have at least one cosmetic each.
     const categories: CosmeticCategory[] = [
       "color",
       "outline",
       "trail",
       "slapFx",
       "title",
-      "powerUpSkin",
       "headwear",
     ];
     for (const cat of categories) {
@@ -252,11 +254,15 @@ describe("CosmeticsManifest — isCosmeticAvailable", () => {
     }
   });
 
-  it("returns true for 2p-free cosmetics only in 2P mode", () => {
+  it("returns true for 2p-free cosmetics in BOTH 1P and 2P modes (Issue 5)", () => {
+    // Issue 5 fix: 2p-free cosmetics are now available to everyone,
+    // not just in 2P mode. The "2p-free" source type means "always
+    // free" — these are bonus cosmetics that don't require a level
+    // unlock.
     const profile = profileWith([], 1);
     const twoFree = COSMETICS.find((c) => c.source.kind === "2p-free");
     if (twoFree) {
-      expect(isCosmeticAvailable(profile, twoFree.id, false)).toBe(false);
+      expect(isCosmeticAvailable(profile, twoFree.id, false)).toBe(true);
       expect(isCosmeticAvailable(profile, twoFree.id, true)).toBe(true);
     }
   });

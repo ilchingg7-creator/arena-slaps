@@ -163,19 +163,11 @@ describe("resolveCosmetics — title resolution", () => {
   });
 });
 
-describe("resolveCosmetics — powerUpSkin resolution", () => {
-  it("resolves powerup-skin-default to 'default'", () => {
-    const equipped: EquippedCosmetics = { powerUpSkin: "powerup-skin-default" };
-    const result = resolveCosmetics(baseInput({ equipped }));
-    expect(result.powerUpSkin).toBe("default");
-  });
-
-  it("resolves powerup-skin-rounded to 'rounded'", () => {
-    const equipped: EquippedCosmetics = { powerUpSkin: "powerup-skin-rounded" };
-    const result = resolveCosmetics(baseInput({ equipped }));
-    expect(result.powerUpSkin).toBe("rounded");
-  });
-});
+// Issue 4 fix: powerUpSkin category removed (both entries had no
+// visual effect). resolveCosmetics still returns powerUpSkin="default"
+// when no cosmetic is equipped, but there's no manifest entry to
+// resolve — so the resolveCosmetics tests for this category are
+// removed. The field stays in ResolvedCosmetics for forward-compat.
 
 describe("resolveCosmetics — headwear resolution", () => {
   it("resolves headwear-cap to its sprite + offset", () => {
@@ -204,14 +196,15 @@ describe("resolveCosmetics — headwear resolution", () => {
 });
 
 describe("resolveCosmetics — combined loadout", () => {
-  it("resolves all 7 categories at once", () => {
+  it("resolves all 6 non-empty categories at once (Issue 4)", () => {
+    // Issue 4 fix: powerUpSkin removed — combined loadout now covers
+    // the 6 remaining categories.
     const equipped: EquippedCosmetics = {
       color: "color-violet",
       outline: "outline-cyan",
       trail: "trail-sparkle",
       slapFx: "slapfx-lightning",
       title: "title-master",
-      powerUpSkin: "powerup-skin-rounded",
       headwear: "headwear-crown",
     };
     const result = resolveCosmetics(baseInput({ equipped }));
@@ -220,7 +213,6 @@ describe("resolveCosmetics — combined loadout", () => {
     expect(result.trail).toEqual({ textureKey: "trail-sparkle", color: 0xffffff });
     expect(result.slapFx).toBe("slapfx-lightning");
     expect(result.title).toBe("master");
-    expect(result.powerUpSkin).toBe("rounded");
     expect(result.headwear).toEqual({
       spriteKey: "headwear-crown",
       offsetY: -28,

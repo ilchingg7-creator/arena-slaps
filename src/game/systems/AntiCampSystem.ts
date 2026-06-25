@@ -87,6 +87,16 @@ export function getSpeedPenaltyMultiplier(
   now: number,
   battleStartAt = 0,
 ): number {
+  // Issue 2 fix: the first 5 seconds of the round are ALWAYS full speed,
+  // regardless of whether the actor has slapped or not. This gives both
+  // players a guaranteed grace period from the battle's start to engage
+  // without feeling sluggish. After that, the reference point switches
+  // to the last successful slap (or battleStartAt for fresh actors).
+  const timeSinceBattleStart = now - battleStartAt;
+  if (timeSinceBattleStart <= INACTIVITY_GRACE_MS) {
+    return 1.0;
+  }
+
   // Bug 5 fix: fresh actors (never slapped) fall back to battleStartAt
   // as the reference point. This prevents a camper from avoiding the
   // penalty by simply never engaging.
@@ -97,7 +107,7 @@ export function getSpeedPenaltyMultiplier(
 
   const elapsed = now - referenceTime;
 
-  // Within the grace window — full speed.
+  // Within the grace window after the last slap — full speed.
   if (elapsed <= INACTIVITY_GRACE_MS) {
     return 1.0;
   }
@@ -129,6 +139,11 @@ export function isSlowed(
   now: number,
   battleStartAt = 0,
 ): boolean {
+  // Issue 2 fix: the first 5 seconds of the round are never slowed.
+  const timeSinceBattleStart = now - battleStartAt;
+  if (timeSinceBattleStart <= INACTIVITY_GRACE_MS) {
+    return false;
+  }
   const referenceTime =
     actor.lastSlapAt === Number.NEGATIVE_INFINITY
       ? battleStartAt

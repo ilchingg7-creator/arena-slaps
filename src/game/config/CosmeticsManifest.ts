@@ -140,13 +140,10 @@ export const COSMETICS: readonly CosmeticDefinition[] = [
   },
 
   // --- Outlines (free, level-gated) ---
-  {
-    id: "outline-none",
-    category: "outline",
-    nameKey: "cosmetic.outline.none",
-    source: { kind: "free", unlockLevel: 1 },
-    effect: { value: 0xffffff },
-  },
+  // Issue 4 fix: removed "outline-none" — it was a duplicate of
+  // "outline-white" (both 0xffffff). Equipping "none" via toggle
+  // (clicking an equipped outline unequips it) achieves the same
+  // visual effect without a separate manifest entry.
   {
     id: "outline-white",
     category: "outline",
@@ -259,21 +256,12 @@ export const COSMETICS: readonly CosmeticDefinition[] = [
     effect: { key: "legend" },
   },
 
-  // --- Power-up skins (free, level-gated) ---
-  {
-    id: "powerup-skin-default",
-    category: "powerUpSkin",
-    nameKey: "cosmetic.powerupskin.default",
-    source: { kind: "free", unlockLevel: 1 },
-    effect: { skinKey: "default" },
-  },
-  {
-    id: "powerup-skin-rounded",
-    category: "powerUpSkin",
-    nameKey: "cosmetic.powerupskin.rounded",
-    source: { kind: "free", unlockLevel: 5 },
-    effect: { skinKey: "rounded" },
-  },
+  // --- Power-up skins ---
+  // Issue 4 fix: removed both powerup-skin-default and powerup-skin-rounded.
+  // Neither had any visual effect (the power-up sprites are always the
+  // same regardless of the skinKey). Re-adding this category requires
+  // implementing actual reskinned PNGs in PowerUpSystem. For now the
+  // category is empty — getCosmeticsByCategory("powerUpSkin") returns [].
 
   // --- Headwear (free, level-gated) ---
   {
@@ -387,9 +375,13 @@ export function getOwnedCosmetics(
  *   - Else, returns true when:
  *       - The cosmetic is in `profile.cosmetics.owned` (purchased or
  *         otherwise explicitly granted), OR
- *       - The cosmetic is `free` AND its unlockLevel <= profile.level.
+ *       - The cosmetic is `free` AND its unlockLevel <= profile.level, OR
+ *       - The cosmetic is `2p-free` (always available to everyone —
+ *         Issue 5 fix: previously these were only available in 2P mode,
+ *         but that left P1 unable to equip them. Now 2p-free cosmetics
+ *         are treated as "always free for everyone" in both 1P and 2P
+ *         modes).
  *   - Returns false for paid cosmetics not in `owned` (when not 2P).
- *   - Returns false for 2p-free cosmetics when not in 2P mode.
  *   - Returns false for unknown ids.
  */
 export function isCosmeticAvailable(
@@ -409,12 +401,19 @@ export function isCosmeticAvailable(
   // Owned cosmetics (purchased or granted) are always available.
   if (profile.cosmetics?.owned?.includes(cosmeticId)) return true;
 
+  // Issue 5 fix: 2p-free cosmetics are available to EVERYONE, not just
+  // in 2P mode. The "2p-free" source type now means "always free" —
+  // these are bonus cosmetics that don't require a level unlock.
+  if (def.source.kind === "2p-free") {
+    return true;
+  }
+
   // Free cosmetics gated by level.
   if (def.source.kind === "free") {
     const requiredLevel = def.source.unlockLevel ?? 1;
     return (profile.level ?? 1) >= requiredLevel;
   }
 
-  // Paid (not in owned) and 2p-free (not in 2P mode) → unavailable.
+  // Paid (not in owned) → unavailable.
   return false;
 }

@@ -60,12 +60,14 @@ describe("buildPickerModel — color category", () => {
     expect(gold!.lockReason).toBeUndefined();
   });
 
-  it("marks 2p-free colors as locked in 1P mode", () => {
+  it("marks 2p-free colors as AVAILABLE in 1P mode (Issue 5)", () => {
+    // Issue 5 fix: 2p-free cosmetics are now available to everyone,
+    // not just in 2P mode.
     const profile = profileWith({}, 10);
     const model = buildPickerModel(profile, "color", false, "p1");
     const azure = model.cells.find((c) => c.def.id === "color-2p-azure");
     expect(azure).toBeDefined();
-    expect(azure!.available).toBe(false);
+    expect(azure!.available).toBe(true);
   });
 
   it("marks 2p-free colors as available in 2P mode", () => {
@@ -173,8 +175,9 @@ describe("equipCosmetic — immutability", () => {
   });
 });
 
-describe("buildPickerModel — all 7 categories", () => {
-  it("returns non-empty cell arrays for every documented category", () => {
+describe("buildPickerModel — all 6 non-empty categories", () => {
+  it("returns non-empty cell arrays for every NON-EMPTY category", () => {
+    // Issue 4 fix: powerUpSkin category is now empty.
     const profile = profileWith({}, 10);
     const categories = [
       "color",
@@ -182,7 +185,6 @@ describe("buildPickerModel — all 7 categories", () => {
       "trail",
       "slapFx",
       "title",
-      "powerUpSkin",
       "headwear",
     ] as const;
     for (const cat of categories) {

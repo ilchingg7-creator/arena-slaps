@@ -76,11 +76,11 @@ export const battleConfig = {
    */
   antiCamp: {
     /** Grace period (ms) after the last successful slap — full speed. */
-    graceMs: 8000,
+    graceMs: 5000,
     /** Linear ramp duration (ms) from full speed down to minMultiplier. */
-    rampMs: 5000,
-    /** Floor multiplier — the slowest an actor can be slowed to (0.5 = 50%). */
-    minMultiplier: 0.5,
+    rampMs: 4000,
+    /** Floor multiplier — the slowest an actor can be slowed to (0.4 = 40%). */
+    minMultiplier: 0.4,
   },
   player: {
     color: 0x3d405b,
