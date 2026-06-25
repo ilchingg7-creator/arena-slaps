@@ -198,4 +198,79 @@ describe("gameSettings", () => {
     expect(loaded.sfxVolume).toBe(0.5);
     expect(loaded.musicVolume).toBe(0.25);
   });
+
+  // --- Bug 9: validate mode + botDifficulty against option lists ---
+  describe("Bug 9: settings migration validates mode + botDifficulty", () => {
+    it("falls back to default mode when stored value is unknown (corrupt save)", () => {
+      const storage = {
+        getItem: () => JSON.stringify({ mode: "nonexistent-mode" }),
+        setItem: () => {
+          /* noop */
+        },
+      };
+      const loaded = loadSettings(storage);
+      // Unknown mode → fall back to DEFAULT_SETTINGS.mode ("1p-vs-bot").
+      expect(loaded.mode).toBe("1p-vs-bot");
+    });
+
+    it("falls back to default botDifficulty when stored value is unknown", () => {
+      const storage = {
+        getItem: () => JSON.stringify({ botDifficulty: "god" }),
+        setItem: () => {
+          /* noop */
+        },
+      };
+      const loaded = loadSettings(storage);
+      // Unknown difficulty → fall back to DEFAULT_SETTINGS.botDifficulty.
+      expect(loaded.botDifficulty).toBe("medium");
+    });
+
+    it("accepts a valid mode from the save", () => {
+      const storage = {
+        getItem: () => JSON.stringify({ mode: "2p-local" }),
+        setItem: () => {
+          /* noop */
+        },
+      };
+      const loaded = loadSettings(storage);
+      expect(loaded.mode).toBe("2p-local");
+    });
+
+    it("accepts a valid botDifficulty from the save", () => {
+      const storage = {
+        getItem: () => JSON.stringify({ botDifficulty: "hard" }),
+        setItem: () => {
+          /* noop */
+        },
+      };
+      const loaded = loadSettings(storage);
+      expect(loaded.botDifficulty).toBe("hard");
+    });
+
+    it("accepts all 3 valid botDifficulty values", () => {
+      for (const diff of ["easy", "medium", "hard"] as const) {
+        const storage = {
+          getItem: () => JSON.stringify({ botDifficulty: diff }),
+          setItem: () => {
+            /* noop */
+          },
+        };
+        const loaded = loadSettings(storage);
+        expect(loaded.botDifficulty).toBe(diff);
+      }
+    });
+
+    it("accepts all 2 valid mode values", () => {
+      for (const mode of ["1p-vs-bot", "2p-local"] as const) {
+        const storage = {
+          getItem: () => JSON.stringify({ mode }),
+          setItem: () => {
+            /* noop */
+          },
+        };
+        const loaded = loadSettings(storage);
+        expect(loaded.mode).toBe(mode);
+      }
+    });
+  });
 });

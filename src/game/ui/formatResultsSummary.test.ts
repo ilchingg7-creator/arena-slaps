@@ -13,6 +13,7 @@ function makeBattleEnd(
       leveledUp: false,
       newLevel: 1,
       newUnlocks: [],
+      reward: null,
     },
     newlyUnlocked: [],
     xpDoubled: false,
@@ -56,6 +57,7 @@ describe("formatResultsSummary", () => {
           level: 3,
         },
         levelUp: {
+        reward: null,
           leveledUp: true,
           newLevel: 3,
           newUnlocks: [{ type: "bot", key: "bot-hard" }],
@@ -73,6 +75,7 @@ describe("formatResultsSummary", () => {
     const lines = formatResultsSummary({
       battleEnd: makeBattleEnd({
         levelUp: {
+        reward: null,
           leveledUp: true,
           newLevel: 2,
           newUnlocks: [],
@@ -144,6 +147,7 @@ describe("formatResultsSummary", () => {
           level: 2,
         },
         levelUp: {
+        reward: null,
           leveledUp: true,
           newLevel: 2,
           newUnlocks: [{ type: "map", key: "arena-neon" }],
@@ -265,6 +269,7 @@ describe("formatResultsSummary", () => {
         "unlock.title-fighter": "Title: Fighter",
         "unlock.title-master": "Title: Master",
         "unlock.title-champion": "Title: Champion",
+        "unlock.title-veteran": "Title: Veteran",
         "unlock.title-legend": "Title: Legend",
       };
       return map[key] ?? fallback;
@@ -274,6 +279,7 @@ describe("formatResultsSummary", () => {
       const lines = formatResultsSummary({
         battleEnd: makeBattleEnd({
           levelUp: {
+        reward: null,
             leveledUp: true,
             newLevel: 3,
             newUnlocks: [{ type: "bot", key: "bot-medium" }],
@@ -292,6 +298,7 @@ describe("formatResultsSummary", () => {
       const lines = formatResultsSummary({
         battleEnd: makeBattleEnd({
           levelUp: {
+        reward: null,
             leveledUp: true,
             newLevel: 2,
             newUnlocks: [{ type: "map", key: "arena-neon" }],
@@ -309,6 +316,7 @@ describe("formatResultsSummary", () => {
       const lines = formatResultsSummary({
         battleEnd: makeBattleEnd({
           levelUp: {
+        reward: null,
             leveledUp: true,
             newLevel: 5,
             newUnlocks: [{ type: "title", key: "title-master" }],
@@ -326,6 +334,7 @@ describe("formatResultsSummary", () => {
       const lines = formatResultsSummary({
         battleEnd: makeBattleEnd({
           levelUp: {
+        reward: null,
             leveledUp: true,
             newLevel: 4,
             newUnlocks: [
@@ -355,6 +364,7 @@ describe("formatResultsSummary", () => {
       const lines = formatResultsSummary({
         battleEnd: makeBattleEnd({
           levelUp: {
+        reward: null,
             leveledUp: true,
             newLevel: 2,
             newUnlocks: [{ type: "bot", key: "bot-future-unknown" }],
@@ -365,6 +375,65 @@ describe("formatResultsSummary", () => {
       const levelUpLine = lines.find((l) => l.startsWith("Level up!"));
       expect(levelUpLine).toBeDefined();
       expect(levelUpLine).toContain("bot-future-unknown");
+    });
+
+    // --- Bug 7: title reward display ---
+    it("includes the title reward in the level-up line (Bug 7)", () => {
+      // Bug 7: the level reward (e.g. veteran title at level 9) was
+      // missing from BattleEndOutput.levelUp, so ResultsScene couldn't
+      // show "Title: Veteran unlocked". Now formatResultsSummary
+      // appends the reward name to the level-up line.
+      const lines = formatResultsSummary({
+        battleEnd: makeBattleEnd({
+          levelUp: {
+        reward: { type: "title", key: "veteran" },
+            leveledUp: true,
+            newLevel: 9,
+            newUnlocks: [],
+          },
+        }),
+        t: translatingT,
+      });
+      const levelUpLine = lines.find((l) => l.startsWith("Level up!"));
+      expect(levelUpLine).toBeDefined();
+      expect(levelUpLine).toContain("9");
+      expect(levelUpLine).toContain("Title: Veteran");
+    });
+
+    it("includes BOTH unlock keys AND title reward when both are present (Bug 7)", () => {
+      const lines = formatResultsSummary({
+        battleEnd: makeBattleEnd({
+          levelUp: {
+        reward: { type: "title", key: "master" },
+            leveledUp: true,
+            newLevel: 6,
+            newUnlocks: [{ type: "map", key: "arena-volcano" }],
+          },
+        }),
+        t: translatingT,
+      });
+      const levelUpLine = lines.find((l) => l.startsWith("Level up!"));
+      expect(levelUpLine).toBeDefined();
+      expect(levelUpLine).toContain("Map: Volcano");
+      expect(levelUpLine).toContain("Title: Master");
+    });
+
+    it("does NOT show reward when reward is null", () => {
+      const lines = formatResultsSummary({
+        battleEnd: makeBattleEnd({
+          levelUp: {
+        reward: null,
+            leveledUp: true,
+            newLevel: 3,
+            newUnlocks: [{ type: "map", key: "arena-neon" }],
+          },
+        }),
+        t: translatingT,
+      });
+      const levelUpLine = lines.find((l) => l.startsWith("Level up!"));
+      expect(levelUpLine).toBeDefined();
+      expect(levelUpLine).toContain("Map: Neon");
+      expect(levelUpLine).not.toContain("Title:");
     });
   });
 });

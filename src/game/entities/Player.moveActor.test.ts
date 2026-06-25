@@ -52,14 +52,27 @@ function unitDirection() {
 }
 
 describe("moveActor — anti-camp penalty integration", () => {
-  it("applies full speed when the actor has never slapped (fresh actor)", () => {
+  it("applies full speed for a fresh actor WITHIN grace of battleStartAt (Bug 5)", () => {
+    // Bug 5 fix: fresh actors (lastSlapAt = -Infinity) now use
+    // battleStartAt as the reference. Within grace → full speed.
+    const battleStartAt = 1000;
     const actor = mockActor({ lastSlapAt: Number.NEGATIVE_INFINITY });
-    moveActor(actor, unitDirection(), 10_000);
+    moveActor(actor, unitDirection(), battleStartAt + 1000, battleStartAt);
     const calls = (actor as unknown as { __velocityCalls: Array<{ x: number; y: number }> }).__velocityCalls;
-    // Last call should be (260, 0) — full moveSpeed, no penalty.
     const last = calls[calls.length - 1];
-    expect(last.x).toBe(260);
-    expect(last.y).toBe(0);
+    expect(last.x).toBe(260); // full speed within grace
+  });
+
+  it("applies REDUCED speed for a fresh actor PAST grace of battleStartAt (Bug 5)", () => {
+    // Camper never slapped, but battleStartAt + grace + 2s has elapsed.
+    const battleStartAt = 1000;
+    const actor = mockActor({ lastSlapAt: Number.NEGATIVE_INFINITY });
+    const now = battleStartAt + INACTIVITY_GRACE_MS + 2000;
+    moveActor(actor, unitDirection(), now, battleStartAt);
+    const calls = (actor as unknown as { __velocityCalls: Array<{ x: number; y: number }> }).__velocityCalls;
+    const last = calls[calls.length - 1];
+    expect(last.x).toBeLessThan(260);
+    expect(last.x).toBeGreaterThan(260 * 0.4);
   });
 
   it("applies full speed immediately after a successful slap", () => {

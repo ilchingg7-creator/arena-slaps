@@ -14,6 +14,7 @@ function makeBattleEnd(
       leveledUp: false,
       newLevel: 1,
       newUnlocks: [],
+      reward: null,
     },
     newlyUnlocked: [],
     xpDoubled: false,

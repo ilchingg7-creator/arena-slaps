@@ -70,7 +70,6 @@ import { DEFAULT_MAP_KEY, getMapByKey } from "../config/mapManifest";
 import { resolveP1Cosmetics, resolveP2Cosmetics, type ResolvedCosmetics } from "../cosmetics/resolveCosmetics";
 import {
   createCosmeticVisuals,
-  applyOutline,
   applyTitleToLabel,
   type CosmeticVisuals,
 } from "../cosmetics/CosmeticVisuals";
@@ -228,6 +227,18 @@ type BattleRuntime = {
    * Opponent's resolved cosmetics (only set in 2P-local mode).
    */
   opponentCosmetics: ResolvedCosmetics | null;
+  /**
+   * P1 slap helper — wraps applySlap + audio + cosmetic slapFx. Shared
+   * between the pointerdown handler (in create()) and the keyboard
+   * JustDown handler (in update()) so both paths play the slap FX.
+   * Bug 4 fix: previously the keyboard path duplicated the applySlap
+   * call without the slapFx, so cosmetic FX only fired on tap.
+   */
+  slapP1: () => void;
+  /**
+   * P2 slap helper — same as slapP1 but for the opponent (2P-local).
+   */
+  slapP2: () => void;
 };
 
 /**
@@ -670,6 +681,11 @@ export class BattleScene extends Phaser.Scene {
       x: arena.left + 160,
       y: arena.centerY,
     });
+    // Bug 2 fix: apply the cosmetic color as a BASE tint on the visible
+    // AnimatedSprite (not just the invisible physics rectangle). The
+    // base tint is overruled by effect tints (power-ups) via
+    // setEffectTint, and re-applied when the effect clears.
+    playerAnim.setBaseTint(p1Cosmetics.color);
     // Hide the physics rectangle — keep alpha at 0 so the physics body
     // still works but only the AnimatedSprite is visible.
     player.sprite.setAlpha(0);
@@ -719,6 +735,12 @@ export class BattleScene extends Phaser.Scene {
       x: arena.right - 160,
       y: arena.centerY,
     });
+    // Bug 2 fix: apply P2's cosmetic color as base tint in 2P-local mode.
+    // Bots don't equip cosmetics — they keep their default orange tint.
+    if (settings.mode === "2p-local" && opponent.kind === "player2") {
+      const oppCosmetics = resolveP2Cosmetics(profile, battleConfig.bot.color);
+      opponentAnim.setBaseTint(oppCosmetics.color);
+    }
     opponentSprite.setAlpha(0);
 
     this.physics.add.collider(player.sprite, opponentSprite);
@@ -882,28 +904,33 @@ export class BattleScene extends Phaser.Scene {
       opponentCosmeticVisuals: null,
       p1Cosmetics: null,
       opponentCosmetics: null,
+      slapP1: () => void 0,
+      slapP2: () => void 0,
     };
 
-    // --- Create cosmetic visuals (headwear + trail + slapFx) ---
+    // --- Create cosmetic visuals (headwear + trail + slapFx + outline) ---
     // P1's visuals are always created (cosmetics may be empty → null).
+    // Bug 3 fix: outline is now managed INSIDE CosmeticVisuals so its
+    // position is updated every frame (was previously a static rect
+    // that got left behind when the actor moved).
     this.runtime.p1Cosmetics = p1Cosmetics;
-    this.runtime.p1CosmeticVisuals = createCosmeticVisuals(this, p1Cosmetics);
-    // Apply outline if equipped.
-    if (p1Cosmetics.outline !== null) {
-      applyOutline(this, player.sprite, p1Cosmetics.outline, battleConfig.player.size);
-    }
-    // Apply title to the P1 HUD label (set later in create() when the
-    // label is built — we cache the resolved cosmetics here so the label
-    // builder can read p1Cosmetics.title).
+    this.runtime.p1CosmeticVisuals = createCosmeticVisuals(
+      this,
+      p1Cosmetics,
+      player.sprite,
+      battleConfig.player.size,
+    );
 
     // Opponent visuals — only in 2P-local mode (bots don't equip cosmetics).
     if (settings.mode === "2p-local" && opponent.kind === "player2") {
       const oppCosmetics = resolveP2Cosmetics(profile, battleConfig.bot.color);
       this.runtime.opponentCosmetics = oppCosmetics;
-      this.runtime.opponentCosmeticVisuals = createCosmeticVisuals(this, oppCosmetics);
-      if (oppCosmetics.outline !== null) {
-        applyOutline(this, opponent.player.sprite, oppCosmetics.outline, battleConfig.player.size);
-      }
+      this.runtime.opponentCosmeticVisuals = createCosmeticVisuals(
+        this,
+        oppCosmetics,
+        opponent.player.sprite,
+        battleConfig.player.size,
+      );
     }
 
     const controlsHint =
@@ -981,6 +1008,12 @@ export class BattleScene extends Phaser.Scene {
         rt.audio.playSlapMiss();
       }
     };
+
+    // Bug 4 fix: stash the slap helpers in runtime so update()'s
+    // keyboard JustDown handler can call the SAME helper (with audio +
+    // cosmetic slapFx) instead of duplicating the applySlap call.
+    this.runtime.slapP1 = slapP1;
+    this.runtime.slapP2 = slapP2;
 
     // Touch controls removed — the on-screen buttons (LEFT/UP/DOWN/RIGHT/
     // SLAP) were visually inconsistent with the game's neon style and
@@ -1306,7 +1339,7 @@ export class BattleScene extends Phaser.Scene {
       !isKnockedBack(runtime.player, now) &&
       !isFrozen(runtime.player, now)
     ) {
-      moveActor(runtime.player, getDirection(runtime), now);
+      moveActor(runtime.player, getDirection(runtime), now, runtime.battleStartAt);
     }
 
     // --- Opponent logic ---
@@ -1331,6 +1364,7 @@ export class BattleScene extends Phaser.Scene {
           runtime.opponent.bot,
           new Phaser.Math.Vector2(dir.x, dir.y),
           this.time.now,
+          runtime.battleStartAt,
         );
       }
 
@@ -1347,39 +1381,25 @@ export class BattleScene extends Phaser.Scene {
           runtime.opponent.player,
           getP2Direction(runtime),
           this.time.now,
+          runtime.battleStartAt,
         );
       }
 
+      // Bug 4 fix: use the slapP2 helper (defined above) instead of
+      // duplicating the applySlap + audio + slapFx logic here.
       if (Phaser.Input.Keyboard.JustDown(runtime.slapKeyP2) && !isFrozen(runtime.opponent.player, this.time.now)) {
-        const hit = applySlap(
-          runtime.opponent.player,
-          runtime.player,
-          this.time.now,
-        );
-        if (hit) {
-          runtime.audio.playSlapHit();
-        } else {
-          runtime.audio.playSlapMiss();
-        }
+        runtime.slapP2();
       }
     }
 
     // --- Player 1 slap ---
-    // C2: frozen actors cannot slap. The freeze power-up was previously
-    // checked before `moveActor` but NOT before the three slap paths, so a
-    // frozen P1 could still slap. The `isFrozen` gate here (and the matching
-    // gates on P2 + `applyBotSlap`) make freeze block ALL actions.
+    // Bug 4 fix: use the slapP1 helper (defined above) instead of
+    // duplicating the applySlap + audio + slapFx logic here. The helper
+    // already handles audio + cosmetic slapFx; the only thing we need
+    // to gate here is the keyboard JustDown + frozen check (the helper
+    // itself is mode-agnostic and is also called from pointerdown).
     if (Phaser.Input.Keyboard.JustDown(runtime.slapKeyP1) && !isFrozen(runtime.player, this.time.now)) {
-      const hit = applySlap(
-        runtime.player,
-        opponentActor,
-        this.time.now,
-      );
-      if (hit) {
-        runtime.audio.playSlapHit();
-      } else {
-        runtime.audio.playSlapMiss();
-      }
+      runtime.slapP1();
     }
 
     // --- Combo timeout tick (Task 2ac) ---
@@ -1651,7 +1671,7 @@ export class BattleScene extends Phaser.Scene {
     // owns the sprite's position (camera shake + fall + drift).
     // State + tint are still updated so the "fall" texture shows.
     const playerState = getActorAnimationState(runtime.player, now);
-    const playerTint = getActorEffectTint(runtime.player, now);
+    const playerTint = getActorEffectTint(runtime.player, now, runtime.battleStartAt);
     runtime.playerAnim.setState(playerState);
     runtime.playerAnim.setEffectTint(playerTint);
     if (!this.ringOutFxInProgress.player) {
@@ -1664,7 +1684,7 @@ export class BattleScene extends Phaser.Scene {
     // Opponent: same pattern.
     const opponentActorState = this.opponentActor();
     const opponentState = getActorAnimationState(opponentActorState, now);
-    const opponentTint = getActorEffectTint(opponentActorState, now);
+    const opponentTint = getActorEffectTint(opponentActorState, now, runtime.battleStartAt);
     runtime.opponentAnim.setState(opponentState);
     runtime.opponentAnim.setEffectTint(opponentTint);
     if (!this.ringOutFxInProgress.opponent) {

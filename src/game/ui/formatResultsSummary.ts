@@ -72,9 +72,24 @@ export function formatResultsSummary(input: FormatResultsInput): string[] {
     const unlockNames = battleEnd.levelUp.newUnlocks
       .map((u) => t(`unlock.${u.key}`, u.key))
       .join(", ");
-    if (unlockNames) {
+
+    // Bug 7 fix: also include the title reward (e.g. "Title: Veteran")
+    // when the level grants one. The reward is separate from newUnlocks
+    // because titles are granted via the `reward` field in LevelDefinition,
+    // not via the `unlocks` array.
+    const reward = battleEnd.levelUp.reward;
+    const rewardName = reward
+      ? t(`unlock.title-${reward.key}`, `title-${reward.key}`)
+      : "";
+
+    const parts: string[] = [];
+    if (unlockNames) parts.push(unlockNames);
+    if (rewardName) parts.push(rewardName);
+    const combined = parts.join(", ");
+
+    if (combined) {
       lines.push(
-        `${t("results.levelUp", "Level up!")} → ${battleEnd.levelUp.newLevel} (${t("results.newUnlocks", "new")}: ${unlockNames})`,
+        `${t("results.levelUp", "Level up!")} → ${battleEnd.levelUp.newLevel} (${t("results.newUnlocks", "new")}: ${combined})`,
       );
     } else {
       lines.push(

@@ -62,6 +62,21 @@ export type AnimatedSprite = {
   setState: (state: AnimationState) => void;
   /** Get the current animation state. */
   getState: () => AnimationState;
+  /**
+   * Apply a BASE tint to the sprite (e.g. the player's cosmetic color).
+   * This tint is OVERWRITTEN by setEffectTint when a power-up effect
+   * is active — effect tints take priority. When the effect tint is
+   * cleared (null), the base tint is re-applied. Pass null to clear
+   * the base tint (sprite shows its natural PNG colors).
+   *
+   * Bug 2 fix: previously the cosmetic color was only applied to the
+   * invisible physics rectangle, not to the visible AnimatedSprite.
+   * This method lets the scene apply the cosmetic color as a base
+   * tint so the player actually sees their chosen color.
+   */
+  setBaseTint: (tint: number | null) => void;
+  /** Get the current base tint (or null if none is applied). */
+  getBaseTint: () => number | null;
   /** Apply a tint overlay for a power-up effect. Pass null to clear. */
   setEffectTint: (tint: number | null) => void;
   /** Get the current effect tint (or null if none is applied). */
@@ -96,6 +111,11 @@ export function createAnimatedSprite(
 
   let currentState: AnimationState = "idle";
   let currentTint: number | null = null;
+  // Bug 2 fix: base tint holds the cosmetic color. When effect tint is
+  // null (no power-up active), the base tint is applied so the player
+  // sees their chosen cosmetic color. When effect tint is non-null, it
+  // overrides the base tint.
+  let baseTint: number | null = null;
 
   const setState = (state: AnimationState): void => {
     if (state === currentState) {
@@ -109,6 +129,21 @@ export function createAnimatedSprite(
 
   const getState = (): AnimationState => currentState;
 
+  const setBaseTint = (tint: number | null): void => {
+    baseTint = tint;
+    // If no effect tint is active, apply the base tint immediately.
+    // Otherwise the effect tint stays in effect until cleared.
+    if (currentTint === null) {
+      if (baseTint === null) {
+        gameObject.clearTint();
+      } else {
+        gameObject.setTint(baseTint);
+      }
+    }
+  };
+
+  const getBaseTint = (): number | null => baseTint;
+
   const setEffectTint = (tint: number | null): void => {
     if (tint === currentTint) {
       // No-op when the tint hasn't changed — avoids redundant tint
@@ -116,7 +151,12 @@ export function createAnimatedSprite(
       return;
     }
     if (tint === null) {
-      gameObject.clearTint();
+      // Effect tint cleared — fall back to base tint (Bug 2 fix).
+      if (baseTint === null) {
+        gameObject.clearTint();
+      } else {
+        gameObject.setTint(baseTint);
+      }
     } else {
       gameObject.setTint(tint);
     }
@@ -142,6 +182,8 @@ export function createAnimatedSprite(
     gameObject,
     setState,
     getState,
+    setBaseTint,
+    getBaseTint,
     setEffectTint,
     getEffectTint,
     setPosition,

@@ -174,6 +174,7 @@ export function getActorAnimationState(
 export function getActorEffectTint(
   actor: ActorState,
   now: number,
+  battleStartAt = 0,
 ): number | null {
   // 1. Frozen (highest priority).
   if (isFrozen(actor, now)) {
@@ -209,7 +210,7 @@ export function getActorEffectTint(
   }
 
   // 7. Slowed (AntiCampSystem penalty — lowest priority).
-  if (isSlowed(actor, now)) {
+  if (isSlowed(actor, now, battleStartAt)) {
     return EFFECT_TINTS.slowed;
   }
 

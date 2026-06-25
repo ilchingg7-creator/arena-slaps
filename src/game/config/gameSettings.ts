@@ -69,10 +69,21 @@ function migrateSettings(parsed: Record<string, unknown>): GameSettings {
   const legacy = parsed as unknown as LegacySettings;
 
   // Non-audio settings always come through directly.
-  if (typeof parsed.mode === "string") {
+  // Bug 9 fix: validate mode + botDifficulty against the option lists
+  // instead of blindly casting. A corrupt or old save could have an
+  // unknown value (e.g. mode="abc" or botDifficulty="god") which would
+  // break MODE_KEYS / DIFFICULTY_KEYS lookups downstream. Unknown
+  // values fall back to the defaults.
+  if (
+    typeof parsed.mode === "string" &&
+    (MODE_OPTIONS as readonly string[]).includes(parsed.mode)
+  ) {
     base.mode = parsed.mode as GameMode;
   }
-  if (typeof parsed.botDifficulty === "string") {
+  if (
+    typeof parsed.botDifficulty === "string" &&
+    (BOT_DIFFICULTY_OPTIONS as readonly string[]).includes(parsed.botDifficulty)
+  ) {
     base.botDifficulty = parsed.botDifficulty as BotDifficulty;
   }
   if (typeof parsed.roundLengthSeconds === "number") {

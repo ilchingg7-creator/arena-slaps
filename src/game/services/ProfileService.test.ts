@@ -135,6 +135,84 @@ describe("ProfileService", () => {
     expect(service.getFavoriteMode()).toBe("1p-vs-bot");
   });
 
+  // --- Bug 8: favoriteMode must use accurate mode counts ---
+  describe("Bug 8: accurate mode counts from p2GamesPlayed", () => {
+    it("does NOT attribute all prior games to favoriteMode when loading an existing profile", () => {
+      // Bug 8: previously the constructor did
+      //   modeCounts[profile.favoriteMode] = profile.totalGames
+      // which meant ALL prior games were counted as the favorite mode.
+      // If a player had 10 games (5 in 1P, 5 in 2P) with favoriteMode
+      // = "1p-vs-bot", the constructor would say 10 × 1P + 0 × 2P,
+      // losing the 2P history.
+      //
+      // Fix: derive from p2GamesPlayed. 2P count = p2GamesPlayed,
+      // 1P count = totalGames - p2GamesPlayed.
+      const profile = {
+        ...DEFAULT_PROFILE,
+        powerUpStats: {},
+        totalGames: 10,
+        p2GamesPlayed: 4,
+        favoriteMode: "1p-vs-bot" as const,
+      };
+      const service = new ProfileService(profile);
+      // 1P = 10 - 4 = 6, 2P = 4. favoriteMode should be "1p-vs-bot" (6 > 4).
+      expect(service.getFavoriteMode()).toBe("1p-vs-bot");
+      // Record one more 2P game → 2P = 5, 1P = 6. Still 1P.
+      service.recordGameResult(win({ mode: "2p-local" }));
+      expect(service.getFavoriteMode()).toBe("1p-vs-bot");
+      // Record another 2P → 2P = 6, 1P = 6. Tie → keeps current favorite.
+      service.recordGameResult(win({ mode: "2p-local" }));
+      expect(service.getFavoriteMode()).toBe("1p-vs-bot");
+      // Record another 2P → 2P = 7, 1P = 6. Now 2P wins.
+      service.recordGameResult(win({ mode: "2p-local" }));
+      expect(service.getFavoriteMode()).toBe("2p-local");
+    });
+
+    it("handles a profile with p2GamesPlayed > totalGames (defensive — corrupt save)", () => {
+      // p2GamesPlayed should never exceed totalGames, but a corrupt save
+      // could have it. The constructor clamps p2Count to totalGames so
+      // 1P count doesn't go negative.
+      const profile = {
+        ...DEFAULT_PROFILE,
+        powerUpStats: {},
+        totalGames: 5,
+        p2GamesPlayed: 99, // corrupt
+        favoriteMode: "1p-vs-bot" as const,
+      };
+      const service = new ProfileService(profile);
+      // 2P clamped to 5, 1P = 0. favoriteMode = "2p-local" (5 > 0).
+      expect(service.getFavoriteMode()).toBe("2p-local");
+    });
+
+    it("preserves accurate counts across save/load cycle", () => {
+      // Simulate: play 3 1P + 2 2P games, save profile, reload, play
+      // 1 more 2P game. favoriteMode should reflect 3 × 1P + 3 × 2P
+      // = tie → keeps current favorite.
+      const profile1 = {
+        ...DEFAULT_PROFILE,
+        powerUpStats: {},
+        totalGames: 5,
+        p2GamesPlayed: 2,
+        favoriteMode: "1p-vs-bot" as const,
+      };
+      const service1 = new ProfileService(profile1);
+      service1.recordGameResult(win({ mode: "2p-local" }));
+      const saved = service1.getProfile();
+      // saved: totalGames=6, p2GamesPlayed=3, favoriteMode still "1p-vs-bot" (3=3 tie).
+      expect(saved.totalGames).toBe(6);
+      expect(saved.p2GamesPlayed).toBe(3);
+      expect(saved.favoriteMode).toBe("1p-vs-bot");
+
+      // Reload from saved profile.
+      const service2 = new ProfileService(saved);
+      expect(service2.getFavoriteMode()).toBe("1p-vs-bot");
+      // The counts should be 3 × 1P + 3 × 2P, NOT 6 × 1P + 0 × 2P.
+      // Play 1 more 2P → 3 × 1P + 4 × 2P → 2P wins.
+      service2.recordGameResult(win({ mode: "2p-local" }));
+      expect(service2.getFavoriteMode()).toBe("2p-local");
+    });
+  });
+
   it("getProfile returns a copy (mutating returned object doesn't affect service)", () => {
     const service = makeDefaultService();
     const p1 = service.getProfile();

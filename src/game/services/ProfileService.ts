@@ -56,8 +56,25 @@ export class ProfileService {
       achievements: [...profile.achievements],
     };
     this.modeCounts = { "1p-vs-bot": 0, "2p-local": 0 };
+    // Bug 8 fix: derive mode counts from p2GamesPlayed instead of
+    // attributing ALL prior games to favoriteMode. p2GamesPlayed is
+    // tracked accurately by recordGameResult (incremented on every
+    // 2P-local game), so:
+    //   2p-local count = p2GamesPlayed
+    //   1p-vs-bot count = totalGames - p2GamesPlayed
+    // This gives the correct breakdown even for profiles created before
+    // this fix landed (p2GamesPlayed defaults to 0 in DEFAULT_PROFILE,
+    // so old 1P-only profiles attribute everything to 1p-vs-bot, which
+    // was always the case anyway).
     if (this.profile.totalGames > 0) {
-      this.modeCounts[this.profile.favoriteMode] = this.profile.totalGames;
+      const p2Count = Math.min(this.profile.p2GamesPlayed, this.profile.totalGames);
+      this.modeCounts["2p-local"] = p2Count;
+      this.modeCounts["1p-vs-bot"] = this.profile.totalGames - p2Count;
+      // Recompute favoriteMode in case the stored value is stale (e.g.
+      // a corrupt save had favoriteMode="1p-vs-bot" but all games were
+      // actually 2P). This makes getFavoriteMode() honest from the
+      // constructor onward.
+      this.profile.favoriteMode = this.computeFavoriteMode();
     }
   }
 

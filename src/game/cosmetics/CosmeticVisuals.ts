@@ -18,7 +18,7 @@ import type Phaser from "phaser";
 import type { ResolvedCosmetics } from "../cosmetics/resolveCosmetics";
 
 export type CosmeticVisuals = {
-  /** Update headwear position + trail emission to track the actor. */
+  /** Update headwear + outline position + trail emission to track the actor. */
   update: (actorX: number, actorY: number, velocitySq: number) => void;
   /** Play the slap FX burst at the given coordinates. */
   playSlapFx: (x: number, y: number) => void;
@@ -28,19 +28,41 @@ export type CosmeticVisuals = {
 
 /**
  * Create the cosmetic visuals for an actor. Returns null when no visual
- * cosmetics are equipped (no headwear, no trail, no slapFx) — the caller
- * can skip the per-frame update() call in that case.
+ * cosmetics are equipped (no headwear, no trail, no slapFx, no outline) —
+ * the caller can skip the per-frame update() call in that case.
  */
 export function createCosmeticVisuals(
   scene: Phaser.Scene,
   cosmetics: ResolvedCosmetics,
+  actorSprite: Phaser.GameObjects.Rectangle,
+  actorSize: number,
 ): CosmeticVisuals | null {
   const hasHeadwear = cosmetics.headwear !== null;
   const hasTrail = cosmetics.trail !== null;
   const hasSlapFx = cosmetics.slapFx !== null;
+  const hasOutline = cosmetics.outline !== null;
 
-  if (!hasHeadwear && !hasTrail && !hasSlapFx) {
+  if (!hasHeadwear && !hasTrail && !hasSlapFx && !hasOutline) {
     return null;
+  }
+
+  // --- Outline (Bug 3 fix: now tracked in update()) ---
+  // A duplicate stroke rectangle behind the actor. Updated every frame
+  // to track the actor's position so it doesn't get left behind when
+  // the actor moves.
+  let outlineRect: Phaser.GameObjects.Rectangle | null = null;
+  if (hasOutline && cosmetics.outline !== null) {
+    outlineRect = scene.add
+      .rectangle(
+        actorSprite.x,
+        actorSprite.y,
+        actorSize + 8,
+        actorSize + 8,
+        0x000000,
+        0,
+      )
+      .setStrokeStyle(3, cosmetics.outline, 1)
+      .setDepth(-1);
   }
 
   // --- Headwear overlay ---
@@ -94,6 +116,10 @@ export function createCosmeticVisuals(
   // tween on each call. The image auto-destroys when the tween completes.
 
   function update(actorX: number, actorY: number, velocitySq: number): void {
+    // Update outline position (Bug 3 fix — was previously static).
+    if (outlineRect) {
+      outlineRect.setPosition(actorX, actorY);
+    }
     // Update headwear position.
     if (headwearImage) {
       headwearImage.setPosition(actorX, actorY + headwearOffsetY);
@@ -135,6 +161,8 @@ export function createCosmeticVisuals(
   }
 
   function destroy(): void {
+    outlineRect?.destroy();
+    outlineRect = null;
     headwearImage?.destroy();
     headwearImage = null;
     trailEmitter?.destroy();

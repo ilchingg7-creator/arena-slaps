@@ -44,10 +44,25 @@ export class CosmeticsScene extends Phaser.Scene {
     super("CosmeticsScene");
   }
 
-  init(data: { mode?: GameMode } | undefined): void {
+  /**
+   * Bug 1 fix: init() now reads target + selectedCategory from the
+   * data payload instead of always resetting them. This lets the scene
+   * restart preserve the player's tab/category selection. When entering
+   * from BattleSetupScene (no target/category in data), defaults to
+   * P1 + color.
+   */
+  init(
+    data:
+      | {
+          mode?: GameMode;
+          target?: "p1" | "p2";
+          selectedCategory?: CosmeticCategory;
+        }
+      | undefined,
+  ): void {
     this.is2P = data?.mode === "2p-local";
-    this.target = "p1"; // always reset to P1 on entry
-    this.selectedCategory = "color";
+    this.target = data?.target ?? "p1";
+    this.selectedCategory = data?.selectedCategory ?? "color";
   }
 
   create(): void {
@@ -60,6 +75,21 @@ export class CosmeticsScene extends Phaser.Scene {
     audio.playMenuTheme();
 
     this.profile = loadProfile(storage);
+    // Bug 6 fix: restore P2's transient cosmetics from the registry (if
+    // set earlier in this session). P2's loadout is NOT persisted to
+    // localStorage — only P1's is.
+    const p2FromRegistry = this.registry.get("p2CosmeticsEquipped") as
+      | EquippedCosmetics
+      | undefined;
+    if (p2FromRegistry) {
+      this.profile = {
+        ...this.profile,
+        cosmetics: {
+          ...this.profile.cosmetics,
+          p2Equipped: p2FromRegistry,
+        },
+      };
+    }
 
     // --- Background ---
     createBackground(this as unknown as Phaser.Scene, { key: "menu-bg" });
@@ -104,12 +134,20 @@ export class CosmeticsScene extends Phaser.Scene {
       p1Button.on("pointerup", () => {
         audio.playMenuClick();
         this.target = "p1";
-        this.scene.restart({ mode: this.is2P ? "2p-local" : "1p-vs-bot" });
+        this.scene.restart({
+          mode: this.is2P ? "2p-local" : "1p-vs-bot",
+          target: this.target,
+          selectedCategory: this.selectedCategory,
+        });
       });
       p2Button.on("pointerup", () => {
         audio.playMenuClick();
         this.target = "p2";
-        this.scene.restart({ mode: this.is2P ? "2p-local" : "1p-vs-bot" });
+        this.scene.restart({
+          mode: this.is2P ? "2p-local" : "1p-vs-bot",
+          target: this.target,
+          selectedCategory: this.selectedCategory,
+        });
       });
     }
 
@@ -142,7 +180,11 @@ export class CosmeticsScene extends Phaser.Scene {
       tab.on("pointerup", () => {
         audio.playMenuClick();
         this.selectedCategory = cat;
-        this.scene.restart({ mode: this.is2P ? "2p-local" : "1p-vs-bot" });
+        this.scene.restart({
+          mode: this.is2P ? "2p-local" : "1p-vs-bot",
+          target: this.target,
+          selectedCategory: this.selectedCategory,
+        });
       });
     });
 
@@ -309,6 +351,13 @@ export class CosmeticsScene extends Phaser.Scene {
       // Persist P1's loadout
       if (storage) saveProfile(storage, this.profile);
     } else {
+      // Bug 6 fix: P2's loadout is TRANSIENT — kept in the Phaser
+      // registry (session-only), NOT saved to localStorage. The
+      // documentation in CosmeticsManifest + profile.ts says p2Equipped
+      // is a transient slot; this now matches the implementation.
+      // P2's selection survives scene transitions within the session
+      // (registry persists across scenes) but is wiped when the game
+      // tab closes.
       this.profile = {
         ...this.profile,
         cosmetics: {
@@ -316,11 +365,14 @@ export class CosmeticsScene extends Phaser.Scene {
           p2Equipped: next,
         },
       };
-      // P2's loadout is also persisted (so it survives scene transitions
-      // within a session). resetProfileStats wipes it on a full reset.
-      if (storage) saveProfile(storage, this.profile);
+      this.registry.set("p2CosmeticsEquipped", next);
     }
-    // Re-render the grid to reflect the new equipped state.
-    this.scene.restart({ mode: this.is2P ? "2p-local" : "1p-vs-bot" });
+    // Re-render the grid to reflect the new equipped state. Pass target
+    // + category so they survive the restart (Bug 1 fix).
+    this.scene.restart({
+      mode: this.is2P ? "2p-local" : "1p-vs-bot",
+      target: this.target,
+      selectedCategory: this.selectedCategory,
+    });
   }
 }

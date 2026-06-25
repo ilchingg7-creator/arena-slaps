@@ -87,6 +87,9 @@ export function applyRewardedXp(
       leveledUp: levelUp.leveledUp,
       newLevel: levelUp.newLevel,
       newUnlocks: levelUp.newUnlocks,
+      // Bug 7 fix: include the title reward so ResultsScene can display
+      // "Title: X unlocked" after a rewarded-XP level-up too.
+      reward: levelUp.reward,
     },
     newlyUnlocked,
     xpDoubled: true,

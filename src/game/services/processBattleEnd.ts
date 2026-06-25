@@ -17,7 +17,7 @@
  */
 
 import type { GameMode, Profile } from "../config/profile";
-import type { Unlock } from "../config/progression";
+import type { LevelReward, Unlock } from "../config/progression";
 import { ProfileService, type GameResult } from "./ProfileService";
 import { ProgressionService } from "./ProgressionService";
 import {
@@ -49,6 +49,13 @@ export type BattleEndOutput = {
     leveledUp: boolean;
     newLevel: number;
     newUnlocks: readonly Unlock[];
+    /**
+     * Title reward granted at the new level (e.g. { type: "title", key: "rookie" }).
+     * null when the level has no title reward. Bug 7 fix: this was
+     * previously missing from the output, so ResultsScene couldn't show
+     * "Title: Veteran unlocked" even though the player earned it.
+     */
+    reward: LevelReward;
   };
   /**
    * Achievement ids unlocked by this battle (in manifest order). Includes
@@ -129,6 +136,7 @@ export function processBattleEnd(input: BattleEndInput): BattleEndOutput {
         leveledUp: false,
         newLevel: input.profile.level,
         newUnlocks: [],
+        reward: null,
       },
       newlyUnlocked: [...battleResult.newlyUnlocked],
       xpDoubled: false,
@@ -193,6 +201,10 @@ export function processBattleEnd(input: BattleEndInput): BattleEndOutput {
       leveledUp: levelUp.leveledUp,
       newLevel: levelUp.newLevel,
       newUnlocks: levelUp.newUnlocks,
+      // Bug 7 fix: include the title reward (e.g. veteran / legend) so
+      // ResultsScene can show "Title: Veteran unlocked" alongside the
+      // new unlocks list.
+      reward: levelUp.reward,
     },
     newlyUnlocked,
     // Fresh battle end — XP has not been doubled yet. ResultsScene flips

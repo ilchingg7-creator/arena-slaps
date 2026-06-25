@@ -61,26 +61,41 @@ export const INACTIVITY_MIN_MULTIPLIER = battleConfig.antiCamp.minMultiplier;
  * Compute the speed-penalty multiplier for `actor` at wall-clock time `now`.
  *
  * Returns a number in `[MIN_MULTIPLIER, 1.0]`:
- *   - 1.0 when the actor has never slapped, OR is within the grace
- *     window after their last slap.
+ *   - 1.0 when the actor is within the grace window after their last
+ *     slap (or after `battleStartAt` for fresh actors who haven't
+ *     slapped yet — Bug 5 fix).
  *   - Linearly interpolated between 1.0 and MIN_MULTIPLIER during the
  *     ramp window.
  *   - MIN_MULTIPLIER once the ramp has fully elapsed (clamped).
+ *
+ * **Bug 5 fix:** previously fresh actors (`lastSlapAt = -Infinity`)
+ * were exempt from anti-camp, allowing a camper to never engage and
+ * never be slowed. Now when `lastSlapAt` is `-Infinity`, the function
+ * falls back to `battleStartAt` (the wall-clock time the battle
+ * started) as the reference point. The grace window starts from the
+ * battle's beginning, so a camper who never slaps starts being slowed
+ * 5 seconds into the round.
+ *
+ * `battleStartAt` is OPTIONAL (defaults to 0) for back-compat with
+ * call sites that haven't been updated. Production callers (moveActor)
+ * should always pass it.
  *
  * Pure: does not mutate `actor`.
  */
 export function getSpeedPenaltyMultiplier(
   actor: ActorState,
   now: number,
+  battleStartAt = 0,
 ): number {
-  // Fresh actor (never slapped) — no penalty. `lastSlapAt = -Infinity`
-  // means `now - lastSlapAt` is +Infinity, but we want to treat "never
-  // slapped" specially: the actor hasn't had a chance to engage yet.
-  if (actor.lastSlapAt === Number.NEGATIVE_INFINITY) {
-    return 1.0;
-  }
+  // Bug 5 fix: fresh actors (never slapped) fall back to battleStartAt
+  // as the reference point. This prevents a camper from avoiding the
+  // penalty by simply never engaging.
+  const referenceTime =
+    actor.lastSlapAt === Number.NEGATIVE_INFINITY
+      ? battleStartAt
+      : actor.lastSlapAt;
 
-  const elapsed = now - actor.lastSlapAt;
+  const elapsed = now - referenceTime;
 
   // Within the grace window — full speed.
   if (elapsed <= INACTIVITY_GRACE_MS) {
@@ -102,14 +117,22 @@ export function getSpeedPenaltyMultiplier(
  *
  * Convenience wrapper around `getSpeedPenaltyMultiplier` for the tint
  * system — `getActorEffectTint` calls this to decide whether to apply
- * the slowed tint. Cheaper than calling `getSpeedPenaltyMultiplier` and
- * comparing to 1.0 because we can short-circuit at the grace boundary.
+ * the slowed tint.
+ *
+ * **Bug 5 fix:** like `getSpeedPenaltyMultiplier`, this now takes
+ * `battleStartAt` and treats fresh actors as having started the grace
+ * window at the battle's beginning. A camper who never slaps will be
+ * slowed after the grace window elapses.
  */
-export function isSlowed(actor: ActorState, now: number): boolean {
-  // Fresh actor — never slapped, never slowed.
-  if (actor.lastSlapAt === Number.NEGATIVE_INFINITY) {
-    return false;
-  }
-  const elapsed = now - actor.lastSlapAt;
+export function isSlowed(
+  actor: ActorState,
+  now: number,
+  battleStartAt = 0,
+): boolean {
+  const referenceTime =
+    actor.lastSlapAt === Number.NEGATIVE_INFINITY
+      ? battleStartAt
+      : actor.lastSlapAt;
+  const elapsed = now - referenceTime;
   return elapsed > INACTIVITY_GRACE_MS;
 }

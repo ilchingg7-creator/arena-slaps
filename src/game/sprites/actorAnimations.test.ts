@@ -5,6 +5,7 @@ import {
   getActorAnimationState,
   getActorEffectTint,
 } from "./actorAnimations";
+import { INACTIVITY_GRACE_MS } from "../systems/AntiCampSystem";
 
 /**
  * Permissive overrides shape for {@link mockActor}. The full ActorState has
@@ -364,9 +365,20 @@ describe("getActorEffectTint", () => {
       expect(getActorEffectTint(actor, 7000)).toBe(EFFECT_TINTS.slowed);
     });
 
-    it("returns null for a fresh actor (never slapped, never slowed)", () => {
+    it("returns null for a fresh actor WITHIN grace of battleStartAt (Bug 5)", () => {
+      // Bug 5: fresh actors now use battleStartAt. Within grace → not slowed → null tint.
+      const battleStartAt = 1000;
       const actor = mockActor({ lastSlapAt: Number.NEGATIVE_INFINITY });
-      expect(getActorEffectTint(actor, 10_000)).toBeNull();
+      expect(getActorEffectTint(actor, battleStartAt + 1000, battleStartAt)).toBeNull();
+    });
+
+    it("returns the slowed tint for a fresh actor PAST grace of battleStartAt (Bug 5)", () => {
+      const battleStartAt = 1000;
+      const actor = mockActor({ lastSlapAt: Number.NEGATIVE_INFINITY });
+      // 1s past grace → slowed tint.
+      expect(getActorEffectTint(actor, battleStartAt + INACTIVITY_GRACE_MS + 1000, battleStartAt)).toBe(
+        EFFECT_TINTS.slowed,
+      );
     });
 
     it("returns null immediately after a successful slap (within grace)", () => {
