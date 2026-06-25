@@ -289,7 +289,7 @@ export class CosmeticsScene extends Phaser.Scene {
         ? 0xf4d35e
         : isAvailable
           ? 0x2a2d44
-          : 0x555555;
+          : 0x3a3a44;
       const cell = this.add
         .rectangle(x, y, cellSize, cellSize, bgColor, 1)
         .setOrigin(0.5)
@@ -299,33 +299,39 @@ export class CosmeticsScene extends Phaser.Scene {
         );
       this.gridObjects.push(cell);
 
-      // Preview content
-      if (this.selectedCategory === "outline" && isAvailable) {
+      // Preview content — always visible (even when locked), but dimmed
+      // for locked items so the player can see what they'd get.
+      const previewAlpha = isAvailable ? 1.0 : 0.4;
+      const previewY = y - 4; // shift preview up to leave room for name
+
+      if (this.selectedCategory === "outline") {
         const outlineVal = (def.effect as { value: number }).value;
         const preview = this.add
-          .rectangle(x, y, cellSize - 16, cellSize - 16, 0x222222, 1)
+          .rectangle(x, previewY, cellSize - 16, cellSize - 20, 0x222222, 1)
           .setOrigin(0.5)
-          .setStrokeStyle(3, outlineVal);
+          .setStrokeStyle(3, outlineVal)
+          .setAlpha(previewAlpha);
         this.gridObjects.push(preview);
-      } else if (this.selectedCategory === "headwear" && isAvailable) {
-        // Show the headwear sprite as preview if texture exists.
+      } else if (this.selectedCategory === "headwear") {
         const spriteKey = (def.effect as { spriteKey: string }).spriteKey;
         if (spriteKey && this.textures.exists(spriteKey)) {
           const preview = this.add
-            .image(x, y, spriteKey)
-            .setDisplaySize(cellSize - 8, cellSize - 8)
-            .setOrigin(0.5);
+            .image(x, previewY, spriteKey)
+            .setDisplaySize(cellSize - 12, cellSize - 12)
+            .setOrigin(0.5)
+            .setAlpha(previewAlpha);
           this.gridObjects.push(preview);
         } else {
           const name = this.i18n!.t(def.nameKey as never);
           const preview = this.add
-            .text(x, y, name.slice(0, 4), {
+            .text(x, previewY, name.slice(0, 4), {
               color: "#f4f1de",
               fontFamily: "Arial",
               fontSize: "12px",
               align: "center",
             })
-            .setOrigin(0.5);
+            .setOrigin(0.5)
+            .setAlpha(previewAlpha);
           this.gridObjects.push(preview);
         }
       } else {
@@ -333,8 +339,8 @@ export class CosmeticsScene extends Phaser.Scene {
         const isNoneVariant = def.id.endsWith("-none");
         const previewText = isNoneVariant ? "—" : name.slice(0, 4);
         const preview = this.add
-          .text(x, y, previewText, {
-            color: isAvailable ? "#f4f1de" : "#888888",
+          .text(x, previewY, previewText, {
+            color: isAvailable ? "#f4f1de" : "#aaaaaa",
             fontFamily: "Arial",
             fontSize: "13px",
             align: "center",
@@ -343,23 +349,23 @@ export class CosmeticsScene extends Phaser.Scene {
         this.gridObjects.push(preview);
       }
 
-      // Lock indicator
+      // Lock indicator — top-right corner of cell, above preview
       if (!isAvailable) {
         const source = def.source;
         const lockText =
           source.kind === "free" && source.unlockLevel !== undefined
-            ? `L${source.unlockLevel}`
+            ? `🔒L${source.unlockLevel}`
             : source.kind === "2p-free"
-              ? "2P"
+              ? "🔒2P"
               : "🔒";
         const lock = this.add
-          .text(x + cellSize / 2 - 8, y - cellSize / 2 + 8, lockText, {
+          .text(x + cellSize / 2 - 2, y - cellSize / 2 + 4, lockText, {
             color: "#f4d35e",
             fontFamily: "Arial",
-            fontSize: "10px",
+            fontSize: "9px",
             fontStyle: "bold",
           })
-          .setOrigin(0.5);
+          .setOrigin(1, 0);
         this.gridObjects.push(lock);
       } else {
         // Clickable — equip on click
@@ -373,10 +379,11 @@ export class CosmeticsScene extends Phaser.Scene {
         });
       }
 
-      // Cell name below
+      // Cell name — below the cell, with enough gap so it doesn't
+      // overlap the preview content inside the cell.
       const nameLabel = this.add
-        .text(x, y + cellSize / 2 + 12, this.i18n!.t(def.nameKey as never), {
-          color: "#f4f1de",
+        .text(x, y + cellSize / 2 + 16, this.i18n!.t(def.nameKey as never), {
+          color: isAvailable ? "#f4f1de" : "#888888",
           fontFamily: "Arial",
           fontSize: "10px",
           align: "center",
