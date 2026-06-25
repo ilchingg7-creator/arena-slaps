@@ -167,6 +167,53 @@ export class ShopScene extends Phaser.Scene {
         .setStrokeStyle(1, isPurchased ? 0x81b29a : 0x444444);
       this.gridObjects.push(bg);
 
+      // Hover tooltip for packs — shows full contents on pointerover
+      if (product.isPack) {
+        bg.setInteractive({ useHandCursor: true });
+        const tooltipLines = product.cosmetics.map((cid) => {
+          const def = getCosmeticById(cid);
+          return def ? (this.i18n?.t(def.nameKey as never) ?? cid) : cid;
+        });
+        let tooltip: Phaser.GameObjects.Container | null = null;
+
+        bg.on("pointerover", () => {
+          if (tooltip) return;
+          tooltip = this.add.container(x + cellW / 2, y - 10);
+          tooltip.setDepth(100);
+
+          const lineSpacing = 16;
+          const tooltipH = tooltipLines.length * lineSpacing + 16;
+          const tooltipW = 200;
+
+          const tooltipBg = this.add.rectangle(0, -tooltipH / 2, tooltipW, tooltipH, 0x101820, 0.95)
+            .setStrokeStyle(2, 0xf4d35e, 1)
+            .setOrigin(0.5);
+          tooltip.add(tooltipBg);
+
+          tooltipLines.forEach((line, i) => {
+            const txt = this.add.text(
+              -tooltipW / 2 + 10,
+              -tooltipH + 8 + i * lineSpacing,
+              `• ${line}`,
+              { color: "#f4f1de", fontFamily: "Arial", fontSize: "12px" },
+            );
+            tooltip!.add(txt);
+          });
+
+          this.gridObjects.push(tooltip);
+        });
+
+        bg.on("pointerout", () => {
+          if (tooltip) {
+            const tip = tooltip;
+            tooltip = null;
+            tip.destroy();
+            const idx = this.gridObjects.indexOf(tip);
+            if (idx >= 0) this.gridObjects.splice(idx, 1);
+          }
+        });
+      }
+
       // Bug 2: visual preview based on cosmetic type
       const firstCosmetic = product.cosmetics[0];
       const cosmeticDef = getCosmeticById(firstCosmetic);
