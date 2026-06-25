@@ -34,21 +34,21 @@ type DifficultyParams = {
 
 const DIFFICULTY_PARAMS: Record<BotDifficulty, DifficultyParams> = {
   easy: {
-    dodgeChance: 0.4,
+    dodgeChance: 0.25,
     powerUpPriority: 0.3,
-    reactionMs: 350,
+    reactionMs: 400,
     slapIntervalMs: 800,
   },
   medium: {
-    dodgeChance: 0.75,
+    dodgeChance: 0.45,
     powerUpPriority: 0.6,
-    reactionMs: 200,
+    reactionMs: 250,
     slapIntervalMs: 500,
   },
   hard: {
-    dodgeChance: 0.95,
+    dodgeChance: 0.55,
     powerUpPriority: 0.9,
-    reactionMs: 100,
+    reactionMs: 200,
     slapIntervalMs: 450,
   },
 };
