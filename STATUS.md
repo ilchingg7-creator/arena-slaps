@@ -1,12 +1,82 @@
 # Arena Slaps — Status
 
-**Version:** v1.3.0
+**Version:** v1.5.0
 **Last updated:** 2026-06-25
-**Build:** `5.33s` · **Tests:** `840/840 passed (51 files)` · **tsc:** clean · **Bundle:** `361 KB gzip`
+**Build:** `4.80s` · **Tests:** `970/970 passed (56 files)` · **tsc:** clean · **Bundle:** `361 KB gzip`
 
 ---
 
 ## Recent work (latest first)
+
+### v1.5.0 — Cosmetic visual application + anti-camp + progression fix (2026-06-25)
+
+Three features in this release:
+
+1. **Cosmetic visual application (the big one)**
+   - All 7 cosmetic categories now render visually in BattleScene:
+     - **Color** — applied via `createPlayer(colorOverride)` (was in v1.4.0)
+     - **Outline** — duplicate stroke rectangle behind the actor
+     - **Trail** — Phaser particle emitter, emits while moving (>100 px²/s)
+     - **Slap FX** — one-shot image + scale-up/fade-out tween on hit
+     - **Title** — appended below nickname in HUD label (e.g. "Alice\nRookie")
+     - **Power-up skin** — reserved (no visual change yet)
+     - **Headwear** — overlay image (cap / crown / horns / party-hat)
+   - 8 new PNG assets generated via `scripts/generate_cosmetic_sprites.py`
+   - New `CosmeticVisuals` module manages per-actor visuals (create /
+     update / playSlapFx / destroy)
+   - Outline applied via renderer-agnostic duplicate rectangle (no
+     post-pipeline dependency — works on Canvas fallback too)
+   - Trail emitter pulses on movement, stops when idle
+   - Slap FX auto-destroys after 300ms tween
+   - All visuals destroyed on scene shutdown (no leaks)
+
+2. **Anti-camp movement penalty (v1.4.1)**
+   - Actors who haven't landed a slap in 5s start slowing down
+   - Linear ramp from 1.0x to 0.4x speed over 4s (5s-9s window)
+   - Clamped at 0.4x (never fully stopped)
+   - Resets instantly on next successful slap
+   - Stacks multiplicatively with Boost power-up
+   - Visual tint: muted blue-grey (0x6b7a8f) at lowest priority
+   - Tunable constants in `battleConfig.antiCamp`
+
+3. **Progression Variant B (v1.4.0)**
+   - Fixed fake `arena-default` unlock on level 3 (map was always available)
+   - Removed redundant `all-maps` unlock on level 10 (all maps already
+     unlocked by level 8)
+   - Shifted 5 non-default maps down: levels 3, 5, 6, 7, 8 (was 5-9)
+   - Level 9 gets new `veteran` title
+   - Each level 1-10 has at least one unlock or reward
+
+**Commits:** `06a776f`, `3ccd979`, `ae63a6e`, `b2abd72`
+**Tests:** 840 → 970 (+130)
+
+---
+
+### v1.4.0 — Cosmetics system + picker UI (2026-06-25)
+
+Full cosmetics system with 7 categories and a dedicated picker scene.
+
+- **CosmeticsManifest** — 28 cosmetics across 7 categories (color,
+  outline, trail, slapFx, title, powerUpSkin, headwear)
+- **Sources:** free (level-gated), 2p-free (2P-local only), paid
+  (reserved for future Yandex IAP)
+- **2P-local free rule:** both players can pick ANY cosmetic (including
+  paid) for free, for that session only
+- **Profile extension:** `cosmetics.{owned, equipped, p2Equipped}` with
+  migration + resetProfileStats preservation
+- **resolveCosmetics** — pure helper converting equipped ids to concrete
+  values (color hex, trail texture, headwear sprite+offsetY, etc.)
+- **CosmeticsPickerState** — pure state machine for the picker UI
+  (buildPickerModel, equipCosmetic with toggle behavior)
+- **CosmeticsScene** — full-screen picker overlay with category tabs,
+  P1/P2 target toggle, grid of cells with lock indicators
+- **BattleSetupScene** — new "Внешний вид" button opens CosmeticsScene
+- **30+ new translation keys** for cosmetics UI + per-cosmetic names
+
+**Commit:** `06a776f`
+**Tests:** 891 → 970 (+79)
+
+---
 
 ### v1.3.0 — 5 bugfixes from second code review (2026-06-25)
 
@@ -206,19 +276,20 @@ Three integration bugs surfaced by QA:
 
 ## Architecture
 
-### Scenes (9 total, registered in `gameConfig.ts`)
+### Scenes (10 total, registered in `gameConfig.ts`)
 
 | # | Scene | Role |
 |---|---|---|
 | 1 | `BootScene` | Initial setup, hands off to Preload |
-| 2 | `PreloadScene` | Asset loading, "Loading..." text |
+| 2 | `PreloadScene` | Asset loading, "Loading..." text, emits `ready` |
 | 3 | `MainMenuScene` | Title + 5 navigation buttons |
-| 4 | `BattleSetupScene` | Mode selection, nickname resolution, dynamic-imports BattleScene + ResultsScene |
+| 4 | `BattleSetupScene` | Mode selection, nickname resolution, "Внешний вид" button, dynamic-imports BattleScene + ResultsScene |
 | 5 | `AudioSettingsScene` | Volume sliders for SFX + Music, mute toggles |
 | 6 | `ProfileScene` | Player nickname, stats, win rate, favorite mode/power-up |
 | 7 | `ProgressionScene` | Level + XP bar + unlocks grid |
 | 8 | `AchievementsScene` | 18-achievement grid (6×3), unlocked count |
-| 9 | `BattleScene` (lazy) + `ResultsScene` (lazy) | Code-split via dynamic import |
+| 9 | `CosmeticsScene` | 7-category cosmetic picker (P1/P2 toggle in 2P) |
+| 10 | `BattleScene` (lazy) + `ResultsScene` (lazy) | Code-split via dynamic import |
 
 ### Key systems
 
@@ -272,12 +343,12 @@ Three integration bugs surfaced by QA:
 
 ## Test coverage
 
-- **840 tests** across **51 test files**.
+- **970 tests** across **56 test files**.
 - **TDD methodology** — every bugfix and feature goes RED → GREEN:
   - RED: write failing tests that pin the desired behavior.
   - GREEN: implement the minimum code to make tests pass.
-- Pure helpers (services, systems) are unit-tested with duck-typed
-  stubs; no Phaser runtime needed in tests.
+- Pure helpers (services, systems, cosmetics) are unit-tested with
+  duck-typed stubs; no Phaser runtime needed in tests.
 - Scene tests are smoke tests (constructor doesn't throw) — full
   integration is verified manually.
 
@@ -291,19 +362,22 @@ arena-slaps/
 ├── package.json            # Phaser 3.80, TypeScript 5.5, Vite 5.4, Vitest 2.1
 ├── vite.config.js
 ├── tsconfig.json
+├── scripts/                # Python PIL sprite generators (cosmetics, etc.)
 ├── public/
-│   └── sounds/             # .ogg SFX + music
+│   ├── sounds/             # .ogg SFX + music
+│   └── sprites/            # 48 PNG sprites (characters, effects, headwear, trails, slapFx)
 └── src/
     ├── main.ts             # YandexSDK.init, visibilitychange handler
     ├── styles.css          # overscroll-behavior, user-select, touch-action
     └── game/
-        ├── gameConfig.ts   # 9 scenes, Scale.RESIZE
+        ├── gameConfig.ts   # 10 scenes, Scale.RESIZE
         ├── audio/          # IAudioBackend, AudioService, getAudioService
-        ├── config/         # battleConfig, profile, progression, achievements, powerUpConfig, mapManifest, translations, responsive
+        ├── config/         # battleConfig, profile, progression, achievements, powerUpConfig, mapManifest, translations, responsive, CosmeticsManifest
+        ├── cosmetics/      # resolveCosmetics, CosmeticsPickerState, CosmeticVisuals (new)
         ├── entities/       # Player, Bot, PowerUp
-        ├── systems/        # CombatSystem, PowerUpSystem, DodgeSystem, RingOutFX, RoundSystem, ScoringSystem, BattleResults, BotAI, InputDirection
-        ├── services/       # ProfileService, ProgressionService, AchievementService, processBattleEnd
-        ├── scenes/         # 9 scenes (BattleScene + ResultsScene lazy-loaded)
+        ├── systems/        # CombatSystem, PowerUpSystem, DodgeSystem, AntiCampSystem, RingOutFX, RoundSystem, ScoringSystem, BattleResults, BotAI, InputDirection
+        ├── services/       # ProfileService, ProgressionService, AchievementService, processBattleEnd, applyRewardedXp
+        ├── scenes/         # 10 scenes (BattleScene + ResultsScene lazy-loaded)
         ├── sprites/        # AnimatedSprite, PowerUpSprite, actorAnimations
         ├── ui/             # StyledButton, VolumeSlider, PauseMenu, AchievementNotification, formatResultsSummary, Background, TopRightMuteButton, LanguageToggle
         ├── i18n/           # I18nService
@@ -343,7 +417,16 @@ arena-slaps/
   (`arena-default`, `arena-neon`, `arena-cosmic`, `arena-volcano`,
   `arena-ice`, `arena-grass`) and `ALL_MAPS` matches the manifest.
   Note: 5 of the 6 maps are progression-gated, so the player must
-  reach level 10 to unlock all of them.
+  reach level 8 to unlock all of them (Variant B layout).
+- **Cosmetics: power-up skin** — the `powerUpSkin` cosmetic category
+  exists in the manifest + picker but has no visual effect yet. The
+  power-up sprites are still the default style. Implementing alternate
+  skins requires either reskinned PNGs per skin or a Phaser texture
+  swap in `PowerUpSystem.createPowerUpSprite`.
+- **Cosmetics: paid pack reserved** — the `paid` source type is
+  declared in `CosmeticsManifest` but no paid cosmetics are shipped
+  yet. Yandex IAP integration (getProducts / purchase / getPurchases)
+  is the next major milestone for monetization.
 - **Vite chunk-size warning** — the main bundle is 1.55 MB (361 KB
   gzip). Could be reduced via manual chunk splitting or by moving
   more scenes to dynamic imports.
