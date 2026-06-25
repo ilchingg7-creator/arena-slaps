@@ -126,19 +126,20 @@ export class MainMenuScene extends Phaser.Scene {
       audio.playMenuClick();
       this.scene.start("AchievementsScene");
     };
+    const goShop = () => {
+      audio.playMenuClick();
+      this.scene.start("ShopScene");
+    };
     const goAudio = () => {
       audio.playMenuClick();
       this.scene.start("AudioSettingsScene");
     };
 
-    // Five buttons: Start / Profile / Progression / Achievements / Audio.
-    // Vertical positions are tuned so the whole stack fits between the
-    // tagline (~0.33) and the feedback email (~0.93) on both desktop
-    // and mobile portrait. Step = 0.115 → buttons land at 0.40, 0.515,
-    // 0.63, 0.745, 0.86 — leaves room above + below for the email line.
+    // Six buttons: Start / Profile / Progression / Achievements / Shop / Audio.
+    // Step = 0.097 → buttons at 0.38, 0.477, 0.574, 0.671, 0.768, 0.865.
     createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
       x: width / 2,
-      y: height * 0.40,
+      y: height * 0.38,
       text: i18n.t("mainmenu.start"),
       variant: "primary",
       onClick: goStart,
@@ -146,7 +147,7 @@ export class MainMenuScene extends Phaser.Scene {
 
     createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
       x: width / 2,
-      y: height * 0.515,
+      y: height * 0.477,
       text: i18n.t("mainmenu.profile"),
       variant: "secondary",
       onClick: goProfile,
@@ -154,7 +155,7 @@ export class MainMenuScene extends Phaser.Scene {
 
     createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
       x: width / 2,
-      y: height * 0.63,
+      y: height * 0.574,
       text: i18n.t("mainmenu.progression"),
       variant: "secondary",
       onClick: goProgression,
@@ -162,7 +163,7 @@ export class MainMenuScene extends Phaser.Scene {
 
     createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
       x: width / 2,
-      y: height * 0.745,
+      y: height * 0.671,
       text: i18n.t("mainmenu.achievements"),
       variant: "secondary",
       onClick: goAchievements,
@@ -170,7 +171,15 @@ export class MainMenuScene extends Phaser.Scene {
 
     createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
       x: width / 2,
-      y: height * 0.86,
+      y: height * 0.768,
+      text: i18n.t("shop.title"),
+      variant: "warning",
+      onClick: goShop,
+    });
+
+    createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
+      x: width / 2,
+      y: height * 0.865,
       text: i18n.t("mainmenu.audioSettings"),
       variant: "secondary",
       onClick: goAudio,

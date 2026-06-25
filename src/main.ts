@@ -3,6 +3,7 @@ import { createGame } from "./game/createGame";
 import { YandexSDK } from "./game/yandex/SDK";
 import { loadSettings } from "./game/config/gameSettings";
 import { CloudSaveService } from "./game/services/CloudSaveService";
+import { IAPService } from "./game/services/IAPService";
 
 const app = document.querySelector<HTMLDivElement>("#app");
 
@@ -23,13 +24,24 @@ async function main(): Promise<void> {
   // 1. Initialize Yandex SDK
   await YandexSDK.init();
 
-  // 2. Initialize CloudSaveService (if SDK is available)
+  // 2. Initialize CloudSaveService + IAPService (if SDK is available)
   const storage = typeof window !== "undefined" ? window.localStorage : null;
   if (storage && YandexSDK.isAvailable()) {
     await CloudSaveService.init(
       storage,
       (keys) => YandexSDK.playerGetData(keys),
       (data) => YandexSDK.playerSetData(data),
+    );
+
+    // Restore IAP purchases — must happen AFTER CloudSaveService.init
+    // so the profile is already merged from cloud. Purchased cosmetics
+    // are added to profile.cosmetics.owned.
+    const profile = (await import("./game/config/profile")).loadProfile(storage);
+    const { saveProfile } = await import("./game/config/profile");
+    await IAPService.init(
+      profile,
+      (p) => saveProfile(storage, p),
+      () => YandexSDK.iapGetPurchases(),
     );
   }
 

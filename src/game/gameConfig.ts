@@ -8,6 +8,7 @@ import { ProfileScene } from "./scenes/ProfileScene";
 import { ProgressionScene } from "./scenes/ProgressionScene";
 import { AchievementsScene } from "./scenes/AchievementsScene";
 import { CosmeticsScene } from "./scenes/CosmeticsScene";
+import { ShopScene } from "./scenes/ShopScene";
 
 export const sceneClasses = [
   BootScene,
@@ -19,6 +20,7 @@ export const sceneClasses = [
   ProgressionScene,
   AchievementsScene,
   CosmeticsScene,
+  ShopScene,
 ];
 
 export const gameConfig = {

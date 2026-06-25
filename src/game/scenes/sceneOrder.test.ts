@@ -45,8 +45,12 @@ describe("sceneClasses", () => {
     expect(sceneClasses.some((scene) => scene.name === "CosmeticsScene")).toBe(true);
   });
 
-  it("has 9 scenes in the correct order", () => {
-    expect(sceneClasses).toHaveLength(9);
+  it("includes ShopScene", () => {
+    expect(sceneClasses.some((scene) => scene.name === "ShopScene")).toBe(true);
+  });
+
+  it("has 10 scenes in the correct order", () => {
+    expect(sceneClasses).toHaveLength(10);
     expect(sceneClasses.map((s) => s.name)).toEqual([
       "BootScene",
       "PreloadScene",
@@ -57,6 +61,7 @@ describe("sceneClasses", () => {
       "ProgressionScene",
       "AchievementsScene",
       "CosmeticsScene",
+      "ShopScene",
     ]);
   });
 });
