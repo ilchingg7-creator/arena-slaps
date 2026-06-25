@@ -149,9 +149,12 @@ describe("CloudSaveService — saveProfile / saveSettings (cloud only)", () => {
 
     // After 3 seconds debounce
     vi.advanceTimersByTime(3000);
-    expect(cloudSetData).toHaveBeenCalledWith({
-      profile: JSON.stringify(profile),
-    });
+    expect(cloudSetData).toHaveBeenCalledWith(
+      {
+        profile: JSON.stringify(profile),
+      },
+      false,
+    );
 
     vi.useRealTimers();
   });
@@ -189,9 +192,12 @@ describe("CloudSaveService — saveProfile / saveSettings (cloud only)", () => {
     CloudSaveService.saveSettings(settings);
 
     vi.advanceTimersByTime(3000);
-    expect(cloudSetData).toHaveBeenCalledWith({
-      settings: JSON.stringify(settings),
-    });
+    expect(cloudSetData).toHaveBeenCalledWith(
+      {
+        settings: JSON.stringify(settings),
+      },
+      false,
+    );
 
     vi.useRealTimers();
   });
@@ -220,9 +226,33 @@ describe("CloudSaveService — flush", () => {
     // Don't wait for debounce — flush now
     await CloudSaveService.flush();
 
-    expect(cloudSetData).toHaveBeenCalledWith({
-      profile: expect.any(String),
-    });
+    expect(cloudSetData).toHaveBeenCalledWith(
+      {
+        profile: expect.any(String),
+      },
+      true,
+    );
+
+    vi.useRealTimers();
+  });
+
+  it("flush marks the cloud write as forced so Yandex persists it before tab close", async () => {
+    vi.useFakeTimers();
+    const storage = makeStorage();
+    const cloudGetData = vi.fn().mockResolvedValue({});
+    const cloudSetData = vi.fn().mockResolvedValue(undefined);
+
+    await CloudSaveService.init(storage, cloudGetData, cloudSetData);
+
+    CloudSaveService.saveProfile(makeProfile({ level: 5 }));
+    await CloudSaveService.flush();
+
+    expect(cloudSetData).toHaveBeenCalledWith(
+      {
+        profile: expect.any(String),
+      },
+      true,
+    );
 
     vi.useRealTimers();
   });

@@ -16,7 +16,7 @@ import type { GameSettings } from "../config/gameSettings";
 const DEBOUNCE_MS = 3000;
 
 type CloudGetData = (keys?: readonly string[]) => Promise<Record<string, unknown>>;
-type CloudSetData = (data: Record<string, unknown>) => Promise<void>;
+type CloudSetData = (data: Record<string, unknown>, flush?: boolean) => Promise<void>;
 
 type StorageLike = {
   getItem?: (key: string) => string | null;
@@ -146,7 +146,7 @@ export const CloudSaveService = {
       clearTimeout(debounceTimer);
       debounceTimer = null;
     }
-    await doFlush();
+    await doFlush(true);
   },
 
   /** Reset to uninitialized state (for tests). */
@@ -172,11 +172,11 @@ function scheduleFlush(): void {
   }
   debounceTimer = setTimeout(() => {
     debounceTimer = null;
-    void doFlush();
+    void doFlush(false);
   }, DEBOUNCE_MS);
 }
 
-async function doFlush(): Promise<void> {
+async function doFlush(forceFlush = false): Promise<void> {
   if (!cloudSetData) return;
   if (!pendingProfile && !pendingSettings) return;
 
@@ -192,7 +192,7 @@ async function doFlush(): Promise<void> {
   }
 
   try {
-    await cloudSetData(data);
+    await cloudSetData(data, forceFlush);
     // Success — clear pending.
     pendingProfile = null;
     pendingSettings = null;

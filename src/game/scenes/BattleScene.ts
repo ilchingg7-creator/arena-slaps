@@ -315,6 +315,36 @@ export function computeP2Direction(cursors: CursorKeysLike): DirectionVector {
   });
 }
 
+export type BattleHudLayout = {
+  fontSize: number;
+  score: { x: number; y: number; origin: { x: number; y: number } };
+  timer: { x: number; y: number; origin: { x: number; y: number } };
+  combo: { x: number; y: number; origin: { x: number; y: number } };
+};
+
+export function computeBattleHudLayout(input: {
+  width: number;
+  arenaLeft: number;
+  arenaRight: number;
+}): BattleHudLayout {
+  if (input.width < 520) {
+    const centerX = input.width / 2;
+    return {
+      fontSize: 20,
+      score: { x: centerX, y: 24, origin: { x: 0.5, y: 0 } },
+      timer: { x: centerX, y: 52, origin: { x: 0.5, y: 0 } },
+      combo: { x: centerX, y: 80, origin: { x: 0.5, y: 0 } },
+    };
+  }
+
+  return {
+    fontSize: 24,
+    score: { x: input.arenaLeft, y: 24, origin: { x: 0, y: 0 } },
+    timer: { x: input.arenaRight, y: 24, origin: { x: 1, y: 0 } },
+    combo: { x: input.arenaLeft, y: 56, origin: { x: 0, y: 0 } },
+  };
+}
+
 function getDirection(runtime: BattleRuntime): Phaser.Math.Vector2 {
   const movement = computeP1Direction(
     runtime.settings,
@@ -798,6 +828,11 @@ export class BattleScene extends Phaser.Scene {
     const dodgeKeyP2 =
       keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.CTRL) ??
       createDisabledKey();
+    const hudLayout = computeBattleHudLayout({
+      width,
+      arenaLeft: arena.left,
+      arenaRight: arena.right,
+    });
 
     // --- Floating name labels (Task 3b) ---
     // Rendered above each actor and repositioned every frame in `update()`
@@ -886,28 +921,29 @@ export class BattleScene extends Phaser.Scene {
         right: keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.D) ?? createDisabledKey(),
         up: keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.W) ?? createDisabledKey(),
       },
-      scoreText: this.add.text(arena.left, 24, "", {
+      scoreText: this.add.text(hudLayout.score.x, hudLayout.score.y, "", {
         color: "#f4f1de",
         fontFamily: "Arial",
-        fontSize: "24px",
-      }),
+        fontSize: `${hudLayout.fontSize}px`,
+      }).setOrigin(hudLayout.score.origin.x, hudLayout.score.origin.y),
       // Combo counter (Task 2ac). Positioned just below the score text so
       // it stays "near the score" per the spec without overlapping. Hidden
       // by default; updateHud toggles visibility based on comboStacks.
       comboText: this.add
-        .text(arena.left, 56, "", {
+        .text(hudLayout.combo.x, hudLayout.combo.y, "", {
           color: "#f4d35e",
           fontFamily: "Arial",
-          fontSize: "20px",
+          fontSize: `${Math.max(16, hudLayout.fontSize - 4)}px`,
         })
+        .setOrigin(hudLayout.combo.origin.x, hudLayout.combo.origin.y)
         .setVisible(false),
       timerText: this.add
-        .text(arena.right, 24, "", {
+        .text(hudLayout.timer.x, hudLayout.timer.y, "", {
           color: "#f4f1de",
           fontFamily: "Arial",
-          fontSize: "24px",
+          fontSize: `${hudLayout.fontSize}px`,
         })
-        .setOrigin(1, 0),
+        .setOrigin(hudLayout.timer.origin.x, hudLayout.timer.origin.y),
       winnerText: this.add
         .text(width / 2, arena.top - 36, "", {
           color: "#f4f1de",

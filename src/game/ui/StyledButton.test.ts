@@ -6,8 +6,8 @@ import {
   type ButtonGraphics,
   type ButtonSceneLike,
   type ButtonText,
-  type ButtonVariant,
 } from "./StyledButton";
+import { NEON_COLORS, NEON_PANEL, getNeonButtonVariant } from "./neonTheme";
 
 // --- Stub scene ----------------------------------------------------------
 // Models the Phaser scene surface that StyledButton actually touches:
@@ -35,6 +35,7 @@ type FakeGraphics = {
   fillRoundedCalls: number;
   strokeCalls: number;
   lineStyleCalls: number;
+  lineStyles: Array<{ width: number; color: number; alpha: number | undefined }>;
   cleared: boolean;
   destroyed: boolean;
   listenersRemoved: boolean;
@@ -83,6 +84,7 @@ function makeScene(): FakeScene {
           fillRoundedCalls: 0,
           strokeCalls: 0,
           lineStyleCalls: 0,
+          lineStyles: [],
           cleared: false,
           destroyed: false,
           listenersRemoved: false,
@@ -103,6 +105,7 @@ function makeScene(): FakeScene {
           },
           lineStyle(_w: number, _c: number, _a?: number) {
             g.lineStyleCalls += 1;
+            g.lineStyles.push({ width: _w, color: _c, alpha: _a });
             return proxy;
           },
           strokeRoundedRect() {
@@ -209,57 +212,31 @@ function makeScene(): FakeScene {
 // --- getVariantColors ----------------------------------------------------
 
 describe("StyledButton - getVariantColors", () => {
-  it("returns purple/magenta gradient with cyan border for primary", () => {
-    const c = getVariantColors("primary");
-    expect(c.top).toBe(0x9b5de5);
-    expect(c.bottom).toBe(0x5f2eea);
-    expect(c.border).toBe(0x00f5d4);
-    expect(c.text).toBe(0xffffff);
+  it("preserves the legacy top/bottom/border/text contract", () => {
+    expect(getVariantColors("primary")).toEqual({
+      top: 0x151b2b,
+      bottom: 0x101522,
+      border: 0x20f6ff,
+      text: 0xf6fbff,
+    });
   });
 
-  it("returns dark blue gradient with light border for secondary", () => {
-    const c = getVariantColors("secondary");
-    expect(c.top).toBe(0x3d405b);
-    expect(c.bottom).toBe(0x2a2d44);
-    expect(c.border).toBe(0xb8b8ff);
-    expect(c.text).toBe(0xffffff);
+  it("maps secondary to the legacy compatibility shape", () => {
+    expect(getVariantColors("secondary")).toEqual({
+      top: 0x151b2b,
+      bottom: 0x101522,
+      border: 0x6f7a94,
+      text: 0xf6fbff,
+    });
   });
 
-  it("returns green gradient with white border for success", () => {
-    const c = getVariantColors("success");
-    expect(c.top).toBe(0x81b29a);
-    expect(c.bottom).toBe(0x5a8771);
-    expect(c.border).toBe(0xffffff);
-    expect(c.text).toBe(0xffffff);
-  });
-
-  it("returns orange/red gradient with yellow border for danger", () => {
-    const c = getVariantColors("danger");
-    expect(c.top).toBe(0xe07a5f);
-    expect(c.bottom).toBe(0xc45a3f);
-    expect(c.border).toBe(0xffd166);
-    expect(c.text).toBe(0xffffff);
-  });
-
-  it("returns yellow gradient with dark border + dark text for warning", () => {
-    const c = getVariantColors("warning");
-    expect(c.top).toBe(0xf2cc8f);
-    expect(c.bottom).toBe(0xd4a85f);
-    expect(c.border).toBe(0x101820);
-    expect(c.text).toBe(0x101820);
-  });
-
-  it("throws for unknown variant", () => {
-    expect(() => getVariantColors("invalid" as ButtonVariant)).toThrowError(
-      /Unknown button variant/,
-    );
-  });
-
-  it("returns a fresh copy (mutation does not leak across calls)", () => {
-    const a = getVariantColors("primary");
-    a.top = 0x000000;
-    const b = getVariantColors("primary");
-    expect(b.top).toBe(0x9b5de5);
+  it("falls back to the secondary compatibility shape for unknown variants", () => {
+    expect(getVariantColors("invalid" as never)).toEqual({
+      top: 0x151b2b,
+      bottom: 0x101522,
+      border: 0x6f7a94,
+      text: 0xf6fbff,
+    });
   });
 });
 
@@ -348,7 +325,7 @@ describe("StyledButton - createStyledButton", () => {
     expect(scene.graphicsList[0].position).toEqual({ x: 300, y: 400 });
   });
 
-  it("draws the gradient fill + accent stroke on the graphics", () => {
+  it("draws neon panel chrome with glow stroke plus inner border", () => {
     const scene = makeScene();
     createStyledButton(scene, {
       x: 0,
@@ -357,9 +334,21 @@ describe("StyledButton - createStyledButton", () => {
       variant: "primary",
       onClick: () => {},
     });
-    expect(scene.graphicsList[0].fillRoundedCalls).toBe(2);
-    expect(scene.graphicsList[0].strokeCalls).toBe(1);
-    expect(scene.graphicsList[0].lineStyleCalls).toBe(1);
+    expect(scene.graphicsList[0].fillRoundedCalls).toBe(1);
+    expect(scene.graphicsList[0].strokeCalls).toBe(2);
+    expect(scene.graphicsList[0].lineStyleCalls).toBe(2);
+    expect(scene.graphicsList[0].lineStyles).toEqual([
+      {
+        width: 6,
+        color: getNeonButtonVariant("primary").glow,
+        alpha: NEON_PANEL.glowAlpha,
+      },
+      {
+        width: NEON_PANEL.borderWidth,
+        color: getNeonButtonVariant("primary").edge,
+        alpha: 1,
+      },
+    ]);
   });
 
   it("centers the text label on the button position", () => {
@@ -373,6 +362,30 @@ describe("StyledButton - createStyledButton", () => {
     expect(scene.texts[0].x).toBe(250);
     expect(scene.texts[0].y).toBe(350);
     expect(scene.texts[0].origin).toEqual({ x: 0.5, y: 0.5 });
+  });
+
+  it("uses the shared neon label styling", () => {
+    const scene = makeScene();
+    createStyledButton(scene, {
+      x: 0,
+      y: 0,
+      text: "OK",
+      onClick: () => {},
+    });
+    expect(scene.texts[0].style).toMatchObject({
+      color: "#f6fbff",
+      fontFamily: "Arial",
+      fontStyle: "bold",
+      stroke: "#05070d",
+      strokeThickness: 4,
+      shadow: {
+        offsetX: 0,
+        offsetY: 0,
+        color: "#20f6ff",
+        blur: 10,
+        fill: false,
+      },
+    });
   });
 
   it("wires pointerover / pointerout / pointerdown / pointerup handlers", () => {
@@ -447,10 +460,7 @@ describe("StyledButton - createStyledButton", () => {
       text: "OK",
       onClick: () => {},
     });
-    // primary uses 0x9b5de5 as the top color. We can't read the actual
-    // fillStyle color from the stub, but we can assert that a gradient
-    // call happened (proving the render path ran with the default).
-    expect(scene.graphicsList[0].fillRoundedCalls).toBe(2);
+    expect(scene.graphicsList[0].lineStyles[1]?.color).toBe(NEON_COLORS.cyan);
   });
 });
 
@@ -486,7 +496,7 @@ describe("StyledButton - setText", () => {
 // --- setVariant ----------------------------------------------------------
 
 describe("StyledButton - setVariant", () => {
-  it("re-renders the gradient (clear + fillGradient + stroke)", () => {
+  it("re-renders the neon chrome for the next variant", () => {
     const scene = makeScene();
     const btn = createStyledButton(scene, {
       x: 0,
@@ -495,11 +505,16 @@ describe("StyledButton - setVariant", () => {
       variant: "primary",
       onClick: () => {},
     });
-    expect(scene.graphicsList[0].fillRoundedCalls).toBe(2);
+    expect(scene.graphicsList[0].fillRoundedCalls).toBe(1);
     btn.setVariant("success");
-    // After re-render, total fillRoundedRect calls = 4 (2 from initial render + 2 from setVariant).
-    expect(scene.graphicsList[0].fillRoundedCalls).toBe(4);
-    expect(scene.graphicsList[0].strokeCalls).toBe(2);
+    expect(scene.graphicsList[0].fillRoundedCalls).toBe(2);
+    expect(scene.graphicsList[0].strokeCalls).toBe(4);
+    expect(scene.graphicsList[0].lineStyleCalls).toBe(4);
+    expect(scene.graphicsList[0].lineStyles.at(-1)).toEqual({
+      width: NEON_PANEL.borderWidth,
+      color: getNeonButtonVariant("success").edge,
+      alpha: 1,
+    });
     expect(scene.graphicsList[0].cleared).toBe(true);
   });
 });

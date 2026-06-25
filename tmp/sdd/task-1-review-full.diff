@@ -1,0 +1,865 @@
+# Review package: 974e3b1c7b44ab10e728107c83c170f57d37fd17..WORKTREE
+
+## Commits
+
+## Files changed
+ src/game/ui/StyledButton.test.ts | 137 +++++++++++++++++--------------
+ src/game/ui/StyledButton.ts      | 169 ++++++++++++++-------------------------
+ 2 files changed, 136 insertions(+), 170 deletions(-)
+untracked: src/game/ui/neonTheme.ts
+untracked: src/game/ui/neonTheme.test.ts
+
+## Diff
+diff --git a/src/game/ui/StyledButton.test.ts b/src/game/ui/StyledButton.test.ts
+index befad68..bb9ecd7 100644
+--- a/src/game/ui/StyledButton.test.ts
++++ b/src/game/ui/StyledButton.test.ts
+@@ -1,20 +1,20 @@
+ import { describe, expect, it, vi } from "vitest";
+ import {
+   createStyledButton,
+   getButtonBounds,
+   getVariantColors,
+   type ButtonGraphics,
+   type ButtonSceneLike,
+   type ButtonText,
+-  type ButtonVariant,
+ } from "./StyledButton";
++import { NEON_COLORS, NEON_PANEL, getNeonButtonVariant } from "./neonTheme";
+ 
+ // --- Stub scene ----------------------------------------------------------
+ // Models the Phaser scene surface that StyledButton actually touches:
+ // `add.graphics()` and `add.text(...)`. The stubs record method calls and
+ // mutations onto a plain data object so tests can assert against them,
+ // mirroring the VolumeSlider.test.ts / TopRightMuteButton.test.ts pattern.
+ 
+ type FakeGraphics = {
+   kind: "graphics";
+   position: { x: number; y: number };
+@@ -28,20 +28,21 @@ type FakeGraphics = {
+     | {
+         hitArea: unknown;
+         hitAreaCallback: (hitArea: unknown, x: number, y: number) => boolean;
+         useHandCursor?: boolean;
+       }
+     | undefined;
+   handlers: Map<string, (pointer?: unknown) => void>;
+   fillRoundedCalls: number;
+   strokeCalls: number;
+   lineStyleCalls: number;
++  lineStyles: Array<{ width: number; color: number; alpha: number | undefined }>;
+   cleared: boolean;
+   destroyed: boolean;
+   listenersRemoved: boolean;
+ };
+ 
+ type FakeText = {
+   kind: "text";
+   x: number;
+   y: number;
+   text: string;
+@@ -76,40 +77,42 @@ function makeScene(): FakeScene {
+           scale: { x: 1, y: 1 },
+           visible: true,
+           alpha: 1,
+           depth: 0,
+           interactive: false,
+           interactiveConfig: undefined,
+           handlers: new Map(),
+           fillRoundedCalls: 0,
+           strokeCalls: 0,
+           lineStyleCalls: 0,
++          lineStyles: [],
+           cleared: false,
+           destroyed: false,
+           listenersRemoved: false,
+         };
+         graphicsList.push(g);
+         // Proxy: each method mutates `g` and returns `this` for chaining.
+         const proxy = {
+           clear() {
+             g.cleared = true;
+             return proxy;
+           },
+           fillStyle(_color: number, _alpha?: number) {
+             return proxy;
+           },
+           fillRoundedRect() {
+             g.fillRoundedCalls += 1;
+             return proxy;
+           },
+           lineStyle(_w: number, _c: number, _a?: number) {
+             g.lineStyleCalls += 1;
++            g.lineStyles.push({ width: _w, color: _c, alpha: _a });
+             return proxy;
+           },
+           strokeRoundedRect() {
+             g.strokeCalls += 1;
+             return proxy;
+           },
+           setPosition(x: number, y: number) {
+             g.position = { x, y };
+             return proxy;
+           },
+@@ -202,71 +205,45 @@ function makeScene(): FakeScene {
+       if (h) h(pointer);
+     },
+   };
+ 
+   return scene;
+ }
+ 
+ // --- getVariantColors ----------------------------------------------------
+ 
+ describe("StyledButton - getVariantColors", () => {
+-  it("returns purple/magenta gradient with cyan border for primary", () => {
+-    const c = getVariantColors("primary");
+-    expect(c.top).toBe(0x9b5de5);
+-    expect(c.bottom).toBe(0x5f2eea);
+-    expect(c.border).toBe(0x00f5d4);
+-    expect(c.text).toBe(0xffffff);
+-  });
+-
+-  it("returns dark blue gradient with light border for secondary", () => {
+-    const c = getVariantColors("secondary");
+-    expect(c.top).toBe(0x3d405b);
+-    expect(c.bottom).toBe(0x2a2d44);
+-    expect(c.border).toBe(0xb8b8ff);
+-    expect(c.text).toBe(0xffffff);
+-  });
+-
+-  it("returns green gradient with white border for success", () => {
+-    const c = getVariantColors("success");
+-    expect(c.top).toBe(0x81b29a);
+-    expect(c.bottom).toBe(0x5a8771);
+-    expect(c.border).toBe(0xffffff);
+-    expect(c.text).toBe(0xffffff);
+-  });
+-
+-  it("returns orange/red gradient with yellow border for danger", () => {
+-    const c = getVariantColors("danger");
+-    expect(c.top).toBe(0xe07a5f);
+-    expect(c.bottom).toBe(0xc45a3f);
+-    expect(c.border).toBe(0xffd166);
+-    expect(c.text).toBe(0xffffff);
+-  });
+-
+-  it("returns yellow gradient with dark border + dark text for warning", () => {
+-    const c = getVariantColors("warning");
+-    expect(c.top).toBe(0xf2cc8f);
+-    expect(c.bottom).toBe(0xd4a85f);
+-    expect(c.border).toBe(0x101820);
+-    expect(c.text).toBe(0x101820);
++  it("preserves the legacy top/bottom/border/text contract", () => {
++    expect(getVariantColors("primary")).toEqual({
++      top: 0x151b2b,
++      bottom: 0x101522,
++      border: 0x20f6ff,
++      text: 0xf6fbff,
++    });
+   });
+ 
+-  it("throws for unknown variant", () => {
+-    expect(() => getVariantColors("invalid" as ButtonVariant)).toThrowError(
+-      /Unknown button variant/,
+-    );
++  it("maps secondary to the legacy compatibility shape", () => {
++    expect(getVariantColors("secondary")).toEqual({
++      top: 0x151b2b,
++      bottom: 0x101522,
++      border: 0x6f7a94,
++      text: 0xf6fbff,
++    });
+   });
+ 
+-  it("returns a fresh copy (mutation does not leak across calls)", () => {
+-    const a = getVariantColors("primary");
+-    a.top = 0x000000;
+-    const b = getVariantColors("primary");
+-    expect(b.top).toBe(0x9b5de5);
++  it("falls back to the secondary compatibility shape for unknown variants", () => {
++    expect(getVariantColors("invalid" as never)).toEqual({
++      top: 0x151b2b,
++      bottom: 0x101522,
++      border: 0x6f7a94,
++      text: 0xf6fbff,
++    });
+   });
+ });
+ 
+ // --- getButtonBounds -----------------------------------------------------
+ 
+ describe("StyledButton - getButtonBounds", () => {
+   it("uses default width=240 and height=56 when not specified", () => {
+     const b = getButtonBounds({
+       x: 100,
+       y: 200,
+@@ -341,47 +318,83 @@ describe("StyledButton - createStyledButton", () => {
+     const scene = makeScene();
+     createStyledButton(scene, {
+       x: 300,
+       y: 400,
+       text: "OK",
+       onClick: () => {},
+     });
+     expect(scene.graphicsList[0].position).toEqual({ x: 300, y: 400 });
+   });
+ 
+-  it("draws the gradient fill + accent stroke on the graphics", () => {
++  it("draws neon panel chrome with glow stroke plus inner border", () => {
+     const scene = makeScene();
+     createStyledButton(scene, {
+       x: 0,
+       y: 0,
+       text: "OK",
+       variant: "primary",
+       onClick: () => {},
+     });
+-    expect(scene.graphicsList[0].fillRoundedCalls).toBe(2);
+-    expect(scene.graphicsList[0].strokeCalls).toBe(1);
+-    expect(scene.graphicsList[0].lineStyleCalls).toBe(1);
++    expect(scene.graphicsList[0].fillRoundedCalls).toBe(1);
++    expect(scene.graphicsList[0].strokeCalls).toBe(2);
++    expect(scene.graphicsList[0].lineStyleCalls).toBe(2);
++    expect(scene.graphicsList[0].lineStyles).toEqual([
++      {
++        width: 6,
++        color: getNeonButtonVariant("primary").glow,
++        alpha: NEON_PANEL.glowAlpha,
++      },
++      {
++        width: NEON_PANEL.borderWidth,
++        color: getNeonButtonVariant("primary").edge,
++        alpha: 1,
++      },
++    ]);
+   });
+ 
+   it("centers the text label on the button position", () => {
+     const scene = makeScene();
+     createStyledButton(scene, {
+       x: 250,
+       y: 350,
+       text: "OK",
+       onClick: () => {},
+     });
+     expect(scene.texts[0].x).toBe(250);
+     expect(scene.texts[0].y).toBe(350);
+     expect(scene.texts[0].origin).toEqual({ x: 0.5, y: 0.5 });
+   });
+ 
++  it("uses the shared neon label styling", () => {
++    const scene = makeScene();
++    createStyledButton(scene, {
++      x: 0,
++      y: 0,
++      text: "OK",
++      onClick: () => {},
++    });
++    expect(scene.texts[0].style).toMatchObject({
++      color: "#f6fbff",
++      fontFamily: "Arial",
++      fontStyle: "bold",
++      stroke: "#05070d",
++      strokeThickness: 4,
++      shadow: {
++        offsetX: 0,
++        offsetY: 0,
++        color: "#20f6ff",
++        blur: 10,
++        fill: false,
++      },
++    });
++  });
++
+   it("wires pointerover / pointerout / pointerdown / pointerup handlers", () => {
+     const scene = makeScene();
+     createStyledButton(scene, {
+       x: 0,
+       y: 0,
+       text: "OK",
+       onClick: () => {},
+     });
+     const handlers = scene.graphicsList[0].handlers;
+     expect(handlers.has("pointerover")).toBe(true);
+@@ -440,24 +453,21 @@ describe("StyledButton - createStyledButton", () => {
+   });
+ 
+   it("defaults to primary variant when none is specified", () => {
+     const scene = makeScene();
+     createStyledButton(scene, {
+       x: 0,
+       y: 0,
+       text: "OK",
+       onClick: () => {},
+     });
+-    // primary uses 0x9b5de5 as the top color. We can't read the actual
+-    // fillStyle color from the stub, but we can assert that a gradient
+-    // call happened (proving the render path ran with the default).
+-    expect(scene.graphicsList[0].fillRoundedCalls).toBe(2);
++    expect(scene.graphicsList[0].lineStyles[1]?.color).toBe(NEON_COLORS.cyan);
+   });
+ });
+ 
+ // --- setText -------------------------------------------------------------
+ 
+ describe("StyledButton - setText", () => {
+   it("updates the text object's text", () => {
+     const scene = makeScene();
+     const btn = createStyledButton(scene, {
+       x: 0,
+@@ -479,34 +489,39 @@ describe("StyledButton - setText", () => {
+     });
+     btn.setText("B");
+     btn.setText("B");
+     expect(scene.texts[0].text).toBe("B");
+   });
+ });
+ 
+ // --- setVariant ----------------------------------------------------------
+ 
+ describe("StyledButton - setVariant", () => {
+-  it("re-renders the gradient (clear + fillGradient + stroke)", () => {
++  it("re-renders the neon chrome for the next variant", () => {
+     const scene = makeScene();
+     const btn = createStyledButton(scene, {
+       x: 0,
+       y: 0,
+       text: "OK",
+       variant: "primary",
+       onClick: () => {},
+     });
+-    expect(scene.graphicsList[0].fillRoundedCalls).toBe(2);
++    expect(scene.graphicsList[0].fillRoundedCalls).toBe(1);
+     btn.setVariant("success");
+-    // After re-render, total fillRoundedRect calls = 4 (2 from initial render + 2 from setVariant).
+-    expect(scene.graphicsList[0].fillRoundedCalls).toBe(4);
+-    expect(scene.graphicsList[0].strokeCalls).toBe(2);
++    expect(scene.graphicsList[0].fillRoundedCalls).toBe(2);
++    expect(scene.graphicsList[0].strokeCalls).toBe(4);
++    expect(scene.graphicsList[0].lineStyleCalls).toBe(4);
++    expect(scene.graphicsList[0].lineStyles.at(-1)).toEqual({
++      width: NEON_PANEL.borderWidth,
++      color: getNeonButtonVariant("success").edge,
++      alpha: 1,
++    });
+     expect(scene.graphicsList[0].cleared).toBe(true);
+   });
+ });
+ 
+ // --- setVisible ----------------------------------------------------------
+ 
+ describe("StyledButton - setVisible", () => {
+   it("hides both graphics and text when set to false", () => {
+     const scene = makeScene();
+     const btn = createStyledButton(scene, {
+diff --git a/src/game/ui/StyledButton.ts b/src/game/ui/StyledButton.ts
+index c8e779b..51f8e42 100644
+--- a/src/game/ui/StyledButton.ts
++++ b/src/game/ui/StyledButton.ts
+@@ -1,138 +1,103 @@
++import {
++  NEON_COLORS,
++  NEON_PANEL,
++  getHudTextStyle,
++  getNeonButtonVariant,
++} from "./neonTheme";
++
+ /**
+  * A reusable modern "youth-appealing" button for Phaser scenes.
+  *
+  * Renders:
+- *   - A Graphics object positioned at (x, y) with a vertical gradient
+- *     (top color lighter, bottom color darker) drawn with
+- *     `fillRoundedRect` (2 stacked rects simulating a vertical gradient),
+- *     plus an outer accent stroke for the glow/border effect.
+- *   - A bold text label centered on the button, with a subtle dark
+- *     stroke + drop shadow for readability.
+- *   - Interactive hit area covering the button bounds (explicit Rectangle
+- *     hit area + Contains callback passed to `setInteractive`, because
+- *     Phaser's Graphics objects don't reliably compute hit areas from
+- *     drawn geometry).
++ *   - A Graphics object positioned at (x, y) with a dark neon panel fill
++ *     plus a glow stroke and inset accent border.
++ *   - A bold text label centered on the button.
++ *   - Interactive hit area covering the button bounds.
+  *
+  * Interaction:
+  *   - pointerover  -> scale up to 1.05x
+  *   - pointerout   -> reset scale to 1.0x
+  *   - pointerdown  -> scale down to 0.95x
+  *   - pointerup    -> scale back to 1.05x and fire onClick
+  *
+  * The component does NOT depend on Phaser types directly (uses a minimal
+- * duck type) so it can be exercised in unit tests with a stub scene,
+- * mirroring the VolumeSlider / TopRightMuteButton pattern.
++ * duck type) so it can be exercised in unit tests with a stub scene.
+  */
+ 
+ export type ButtonVariant =
+   | "primary"
+   | "secondary"
+   | "success"
+   | "danger"
+   | "warning";
+ 
+ export type StyledButtonConfig = {
+   x: number;
+   y: number;
+   text: string;
+   variant?: ButtonVariant;
+-  width?: number; // default 240
+-  height?: number; // default 56
+-  fontSize?: number; // default 22
++  width?: number;
++  height?: number;
++  fontSize?: number;
+   onClick: () => void;
+ };
+ 
+ export type StyledButton = {
+-  /** Update the button's text label. */
+   setText: (text: string) => void;
+-  /** Change the variant (re-renders the gradient). */
+   setVariant: (variant: ButtonVariant) => void;
+-  /** Show/hide the button. */
+   setVisible: (visible: boolean) => void;
+-  /** Set the depth of both the graphics + text. */
+   setDepth: (depth: number) => void;
+-  /** Enable/disable interaction. When disabled, dims the button. */
+   setEnabled: (enabled: boolean) => void;
+-  /** Clean up listeners. */
+   destroy: () => void;
+ };
+ 
+ export type VariantColors = {
+   top: number;
+   bottom: number;
+   border: number;
+   text: number;
+ };
+ 
+ export type ButtonBounds = {
+   x: number;
+   y: number;
+   width: number;
+   height: number;
+ };
+ 
+ const DEFAULT_WIDTH = 240;
+ const DEFAULT_HEIGHT = 56;
+ const DEFAULT_FONT_SIZE = 22;
+-const DEFAULT_RADIUS = 14;
+-const BORDER_WIDTH = 3;
+ const HOVER_SCALE = 1.05;
+ const PRESS_SCALE = 0.95;
+ const DISABLED_ALPHA = 0.5;
+ 
+-/**
+- * Per-variant color palette. `top` is the lighter gradient stop, `bottom`
+- * the darker one, `border` is the accent stroke color, and `text` is the
+- * label color (dark for the yellow warning variant for readability).
+- */
+-const VARIANT_COLORS: Record<ButtonVariant, VariantColors> = {
+-  // purple/magenta gradient with cyan accent
+-  primary: { top: 0x9b5de5, bottom: 0x5f2eea, border: 0x00f5d4, text: 0xffffff },
+-  // dark blue gradient with light accent
+-  secondary: { top: 0x3d405b, bottom: 0x2a2d44, border: 0xb8b8ff, text: 0xffffff },
+-  // green gradient with white accent
+-  success: { top: 0x81b29a, bottom: 0x5a8771, border: 0xffffff, text: 0xffffff },
+-  // orange/red gradient with yellow accent
+-  danger: { top: 0xe07a5f, bottom: 0xc45a3f, border: 0xffd166, text: 0xffffff },
+-  // yellow gradient with dark accent + dark text
+-  warning: { top: 0xf2cc8f, bottom: 0xd4a85f, border: 0x101820, text: 0x101820 },
+-};
+-
+-/**
+- * Return the color palette for a given variant. Pure function — easy to
+- * unit-test. Throws for unknown variants (defensive: TypeScript already
+- * prevents this at compile time, but a runtime JS caller could pass junk).
+- */
+ export function getVariantColors(variant: ButtonVariant): VariantColors {
+-  const colors = VARIANT_COLORS[variant];
+-  if (!colors) {
+-    throw new Error(`Unknown button variant: ${String(variant)}`);
+-  }
+-  return { ...colors };
++  const neon = getNeonButtonVariant(variant);
++  return {
++    top: NEON_COLORS.bgPanelAlt,
++    bottom: neon.body,
++    border: neon.edge,
++    text: neon.text,
++  };
+ }
+ 
+-/**
+- * Compute the button's bounding box, applying default width/height when
+- * not specified. Pure function — easy to unit-test.
+- */
+ export function getButtonBounds(config: StyledButtonConfig): ButtonBounds {
+   return {
+     x: config.x,
+     y: config.y,
+     width: config.width ?? DEFAULT_WIDTH,
+     height: config.height ?? DEFAULT_HEIGHT,
+   };
+ }
+ 
+-// --- Scene duck types ----------------------------------------------------
+-
+ export type ButtonGraphics = {
+   clear: () => ButtonGraphics;
+   fillStyle: (color: number, alpha?: number) => ButtonGraphics;
+   fillRoundedRect: (
+     x: number,
+     y: number,
+     w: number,
+     h: number,
+     radius?: number,
+   ) => ButtonGraphics;
+@@ -145,21 +110,29 @@ export type ButtonGraphics = {
+     radius?: number,
+   ) => ButtonGraphics;
+   setPosition: (x: number, y: number) => ButtonGraphics;
+   setScale: (x: number, y?: number) => ButtonGraphics;
+   setVisible: (visible: boolean) => ButtonGraphics;
+   setAlpha: (alpha: number) => ButtonGraphics;
+   setDepth: (depth: number) => ButtonGraphics;
+   setInteractive: (
+     config?:
+       | { useHandCursor?: boolean }
+-      | { hitArea: unknown; hitAreaCallback: (hitArea: unknown, x: number, y: number) => boolean; useHandCursor?: boolean },
++      | {
++          hitArea: unknown;
++          hitAreaCallback: (
++            hitArea: unknown,
++            x: number,
++            y: number,
++          ) => boolean;
++          useHandCursor?: boolean;
++        },
+   ) => ButtonGraphics;
+   on: (event: string, handler: (pointer?: unknown) => void) => ButtonGraphics;
+   removeAllListeners: () => ButtonGraphics;
+   destroy: () => void;
+ };
+ 
+ export type ButtonText = {
+   setOrigin: (x?: number, y?: number) => ButtonText;
+   setText: (value: string) => ButtonText;
+   setScale: (x: number, y?: number) => ButtonText;
+@@ -181,127 +154,107 @@ export type ButtonTextStyle = {
+     offsetY?: number;
+     color?: string;
+     blur?: number;
+     fill?: boolean;
+   };
+ };
+ 
+ export type ButtonSceneLike = {
+   add: {
+     graphics: (config?: unknown) => ButtonGraphics;
+-    text: (x: number, y: number, value: string, style?: ButtonTextStyle) => ButtonText;
++    text: (
++      x: number,
++      y: number,
++      value: string,
++      style?: ButtonTextStyle,
++    ) => ButtonText;
+   };
+ };
+ 
+ function colorToHex(color: number): string {
+   return `#${color.toString(16).padStart(6, "0")}`;
+ }
+ 
+-/**
+- * Create a StyledButton. The button is positioned at (config.x, config.y)
+- * which becomes the center of the rounded rectangle. The Graphics object
+- * is positioned at that point and the gradient geometry is drawn around
+- * the local origin (0,0) so scale tweens stay centered.
+- *
+- * The `scene` parameter accepts any object with `add.graphics` + `add.text`.
+- * Cast via `as unknown as ButtonSceneLike` if your scene type doesn't match
+- * structurally (e.g. when the caller is a plain object with duck-typed add).
+- */
+ export function createStyledButton(
+   scene: ButtonSceneLike,
+   config: StyledButtonConfig,
+ ): StyledButton {
+   const variant: ButtonVariant = config.variant ?? "primary";
+   const bounds = getButtonBounds(config);
+   const fontSize = config.fontSize ?? DEFAULT_FONT_SIZE;
+   let enabled = true;
+ 
+   const graphics: ButtonGraphics = scene.add.graphics();
+   graphics.setPosition(bounds.x, bounds.y);
+   graphics.setDepth(0);
+ 
+-  const initialColors = getVariantColors(variant);
++  const initialColors = getNeonButtonVariant(variant);
++  const textStyle = getHudTextStyle("score");
+   const label = scene.add
+     .text(bounds.x, bounds.y, config.text, {
++      ...textStyle,
+       color: colorToHex(initialColors.text),
+-      fontFamily: "Arial",
+-      fontStyle: "bold",
+       fontSize: `${fontSize}px`,
+-      stroke: "#000000",
+-      strokeThickness: 3,
+-      shadow: { offsetX: 0, offsetY: 2, color: "#000000", blur: 4, fill: true },
+     })
+     .setOrigin(0.5, 0.5)
+     .setDepth(1);
+ 
+   function render(currentVariant: ButtonVariant): void {
+-    const colors = getVariantColors(currentVariant);
++    const colors = getNeonButtonVariant(currentVariant);
+     const halfW = bounds.width / 2;
+     const halfH = bounds.height / 2;
+ 
+     graphics.clear();
+-    // Simulate a vertical gradient with 2 stacked rounded rectangles:
+-    // top half = lighter color, bottom half = darker color. Phaser's
+-    // Graphics doesn't have a fillGradientRoundedRect method, so we draw
+-    // the full body in the darker color first, then overlay the top half
+-    // with the lighter color. Both use fillRoundedRect which IS supported.
+-    graphics.fillStyle(colors.bottom, 1);
++    graphics.fillStyle(colors.body, 1);
+     graphics.fillRoundedRect(
+       -halfW,
+       -halfH,
+       bounds.width,
+       bounds.height,
+-      DEFAULT_RADIUS,
+-    );
+-    // Top half overlay (lighter). Use a smaller height so the rounded
+-    // corners on top remain visible. We draw it slightly inset to avoid
+-    // covering the bottom rounded corners.
+-    graphics.fillStyle(colors.top, 1);
+-    graphics.fillRoundedRect(
+-      -halfW,
+-      -halfH,
+-      bounds.width,
+-      bounds.height / 2 + DEFAULT_RADIUS / 2,
+-      DEFAULT_RADIUS,
++      NEON_PANEL.radius,
+     );
+-    // Outer accent stroke for the glow/border effect.
+-    graphics.lineStyle(BORDER_WIDTH, colors.border, 1);
++    graphics.lineStyle(6, colors.glow, NEON_PANEL.glowAlpha);
+     graphics.strokeRoundedRect(
+       -halfW,
+       -halfH,
+       bounds.width,
+       bounds.height,
+-      DEFAULT_RADIUS,
++      NEON_PANEL.radius,
++    );
++    graphics.lineStyle(NEON_PANEL.borderWidth, colors.edge, 1);
++    graphics.strokeRoundedRect(
++      -halfW + 3,
++      -halfH + 3,
++      bounds.width - 6,
++      bounds.height - 6,
++      NEON_PANEL.radius - 2,
+     );
+   }
+ 
+   render(variant);
+ 
+-  // Explicit hit area — Phaser's Graphics objects don't reliably compute
+-  // hit areas from drawn geometry, so we provide a Rectangle covering the
+-  // button bounds (in local coordinates, centered on 0,0 since the
+-  // graphics is positioned at the button center).
+   const halfW = bounds.width / 2;
+   const halfH = bounds.height / 2;
+   const hitArea = {
+     x: -halfW,
+     y: -halfH,
+     width: bounds.width,
+     height: bounds.height,
+   };
+-  const hitAreaCallback = (
+-    ha: unknown,
+-    px: number,
+-    py: number,
+-  ): boolean => {
++  const hitAreaCallback = (ha: unknown, px: number, py: number): boolean => {
+     const r = ha as { x: number; y: number; width: number; height: number };
+-    return px >= r.x && px <= r.x + r.width && py >= r.y && py <= r.y + r.height;
++    return (
++      px >= r.x &&
++      px <= r.x + r.width &&
++      py >= r.y &&
++      py <= r.y + r.height
++    );
+   };
+   graphics.setInteractive({ hitArea, hitAreaCallback, useHandCursor: true });
+ 
+   graphics.on("pointerover", () => {
+     if (!enabled) return;
+     graphics.setScale(HOVER_SCALE, HOVER_SCALE);
+     label.setScale(HOVER_SCALE, HOVER_SCALE);
+   });
+   graphics.on("pointerout", () => {
+     graphics.setScale(1, 1);
+@@ -332,22 +285,20 @@ export function createStyledButton(
+     },
+     setDepth(d: number) {
+       graphics.setDepth(d);
+       label.setDepth(d);
+     },
+     setEnabled(e: boolean) {
+       enabled = e;
+       graphics.setAlpha(e ? 1 : DISABLED_ALPHA);
+       label.setAlpha(e ? 1 : DISABLED_ALPHA);
+       if (!e) {
+-        // Reset any in-flight hover/press scale so the disabled state
+-        // shows the button at its natural size.
+         graphics.setScale(1, 1);
+         label.setScale(1, 1);
+       }
+     },
+     destroy() {
+       graphics.removeAllListeners();
+       graphics.destroy();
+       label.destroy();
+     },
+   };
+
+## Untracked file: src/game/ui/neonTheme.ts
+```ts
+import type { ButtonVariant } from "./StyledButton";
+
+export const NEON_COLORS = {
+  bgInk: 0x090b12,
+  bgPanel: 0x101522,
+  bgPanelAlt: 0x151b2b,
+  cyan: 0x20f6ff,
+  lime: 0xb7ff3c,
+  magenta: 0xff4fd8,
+  impact: 0xff5a36,
+  text: 0xf6fbff,
+  textMuted: 0x92a0bb,
+} as const;
+
+export const NEON_PANEL = {
+  radius: 12,
+  borderWidth: 2,
+  glowAlpha: 0.18,
+} as const;
+
+export type NeonButtonVariant = {
+  body: number;
+  edge: number;
+  glow: number;
+  text: number;
+};
+
+export function getNeonButtonVariant(
+  variant: ButtonVariant,
+): NeonButtonVariant {
+  const common = {
+    body: NEON_COLORS.bgPanel,
+    text: NEON_COLORS.text,
+  };
+
+  switch (variant) {
+    case "primary":
+      return { ...common, edge: NEON_COLORS.cyan, glow: NEON_COLORS.cyan };
+    case "success":
+      return { ...common, edge: NEON_COLORS.lime, glow: NEON_COLORS.lime };
+    case "danger":
+      return { ...common, edge: NEON_COLORS.impact, glow: NEON_COLORS.impact };
+    case "warning":
+      return {
+        ...common,
+        edge: NEON_COLORS.magenta,
+        glow: NEON_COLORS.magenta,
+      };
+    case "secondary":
+    default:
+      return { ...common, edge: 0x6f7a94, glow: 0x6f7a94 };
+  }
+}
+
+export function getHudTextStyle(kind: "score" | "timer" | "title") {
+  return {
+    color: "#f6fbff",
+    fontFamily: "Arial",
+    fontSize: kind === "title" ? "42px" : "24px",
+    fontStyle: "bold",
+    stroke: "#05070d",
+    strokeThickness: kind === "title" ? 5 : 4,
+    shadow: {
+      offsetX: 0,
+      offsetY: 0,
+      color: "#20f6ff",
+      blur: 10,
+      fill: false,
+    },
+  };
+}
+
+```
+
+## Untracked file: src/game/ui/neonTheme.test.ts
+```ts
+import { describe, expect, it } from "vitest";
+import {
+  NEON_COLORS,
+  NEON_PANEL,
+  getHudTextStyle,
+  getNeonButtonVariant,
+} from "./neonTheme";
+
+describe("neonTheme", () => {
+  it("exports the Cyber Fight Club accent colors", () => {
+    expect(NEON_COLORS.bgInk).toBe(0x090b12);
+    expect(NEON_COLORS.cyan).toBe(0x20f6ff);
+    expect(NEON_COLORS.lime).toBe(0xb7ff3c);
+    expect(NEON_COLORS.magenta).toBe(0xff4fd8);
+    expect(NEON_COLORS.impact).toBe(0xff5a36);
+  });
+
+  it("maps primary buttons to dark chrome plus neon borders", () => {
+    expect(getNeonButtonVariant("primary")).toMatchObject({
+      body: 0x101522,
+      edge: 0x20f6ff,
+      glow: 0x20f6ff,
+      text: 0xf6fbff,
+    });
+  });
+
+  it("maps secondary buttons to the muted neon border", () => {
+    expect(getNeonButtonVariant("secondary")).toMatchObject({
+      body: 0x101522,
+      edge: 0x6f7a94,
+      glow: 0x6f7a94,
+      text: 0xf6fbff,
+    });
+  });
+
+  it("falls back to the secondary chrome for unknown button variants", () => {
+    expect(getNeonButtonVariant("invalid" as never)).toMatchObject({
+      body: 0x101522,
+      edge: 0x6f7a94,
+      glow: 0x6f7a94,
+      text: 0xf6fbff,
+    });
+  });
+
+  it("exports a compact HUD style with readable stroke", () => {
+    expect(getHudTextStyle("score")).toMatchObject({
+      fontFamily: "Arial",
+      fontStyle: "bold",
+      strokeThickness: 4,
+    });
+    expect(NEON_PANEL.radius).toBeGreaterThan(0);
+  });
+});
+
+```

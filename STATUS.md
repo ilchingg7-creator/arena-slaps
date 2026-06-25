@@ -2,7 +2,7 @@
 
 **Version:** v1.8.0
 **Last updated:** 2026-06-26
-**Build:** `5.38s` · **Tests:** `1017/1017 passed (60 files)` · **tsc:** clean · **Bundle:** `364 KB gzip`
+**Build:** `5.17s` · **Tests:** `1020/1020 passed (60 files)` · **tsc:** clean · **Bundle:** `370.65 KB gzip`
 
 ---
 
@@ -548,7 +548,7 @@ Three integration bugs surfaced by QA:
 
 ## Test coverage
 
-- **1017 tests** across **60 test files**.
+- **1020 tests** across **60 test files**.
 - **TDD methodology** — every bugfix and feature goes RED → GREEN:
   - RED: write failing tests that pin the desired behavior.
   - GREEN: implement the minimum code to make tests pass.
@@ -644,6 +644,6 @@ arena-slaps/
   deliberate trade-off: depending on `battleStartAt` caused worse UX
   (slow start after long menu idle due to Phaser scene reuse). A
   camper who never engages isn't a real threat anyway.
-- **Vite chunk-size warning** — the main bundle is 1.6 MB (364 KB
+- **Vite chunk-size warning** — the main bundle is 1.6 MB (370.65 KB
   gzip). Could be reduced via manual chunk splitting or by moving
   more scenes to dynamic imports.

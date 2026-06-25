@@ -64,7 +64,7 @@ vi.mock("phaser", () => {
   return { default: Phaser, ...Phaser };
 });
 
-import { resetOffender, computeP1Direction, computeP2Direction, applyBotSlap, handleRingOut, type BattleRuntimeLike, type BotSlapRuntimeLike, type RingOutRuntimeLike } from "./BattleScene";
+import { resetOffender, computeP1Direction, computeP2Direction, applyBotSlap, handleRingOut, computeBattleHudLayout, type BattleRuntimeLike, type BotSlapRuntimeLike, type RingOutRuntimeLike } from "./BattleScene";
 import { getComboMultiplier } from "../systems/CombatSystem";
 import { canDodge, isDodging, startDodge, getDodgeDurationMs, getDodgeCooldownMs } from "../systems/DodgeSystem";
 import type { ActorState } from "../entities/Player";
@@ -106,6 +106,35 @@ function mockActor(overrides: Partial<ActorState> = {}): ActorState {
     ...overrides,
   } as unknown as ActorState;
 }
+
+describe("computeBattleHudLayout", () => {
+  it("stacks score and timer on narrow portrait screens so they do not overlap", () => {
+    const layout = computeBattleHudLayout({
+      width: 375,
+      arenaLeft: 52,
+      arenaRight: 325,
+    });
+
+    expect(layout.score.origin).toEqual({ x: 0.5, y: 0 });
+    expect(layout.timer.origin).toEqual({ x: 0.5, y: 0 });
+    expect(layout.score.x).toBe(187.5);
+    expect(layout.timer.x).toBe(187.5);
+    expect(layout.timer.y - layout.score.y).toBeGreaterThanOrEqual(26);
+    expect(layout.fontSize).toBeLessThanOrEqual(20);
+  });
+
+  it("keeps the desktop score left-aligned and timer right-aligned", () => {
+    const layout = computeBattleHudLayout({
+      width: 1280,
+      arenaLeft: 180,
+      arenaRight: 1100,
+    });
+
+    expect(layout.score).toEqual({ x: 180, y: 24, origin: { x: 0, y: 0 } });
+    expect(layout.timer).toEqual({ x: 1100, y: 24, origin: { x: 1, y: 0 } });
+    expect(layout.fontSize).toBe(24);
+  });
+});
 
 function mockRuntime(opts: {
   player?: Partial<ActorState>;

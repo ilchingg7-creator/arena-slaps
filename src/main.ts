@@ -30,7 +30,7 @@ async function main(): Promise<void> {
     await CloudSaveService.init(
       storage,
       (keys) => YandexSDK.playerGetData(keys),
-      (data) => YandexSDK.playerSetData(data),
+      (data, flush) => YandexSDK.playerSetData(data, flush),
     );
 
     // Restore IAP purchases — must happen AFTER CloudSaveService.init
