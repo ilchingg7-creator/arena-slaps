@@ -369,7 +369,7 @@ describe("getActorEffectTint", () => {
     it("returns null for a fresh actor past grace of battleStartAt", () => {
       const battleStartAt = 1000;
       const actor = mockActor({ lastSlapAt: Number.NEGATIVE_INFINITY });
-      expect(getActorEffectTint(actor, battleStartAt + INACTIVITY_GRACE_MS + 1000, battleStartAt)).toBeNull();
+      expect(getActorEffectTint(actor, battleStartAt + INACTIVITY_GRACE_MS + 1000)).toBeNull();
     });
 
     it("returns null immediately after a successful slap (within grace)", () => {

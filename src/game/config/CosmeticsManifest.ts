@@ -36,12 +36,10 @@
  */
 
 export type CosmeticCategory =
-  | "color"
   | "outline"
   | "trail"
   | "slapFx"
   | "title"
-  | "powerUpSkin"
   | "headwear";
 
 export type CosmeticSource =

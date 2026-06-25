@@ -57,7 +57,7 @@ describe("moveActor — anti-camp penalty integration", () => {
     // battleStartAt as the reference. Within grace → full speed.
     const battleStartAt = 1000;
     const actor = mockActor({ lastSlapAt: Number.NEGATIVE_INFINITY });
-    moveActor(actor, unitDirection(), battleStartAt + 1000, battleStartAt);
+    moveActor(actor, unitDirection(), battleStartAt + 1000);
     const calls = (actor as unknown as { __velocityCalls: Array<{ x: number; y: number }> }).__velocityCalls;
     const last = calls[calls.length - 1];
     expect(last.x).toBe(260); // full speed within grace
@@ -69,7 +69,7 @@ describe("moveActor — anti-camp penalty integration", () => {
     // bug when the player sat in the menu for a long time.
     const battleStartAt = 1000;
     const actor = mockActor({ lastSlapAt: Number.NEGATIVE_INFINITY });
-    moveActor(actor, unitDirection(), 100_000, battleStartAt);
+    moveActor(actor, unitDirection(), 100_000);
     const calls = (actor as unknown as { __velocityCalls: Array<{ x: number; y: number }> }).__velocityCalls;
     const last = calls[calls.length - 1];
     expect(last.x).toBe(260); // full speed — no penalty

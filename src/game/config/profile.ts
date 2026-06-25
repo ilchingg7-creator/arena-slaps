@@ -2,16 +2,14 @@ export type GameMode = "1p-vs-bot" | "2p-local";
 
 /**
  * Equipped cosmetics — one slot per category. Each field holds a
- * cosmetic id (e.g. "color-crimson") or undefined (use default / none).
+ * cosmetic id (e.g. "headwear-cap") or undefined (use default / none).
  * See CosmeticsManifest.ts for the catalog.
  */
 export type EquippedCosmetics = {
-  color?: string;
   outline?: string;
   trail?: string;
   slapFx?: string;
   title?: string;
-  powerUpSkin?: string;
   headwear?: string;
 };
 
@@ -238,12 +236,10 @@ function migrateProfile(parsed: Record<string, unknown>): Profile {
 function migrateEquipped(parsed: Record<string, unknown>): EquippedCosmetics {
   const result: EquippedCosmetics = {};
   const slots: Array<keyof EquippedCosmetics> = [
-    "color",
     "outline",
     "trail",
     "slapFx",
     "title",
-    "powerUpSkin",
     "headwear",
   ];
   for (const slot of slots) {

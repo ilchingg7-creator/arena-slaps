@@ -173,7 +173,6 @@ export function getActorAnimationState(
 export function getActorEffectTint(
   actor: ActorState,
   now: number,
-  battleStartAt = 0,
 ): number | null {
   // 1. Frozen (highest priority).
   if (isFrozen(actor, now)) {

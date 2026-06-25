@@ -171,11 +171,7 @@ export function moveActor(
   actor: ActorState,
   direction: Phaser.Math.Vector2,
   now: number,
-  battleStartAt = 0,
 ): void {
-  // Expire any power-up boosts whose timer has elapsed. This ensures the
-  // Boost speed multiplier reverts to 1 as soon as the 8s window ends —
-  // even if the player keeps moving.
   expirePowerUpBoosts(actor, now);
 
   if (direction.lengthSq() === 0) {
@@ -183,15 +179,7 @@ export function moveActor(
     return;
   }
 
-  // Anti-camp penalty: actors who haven't landed a slap in a while move
-  // progressively slower (1.0 → 0.4 over a 5s grace + 4s ramp window).
-  // Resets instantly on the next successful slap (applySlap stamps
-  // lastSlapAt = now). Stacks multiplicatively on top of any active
-  // Boost power-up — effective speed = moveSpeed × speedMultiplier × penalty.
-  // Bug 5 fix: battleStartAt is passed so fresh actors (never slapped)
-  // are also penalized after the grace window — campers can't avoid the
-  // penalty by simply never engaging.
-  const penalty = getSpeedPenaltyMultiplier(actor, now, battleStartAt);
+  const penalty = getSpeedPenaltyMultiplier(actor, now);
 
   const normalized = direction.clone().normalize();
   actor.body.setVelocity(

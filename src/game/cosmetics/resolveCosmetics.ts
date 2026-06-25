@@ -61,18 +61,12 @@ export function resolveCosmetics(
 ): ResolvedCosmetics {
   const { equipped, defaultColor } = input;
 
-  // --- Color ---
-  let color = defaultColor;
-  if (equipped.color) {
-    const def = getCosmeticById(equipped.color);
-    if (def && def.category === "color") {
-      color = (def.effect as { value: number }).value;
-    }
-  }
+  // --- Color (no cosmetic category — always default) ---
+  const color = defaultColor;
 
   // --- Outline ---
   let outline: number | null = null;
-  if (equipped.outline && equipped.outline !== "outline-none") {
+  if (equipped.outline) {
     const def = getCosmeticById(equipped.outline);
     if (def && def.category === "outline") {
       outline = (def.effect as { value: number }).value;
@@ -113,14 +107,8 @@ export function resolveCosmetics(
     }
   }
 
-  // --- Power-up skin ---
-  let powerUpSkin = input.defaultPowerUpSkin ?? "default";
-  if (equipped.powerUpSkin) {
-    const def = getCosmeticById(equipped.powerUpSkin);
-    if (def && def.category === "powerUpSkin") {
-      powerUpSkin = (def.effect as { skinKey: string }).skinKey;
-    }
-  }
+  // --- Power-up skin (no cosmetic category — always default) ---
+  const powerUpSkin = input.defaultPowerUpSkin ?? "default";
 
   // --- Headwear ---
   let headwear: { spriteKey: string; offsetY: number } | null = null;

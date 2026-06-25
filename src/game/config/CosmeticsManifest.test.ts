@@ -33,8 +33,6 @@ describe("CosmeticsManifest — structure", () => {
       "trail",
       "slapFx",
       "title",
-      "powerUpSkin",
-      "headwear",
     ];
     for (const c of COSMETICS) {
       expect(validCategories).toContain(c.category);

@@ -51,7 +51,7 @@ import { getAudioService } from "../audio/getAudioService";
 import type { AudioService } from "../audio/AudioService";
 import { createBackground } from "../ui/Background";
 import { createPauseMenu, type PauseMenu } from "../ui/PauseMenu";
-import { loadProfile, saveProfile } from "../config/profile";
+import { loadProfile, saveProfile, type EquippedCosmetics } from "../config/profile";
 import { processBattleEnd } from "../services/processBattleEnd";
 import {
   computeBotDirection,
@@ -661,6 +661,22 @@ export class BattleScene extends Phaser.Scene {
     // values (color hex, headwear sprite key, etc.) that we can pass to
     // createPlayer + the AnimatedSprite overlay system.
     const profile = loadProfile(storage);
+
+    // Fix 6 (critical): restore P2's transient cosmetics from the Phaser
+    // registry. CosmeticsScene saves P2's selection to the registry (not
+    // localStorage), so we need to merge it into the profile before
+    // resolving cosmetics. Without this, P2's headwear/trail/etc. were
+    // selected in the UI but never applied in battle.
+    const p2FromRegistry = this.registry.get("p2CosmeticsEquipped") as
+      | EquippedCosmetics
+      | undefined;
+    if (p2FromRegistry) {
+      profile.cosmetics = {
+        ...profile.cosmetics,
+        p2Equipped: p2FromRegistry,
+      };
+    }
+
     const p1Cosmetics = resolveP1Cosmetics(profile, battleConfig.player.color);
 
     const player = createPlayer(
@@ -1332,7 +1348,7 @@ export class BattleScene extends Phaser.Scene {
       !isKnockedBack(runtime.player, now) &&
       !isFrozen(runtime.player, now)
     ) {
-      moveActor(runtime.player, getDirection(runtime), now, runtime.battleStartAt);
+      moveActor(runtime.player, getDirection(runtime), now);
     }
 
     // --- Opponent logic ---
@@ -1357,7 +1373,6 @@ export class BattleScene extends Phaser.Scene {
           runtime.opponent.bot,
           new Phaser.Math.Vector2(dir.x, dir.y),
           this.time.now,
-          runtime.battleStartAt,
         );
       }
 
@@ -1374,7 +1389,6 @@ export class BattleScene extends Phaser.Scene {
           runtime.opponent.player,
           getP2Direction(runtime),
           this.time.now,
-          runtime.battleStartAt,
         );
       }
 
@@ -1664,7 +1678,7 @@ export class BattleScene extends Phaser.Scene {
     // owns the sprite's position (camera shake + fall + drift).
     // State + tint are still updated so the "fall" texture shows.
     const playerState = getActorAnimationState(runtime.player, now);
-    const playerTint = getActorEffectTint(runtime.player, now, runtime.battleStartAt);
+    const playerTint = getActorEffectTint(runtime.player, now);
     runtime.playerAnim.setState(playerState);
     runtime.playerAnim.setEffectTint(playerTint);
     if (!this.ringOutFxInProgress.player) {
@@ -1677,7 +1691,7 @@ export class BattleScene extends Phaser.Scene {
     // Opponent: same pattern.
     const opponentActorState = this.opponentActor();
     const opponentState = getActorAnimationState(opponentActorState, now);
-    const opponentTint = getActorEffectTint(opponentActorState, now, runtime.battleStartAt);
+    const opponentTint = getActorEffectTint(opponentActorState, now);
     runtime.opponentAnim.setState(opponentState);
     runtime.opponentAnim.setEffectTint(opponentTint);
     if (!this.ringOutFxInProgress.opponent) {

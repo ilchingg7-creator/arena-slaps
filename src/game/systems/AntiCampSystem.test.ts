@@ -47,7 +47,7 @@ describe("AntiCampSystem — getSpeedPenaltyMultiplier", () => {
     // unreliable when Phaser reuses scene instances.
     const actor = mockActor({ lastSlapAt: Number.NEGATIVE_INFINITY });
     expect(getSpeedPenaltyMultiplier(actor, 100_000)).toBe(1.0);
-    expect(getSpeedPenaltyMultiplier(actor, 100_000, 99_000)).toBe(1.0);
+    expect(getSpeedPenaltyMultiplier(actor, 100_000)).toBe(1.0);
   });
 
   it("returns 1.0 immediately after a successful slap (penalty reset)", () => {
@@ -123,7 +123,7 @@ describe("AntiCampSystem — isSlowed", () => {
   it("returns false for a fresh actor (never slapped) — no penalty", () => {
     const actor = mockActor({ lastSlapAt: Number.NEGATIVE_INFINITY });
     expect(isSlowed(actor, 100_000)).toBe(false);
-    expect(isSlowed(actor, 100_000, 99_000)).toBe(false);
+    expect(isSlowed(actor, 100_000)).toBe(false);
   });
 
   it("returns false for a fresh actor when battleStartAt is omitted (back-compat)", () => {

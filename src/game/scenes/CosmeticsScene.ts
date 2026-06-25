@@ -33,7 +33,7 @@ import type { GameMode } from "../config/gameSettings";
  * the title text doesn't overlap the sprite.
  */
 export class CosmeticsScene extends Phaser.Scene {
-  private selectedCategory: CosmeticCategory = "color";
+  private selectedCategory: CosmeticCategory = "outline";
   private target: "p1" | "p2" = "p1";
   private is2P = false;
   private profile: Profile | null = null;
@@ -69,7 +69,7 @@ export class CosmeticsScene extends Phaser.Scene {
   ): void {
     this.is2P = data?.mode === "2p-local";
     this.target = data?.target ?? "p1";
-    this.selectedCategory = data?.selectedCategory ?? "color";
+    this.selectedCategory = data?.selectedCategory ?? "outline";
   }
 
   create(): void {
@@ -199,7 +199,7 @@ export class CosmeticsScene extends Phaser.Scene {
       {
         x: width / 2,
         y: height * 0.93,
-        text: this.i18n.t("cosmetics.title"),
+        text: this.i18n.t("battlesetup.back"),
         variant: "primary",
         onClick: () => {
           this.audio?.playMenuClick();
@@ -300,13 +300,7 @@ export class CosmeticsScene extends Phaser.Scene {
       this.gridObjects.push(cell);
 
       // Preview content
-      if (this.selectedCategory === "color" && isAvailable) {
-        const colorVal = (def.effect as { value: number }).value;
-        const preview = this.add
-          .rectangle(x, y, cellSize - 10, cellSize - 10, colorVal, 1)
-          .setOrigin(0.5);
-        this.gridObjects.push(preview);
-      } else if (this.selectedCategory === "outline" && isAvailable) {
+      if (this.selectedCategory === "outline" && isAvailable) {
         const outlineVal = (def.effect as { value: number }).value;
         const preview = this.add
           .rectangle(x, y, cellSize - 16, cellSize - 16, 0x222222, 1)
