@@ -247,6 +247,37 @@ export const COSMETICS: readonly CosmeticDefinition[] = [
     source: { kind: "2p-free" },
     effect: { spriteKey: "headwear-party-hat", offsetY: -30 },
   },
+
+  // --- Paid headwear (19 ₽ each) ---
+  { id: "headwear-wizard", category: "headwear", nameKey: "cosmetic.headwear.wizard", source: { kind: "paid", productId: "hw_wizard", pack: "" }, effect: { spriteKey: "headwear-wizard", offsetY: -28 } },
+  { id: "headwear-pirate", category: "headwear", nameKey: "cosmetic.headwear.pirate", source: { kind: "paid", productId: "hw_pirate", pack: "" }, effect: { spriteKey: "headwear-pirate", offsetY: -28 } },
+  { id: "headwear-space", category: "headwear", nameKey: "cosmetic.headwear.space", source: { kind: "paid", productId: "hw_space", pack: "" }, effect: { spriteKey: "headwear-space", offsetY: -28 } },
+  { id: "headwear-ninja", category: "headwear", nameKey: "cosmetic.headwear.ninja", source: { kind: "paid", productId: "hw_ninja", pack: "" }, effect: { spriteKey: "headwear-ninja", offsetY: -26 } },
+  { id: "headwear-viking", category: "headwear", nameKey: "cosmetic.headwear.viking", source: { kind: "paid", productId: "hw_viking", pack: "" }, effect: { spriteKey: "headwear-viking", offsetY: -28 } },
+  { id: "headwear-tophat", category: "headwear", nameKey: "cosmetic.headwear.tophat", source: { kind: "paid", productId: "hw_tophat", pack: "" }, effect: { spriteKey: "headwear-tophat", offsetY: -28 } },
+
+  // --- Paid trails (19 ₽ each) ---
+  { id: "trail-fire", category: "trail", nameKey: "cosmetic.trail.fire", source: { kind: "paid", productId: "trail_fire", pack: "" }, effect: { textureKey: "trail-fire", color: 0xff6414 } },
+  { id: "trail-rainbow", category: "trail", nameKey: "cosmetic.trail.rainbow", source: { kind: "paid", productId: "trail_rainbow", pack: "" }, effect: { textureKey: "trail-rainbow", color: 0xc864ff } },
+  { id: "trail-galaxy", category: "trail", nameKey: "cosmetic.trail.galaxy", source: { kind: "paid", productId: "trail_galaxy", pack: "" }, effect: { textureKey: "trail-galaxy", color: 0x503cc8 } },
+  { id: "trail-poison", category: "trail", nameKey: "cosmetic.trail.poison", source: { kind: "paid", productId: "trail_poison", pack: "" }, effect: { textureKey: "trail-poison", color: 0x50c832 } },
+
+  // --- Paid slap FX (19 ₽ each) ---
+  { id: "slapfx-explosion", category: "slapFx", nameKey: "cosmetic.slapfx.explosion", source: { kind: "paid", productId: "slapfx_explosion", pack: "" }, effect: { textureKey: "slapfx-explosion" } },
+  { id: "slapfx-confetti", category: "slapFx", nameKey: "cosmetic.slapfx.confetti", source: { kind: "paid", productId: "slapfx_confetti", pack: "" }, effect: { textureKey: "slapfx-confetti" } },
+  { id: "slapfx-skull", category: "slapFx", nameKey: "cosmetic.slapfx.skull", source: { kind: "paid", productId: "slapfx_skull", pack: "" }, effect: { textureKey: "slapfx-skull" } },
+  { id: "slapfx-heart", category: "slapFx", nameKey: "cosmetic.slapfx.heart", source: { kind: "paid", productId: "slapfx_heart", pack: "" }, effect: { textureKey: "slapfx-heart" } },
+
+  // --- Paid outlines (19 ₽ each) ---
+  { id: "outline-gold", category: "outline", nameKey: "cosmetic.outline.gold", source: { kind: "paid", productId: "outline_gold", pack: "" }, effect: { value: 0xffd700 } },
+  { id: "outline-rainbow", category: "outline", nameKey: "cosmetic.outline.rainbow", source: { kind: "paid", productId: "outline_rainbow", pack: "" }, effect: { value: 0xff00ff } },
+  { id: "outline-neon-pink", category: "outline", nameKey: "cosmetic.outline.neon-pink", source: { kind: "paid", productId: "outline_neon_pink", pack: "" }, effect: { value: 0xff1493 } },
+  { id: "outline-neon-green", category: "outline", nameKey: "cosmetic.outline.neon-green", source: { kind: "paid", productId: "outline_neon_green", pack: "" }, effect: { value: 0x39ff14 } },
+
+  // --- Paid titles (19 ₽ each) ---
+  { id: "title-titan", category: "title", nameKey: "cosmetic.title.titan", source: { kind: "paid", productId: "title_premium", pack: "" }, effect: { key: "titan" } },
+  { id: "title-legend-plus", category: "title", nameKey: "cosmetic.title.legend-plus", source: { kind: "paid", productId: "title_legend_premium", pack: "" }, effect: { key: "legend-plus" } },
+  { id: "title-patrician", category: "title", nameKey: "cosmetic.title.patrician", source: { kind: "paid", productId: "title_patron", pack: "" }, effect: { key: "patrician" } },
 ];
 
 /** Look up a cosmetic by id. Returns undefined when not found. */

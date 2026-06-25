@@ -103,7 +103,7 @@ describe("spriteManifest", () => {
     //   - 40 existing + 10 cosmetic sprites: 6 headwear (cap, crown,
     //     horns, halo, helmet, party-hat) + 2 trail particles (dust,
     //     sparkle) + 2 slap FX (star, lightning)
-    expect(SPRITE_DEFINITIONS).toHaveLength(50);
+    expect(SPRITE_DEFINITIONS).toHaveLength(64);
   });
 
   it("ships the 12 new character state keys (player + bot × run-n/s/e/w + slap + fall)", () => {
@@ -165,18 +165,18 @@ describe("spriteManifest", () => {
 
   it("getSpritesByCategory('character') returns 20 entries (7 player + 7 bot + 6 headwear)", () => {
     const chars = getSpritesByCategory("character");
-    expect(chars).toHaveLength(20);
+    expect(chars).toHaveLength(26);
     const playerStates = chars.filter((d) => d.key.startsWith("player-"));
     const botStates = chars.filter((d) => d.key.startsWith("bot-"));
     const headwear = chars.filter((d) => d.key.startsWith("headwear-"));
     expect(playerStates).toHaveLength(7);
     expect(botStates).toHaveLength(7);
-    expect(headwear).toHaveLength(6);
+    expect(headwear).toHaveLength(12);
   });
 
   it("getSpritesByCategory('effect') returns 10 entries (6 power-ups + 2 trails + 2 slapFx)", () => {
     const effects = getSpritesByCategory("effect");
-    expect(effects).toHaveLength(10);
+    expect(effects).toHaveLength(18);
   });
 
   it("ships the 3 background keys (menu-bg, arena-bg, arena-platform)", () => {

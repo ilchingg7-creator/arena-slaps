@@ -44,12 +44,34 @@ type YandexSDKLike = {
     }) => void;
   };
   getPlayer?: (options?: { scopes?: boolean }) => Promise<YandexPlayerLike>;
+  getPayments?: (options?: { signed?: boolean }) => Promise<YandexPaymentsLike>;
   getFlags?: () => Promise<unknown>;
 };
 
 export type YandexPlayerLike = {
   getData?: (keys?: readonly string[]) => Promise<Record<string, unknown>>;
   setData?: (data: Record<string, unknown>, flush?: boolean) => Promise<void>;
+};
+
+export type YandexProduct = {
+  id: string;
+  title: string;
+  description: string;
+  price: string;
+  priceValue: number;
+  currency: string;
+  imageURL?: string;
+};
+
+export type YandexPurchase = {
+  productID: string;
+  purchaseToken: string;
+};
+
+type YandexPaymentsLike = {
+  getCatalog?: () => Promise<YandexProduct[]>;
+  purchase?: (config: { id: string }) => Promise<YandexPurchase>;
+  getPurchases?: () => Promise<YandexPurchase[]>;
 };
 
 class YandexSDKImpl {
@@ -215,6 +237,67 @@ class YandexSDKImpl {
       await p.setData(data);
     } catch (err) {
       console.warn("[YandexSDK] Failed to write cloud data:", err);
+    }
+  }
+
+  // ─── In-App Purchases ──────────────────────────────────────────
+
+  private payments: YandexPaymentsLike | null = null;
+
+  /**
+   * Get the Yandex Payments object. Returns null in dev mode or if
+   * payments are not available.
+   */
+  async getPayments(): Promise<YandexPaymentsLike | null> {
+    if (!this.sdk?.getPayments) return null;
+    if (this.payments) return this.payments;
+    try {
+      this.payments = await this.sdk.getPayments({ signed: true });
+      return this.payments;
+    } catch (err) {
+      console.warn("[YandexSDK] Failed to get payments:", err);
+      return null;
+    }
+  }
+
+  /**
+   * Get the product catalog from Yandex. Returns [] in dev mode or on error.
+   */
+  async iapGetCatalog(): Promise<YandexProduct[]> {
+    const p = await this.getPayments();
+    if (!p?.getCatalog) return [];
+    try {
+      return await p.getCatalog();
+    } catch (err) {
+      console.warn("[YandexSDK] Failed to get catalog:", err);
+      return [];
+    }
+  }
+
+  /**
+   * Purchase a product by its Yandex product ID. Throws in dev mode
+   * or if the purchase fails (player cancels, network error, etc.).
+   */
+  async iapPurchase(productId: string): Promise<YandexPurchase> {
+    const p = await this.getPayments();
+    if (!p?.purchase) {
+      throw new Error("[YandexSDK] Payments not available (dev mode)");
+    }
+    return await p.purchase({ id: productId });
+  }
+
+  /**
+   * Get all previously purchased products (for restore). Returns [] in
+   * dev mode or on error.
+   */
+  async iapGetPurchases(): Promise<YandexPurchase[]> {
+    const p = await this.getPayments();
+    if (!p?.getPurchases) return [];
+    try {
+      return await p.getPurchases();
+    } catch (err) {
+      console.warn("[YandexSDK] Failed to get purchases:", err);
+      return [];
     }
   }
 }

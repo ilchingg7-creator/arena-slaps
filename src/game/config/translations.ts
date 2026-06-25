@@ -271,6 +271,42 @@ export const TRANSLATIONS = {
   "cosmetic.headwear.halo": { ru: "Нимб", en: "Halo" },
   "cosmetic.headwear.helmet": { ru: "Шлем", en: "Helmet" },
   "cosmetic.headwear.2p-party-hat": { ru: "Колпак (2P)", en: "Party Hat (2P)" },
+
+// --- Premium cosmetic names (paid) ---
+  "cosmetic.headwear.wizard": { ru: "Колпак волшебника", en: "Wizard Hat" },
+  "cosmetic.headwear.pirate": { ru: "Пиратская бандана", en: "Pirate Bandana" },
+  "cosmetic.headwear.space": { ru: "Космический шлем", en: "Space Helmet" },
+  "cosmetic.headwear.ninja": { ru: "Маска ниндзя", en: "Ninja Mask" },
+  "cosmetic.headwear.viking": { ru: "Шлем викинга", en: "Viking Helmet" },
+  "cosmetic.headwear.tophat": { ru: "Цилиндр", en: "Top Hat" },
+  "cosmetic.trail.fire": { ru: "Огненный след", en: "Fire Trail" },
+  "cosmetic.trail.rainbow": { ru: "Радужный след", en: "Rainbow Trail" },
+  "cosmetic.trail.galaxy": { ru: "Галактический след", en: "Galaxy Trail" },
+  "cosmetic.trail.poison": { ru: "Ядовитый след", en: "Poison Trail" },
+  "cosmetic.slapfx.explosion": { ru: "Взрыв", en: "Explosion" },
+  "cosmetic.slapfx.confetti": { ru: "Конфетти", en: "Confetti" },
+  "cosmetic.slapfx.skull": { ru: "Череп", en: "Skull" },
+  "cosmetic.slapfx.heart": { ru: "Сердца", en: "Hearts" },
+  "cosmetic.outline.gold": { ru: "Золотая обводка", en: "Gold Outline" },
+  "cosmetic.outline.rainbow": { ru: "Радужная обводка", en: "Rainbow Outline" },
+  "cosmetic.outline.neon-pink": { ru: "Неоново-розовая", en: "Neon Pink Outline" },
+  "cosmetic.outline.neon-green": { ru: "Неоново-зелёная", en: "Neon Green Outline" },
+  "cosmetic.title.titan": { ru: "Титан", en: "Titan" },
+  "cosmetic.title.legend-plus": { ru: "Легенда+", en: "Legend+" },
+  "cosmetic.title.patrician": { ru: "Патриций", en: "Patrician" },
+
+  // --- Shop UI ---
+  "shop.title": { ru: "Магазин", en: "Shop" },
+  "shop.back": { ru: "Назад", en: "Back" },
+  "shop.buy": { ru: "Купить", en: "Buy" },
+  "shop.purchased": { ru: "Куплено", en: "Purchased" },
+  "shop.restore": { ru: "Восстановить покупки", en: "Restore Purchases" },
+  "shop.restoring": { ru: "Восстановление...", en: "Restoring..." },
+  "shop.restored": { ru: "Покупки восстановлены", en: "Purchases restored" },
+  "shop.individual": { ru: "Отдельные предметы", en: "Individual Items" },
+  "shop.packs": { ru: "Наборы со скидкой", en: "Discount Packs" },
+  "shop.devMode": { ru: "Товары недоступны (локальный режим)", en: "Items unavailable (local mode)" },
 } as const;
+
 
 export type TranslationKey = keyof typeof TRANSLATIONS;

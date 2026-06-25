@@ -349,6 +349,27 @@ export const SPRITE_DEFINITIONS: readonly SpriteDefinition[] = [
     key: "headwear-helmet", path: png("headwear-helmet"), category: "character",
     width: 48, height: 48, fallback: "rectangle", fallbackColor: 0x787880,
   },
+
+  // --- Premium cosmetic headwear (paid) ---
+  { key: "headwear-wizard", path: png("headwear-wizard"), category: "character", width: 48, height: 48, fallback: "rectangle", fallbackColor: 0x3c50b4 },
+  { key: "headwear-pirate", path: png("headwear-pirate"), category: "character", width: 48, height: 48, fallback: "rectangle", fallbackColor: 0x1e1e23 },
+  { key: "headwear-space", path: png("headwear-space"), category: "character", width: 48, height: 48, fallback: "rectangle", fallbackColor: 0x96c8ff },
+  { key: "headwear-ninja", path: png("headwear-ninja"), category: "character", width: 48, height: 48, fallback: "rectangle", fallbackColor: 0x141419 },
+  { key: "headwear-viking", path: png("headwear-viking"), category: "character", width: 48, height: 48, fallback: "rectangle", fallbackColor: 0x785028 },
+  { key: "headwear-tophat", path: png("headwear-tophat"), category: "character", width: 48, height: 48, fallback: "rectangle", fallbackColor: 0x141419 },
+
+  // --- Premium trail particles (paid) ---
+  { key: "trail-fire", path: png("trail-fire"), category: "effect", width: 16, height: 16, fallback: "circle", fallbackColor: 0xff6414 },
+  { key: "trail-rainbow", path: png("trail-rainbow"), category: "effect", width: 16, height: 16, fallback: "circle", fallbackColor: 0xc864ff },
+  { key: "trail-galaxy", path: png("trail-galaxy"), category: "effect", width: 16, height: 16, fallback: "circle", fallbackColor: 0x503cc8 },
+  { key: "trail-poison", path: png("trail-poison"), category: "effect", width: 16, height: 16, fallback: "circle", fallbackColor: 0x50c832 },
+
+  // --- Premium slap FX (paid) ---
+  { key: "slapfx-explosion", path: png("slapfx-explosion"), category: "effect", width: 48, height: 48, fallback: "circle", fallbackColor: 0xff8c1e },
+  { key: "slapfx-confetti", path: png("slapfx-confetti"), category: "effect", width: 48, height: 48, fallback: "circle", fallbackColor: 0xff5050 },
+  { key: "slapfx-skull", path: png("slapfx-skull"), category: "effect", width: 48, height: 48, fallback: "circle", fallbackColor: 0xf0f0f0 },
+  { key: "slapfx-heart", path: png("slapfx-heart"), category: "effect", width: 48, height: 48, fallback: "circle", fallbackColor: 0xff5078 },
+
   {
     key: "headwear-party-hat", path: png("headwear-party-hat"), category: "character",
     width: 48, height: 48, fallback: "rectangle", fallbackColor: 0xb432c8,
