@@ -84,31 +84,21 @@ export function createCosmeticVisuals(
   // ~50ms) and short particle lifespan (~400ms) so the trail is visible
   // but doesn't clutter the screen.
   let trailEmitter: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
-  let trailPaused = true;
   if (hasTrail && cosmetics.trail) {
     const textureKey = cosmetics.trail.textureKey;
     if (scene.textures.exists(textureKey)) {
       trailEmitter = scene.add.particles(0, 0, textureKey, {
-        // Emit one particle every 50ms while moving.
-        frequency: 50,
-        // Particles live for 400ms then fade.
+        // Manual emission via emitParticleAt in update(). frequency=-1
+        // disables auto-emission so particles only spawn when we call
+        // emitParticleAt.
+        frequency: -1,
         lifespan: 400,
-        // Small scale + alpha for a subtle trail.
         scale: { start: 0.6, end: 0 },
         alpha: { start: 0.7, end: 0 },
-        // Tint with the trail's color.
         tint: cosmetics.trail.color,
-        // Particles spawn at the emitter's x/y (set in update). No
-        // radial speed — they stay where emitted, creating a trail.
         speed: 0,
-        // Don't emit by gravity (top-down game).
         gravityY: 0,
-        // Spawn particles slightly below the actor center so the trail
-        // appears at the actor's feet, not center.
-        followOffset: { x: 0, y: 16 },
       });
-      // Start paused; update() will resume when the actor moves.
-      trailEmitter.pause();
     }
   }
 
@@ -125,22 +115,15 @@ export function createCosmeticVisuals(
     if (headwearImage) {
       headwearImage.setPosition(actorX, actorY + headwearOffsetY);
     }
-    // Update trail emitter position + emit while moving.
+    // Update trail — manually emit particles at the actor's feet.
+    // Phaser 3.80's emitter.x/y + frequency approach is unreliable for
+    // moving emitters. Instead we pause the auto-emitter and manually
+    // emit a particle at the actor's position each frame while moving.
     if (trailEmitter) {
-      // Issue 4 fix: use emitter.x / emitter.y directly instead of
-      // setPosition — Phaser 3.80's particle emitter tracks position
-      // via these properties. setPosition doesn't always work on
-      // emitters created with add.particles().
-      trailEmitter.x = actorX;
-      trailEmitter.y = actorY;
-      // Emit only when the actor is actually moving (velocity > threshold).
       const shouldEmit = velocitySq > 100;
-      if (shouldEmit && trailPaused) {
-        trailEmitter.resume();
-        trailPaused = false;
-      } else if (!shouldEmit && !trailPaused) {
-        trailEmitter.pause();
-        trailPaused = true;
+      if (shouldEmit) {
+        // Emit at the actor's feet (slightly below center).
+        trailEmitter.emitParticleAt(actorX, actorY + 12);
       }
     }
   }
