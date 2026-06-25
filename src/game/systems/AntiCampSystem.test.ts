@@ -1,0 +1,169 @@
+import { describe, expect, it } from "vitest";
+import {
+  getSpeedPenaltyMultiplier,
+  isSlowed,
+  INACTIVITY_GRACE_MS,
+  INACTIVITY_RAMP_MS,
+  INACTIVITY_MIN_MULTIPLIER,
+} from "./AntiCampSystem";
+import type { ActorState } from "../entities/Player";
+
+function mockActor(
+  overrides: Partial<ActorState> = {},
+): ActorState {
+  return {
+    body: { setVelocity: () => void 0 },
+    facing: { x: 1, y: 0 },
+    knockbackSpeed: 560,
+    knockbackMultiplier: 1,
+    knockbackBoostUntil: 0,
+    knockbackUntil: 0,
+    lastAttackAt: Number.NEGATIVE_INFINITY,
+    lastSlapAttemptAt: Number.NEGATIVE_INFINITY,
+    moveSpeed: 260,
+    size: 36,
+    slapRange: 84,
+    spawn: { x: 0, y: 0 },
+    speedBoostUntil: 0,
+    speedMultiplier: 1,
+    shieldHitsRemaining: 0,
+    shieldUntil: 0,
+    frozenUntil: 0,
+    doubleSlapUntil: 0,
+    dodgeUntil: 0,
+    dodgeCooldownUntil: 0,
+    comboStacks: 0,
+    lastSlapAt: Number.NEGATIVE_INFINITY,
+    sprite: { x: 0, y: 0, destroy: () => void 0 },
+    ...overrides,
+  } as unknown as ActorState;
+}
+
+describe("AntiCampSystem — getSpeedPenaltyMultiplier", () => {
+  it("returns 1.0 for a fresh actor who has never slapped (lastSlapAt = -Infinity)", () => {
+    // The very first slap by a fresh actor should NOT be slowed — the
+    // actor hasn't yet had a chance to engage. Penalty activates only
+    // AFTER the first slap and a subsequent inactive period.
+    const actor = mockActor({ lastSlapAt: Number.NEGATIVE_INFINITY });
+    expect(getSpeedPenaltyMultiplier(actor, 10_000)).toBe(1.0);
+  });
+
+  it("returns 1.0 immediately after a successful slap (penalty reset)", () => {
+    // `applySlap` stamps `lastSlapAt = now` on a hit. The penalty
+    // window starts from that moment.
+    const actor = mockActor({ lastSlapAt: 5000 });
+    expect(getSpeedPenaltyMultiplier(actor, 5000)).toBe(1.0);
+  });
+
+  it("returns 1.0 at the grace boundary (just under INACTIVITY_GRACE_MS after last slap)", () => {
+    const lastSlap = 1000;
+    const now = lastSlap + INACTIVITY_GRACE_MS - 1; // 1ms before grace ends
+    const actor = mockActor({ lastSlapAt: lastSlap });
+    expect(getSpeedPenaltyMultiplier(actor, now)).toBe(1.0);
+  });
+
+  it("returns 1.0 at exactly the grace boundary (INACTIVITY_GRACE_MS after last slap)", () => {
+    // The grace period is INCLUSIVE — exactly at the boundary the
+    // multiplier is still 1.0. Penalty ramps DOWN starting from
+    // (grace + 1)ms.
+    const lastSlap = 1000;
+    const now = lastSlap + INACTIVITY_GRACE_MS;
+    const actor = mockActor({ lastSlapAt: lastSlap });
+    expect(getSpeedPenaltyMultiplier(actor, now)).toBe(1.0);
+  });
+
+  it("returns < 1.0 just after the grace period ends (1ms past grace)", () => {
+    const lastSlap = 1000;
+    const now = lastSlap + INACTIVITY_GRACE_MS + 1;
+    const actor = mockActor({ lastSlapAt: lastSlap });
+    const mult = getSpeedPenaltyMultiplier(actor, now);
+    expect(mult).toBeLessThan(1.0);
+    expect(mult).toBeGreaterThan(INACTIVITY_MIN_MULTIPLIER);
+  });
+
+  it("returns INACTIVITY_MIN_MULTIPLIER at the end of the ramp (grace + ramp ms after last slap)", () => {
+    const lastSlap = 1000;
+    const now = lastSlap + INACTIVITY_GRACE_MS + INACTIVITY_RAMP_MS;
+    const actor = mockActor({ lastSlapAt: lastSlap });
+    expect(getSpeedPenaltyMultiplier(actor, now)).toBeCloseTo(
+      INACTIVITY_MIN_MULTIPLIER,
+      5,
+    );
+  });
+
+  it("clamps at INACTIVITY_MIN_MULTIPLIER long after the ramp ends", () => {
+    const lastSlap = 1000;
+    const now = lastSlap + INACTIVITY_GRACE_MS + INACTIVITY_RAMP_MS + 60_000;
+    const actor = mockActor({ lastSlapAt: lastSlap });
+    expect(getSpeedPenaltyMultiplier(actor, now)).toBe(INACTIVITY_MIN_MULTIPLIER);
+  });
+
+  it("linearly interpolates between 1.0 and MIN during the ramp (midpoint)", () => {
+    // At the midpoint of the ramp, the multiplier should be the average
+    // of 1.0 and INACTIVITY_MIN_MULTIPLIER.
+    const lastSlap = 1000;
+    const midpoint = lastSlap + INACTIVITY_GRACE_MS + INACTIVITY_RAMP_MS / 2;
+    const actor = mockActor({ lastSlapAt: lastSlap });
+    const expected = (1.0 + INACTIVITY_MIN_MULTIPLIER) / 2;
+    expect(getSpeedPenaltyMultiplier(actor, midpoint)).toBeCloseTo(expected, 5);
+  });
+
+  it("does NOT mutate the actor (pure function)", () => {
+    const actor = mockActor({ lastSlapAt: 1000 });
+    const snapshot = { ...actor, lastSlapAt: actor.lastSlapAt };
+    getSpeedPenaltyMultiplier(actor, 1000 + INACTIVITY_GRACE_MS + 2000);
+    expect(actor.lastSlapAt).toBe(snapshot.lastSlapAt);
+    expect(actor.speedMultiplier).toBe(snapshot.speedMultiplier);
+  });
+});
+
+describe("AntiCampSystem — isSlowed", () => {
+  it("returns false for a fresh actor (no penalty active)", () => {
+    const actor = mockActor({ lastSlapAt: Number.NEGATIVE_INFINITY });
+    expect(isSlowed(actor, 10_000)).toBe(false);
+  });
+
+  it("returns false immediately after a successful slap", () => {
+    const actor = mockActor({ lastSlapAt: 5000 });
+    expect(isSlowed(actor, 5000)).toBe(false);
+  });
+
+  it("returns false during the grace period", () => {
+    const lastSlap = 1000;
+    const actor = mockActor({ lastSlapAt: lastSlap });
+    expect(isSlowed(actor, lastSlap + INACTIVITY_GRACE_MS - 1)).toBe(false);
+    expect(isSlowed(actor, lastSlap + INACTIVITY_GRACE_MS)).toBe(false);
+  });
+
+  it("returns true just after the grace period ends", () => {
+    const lastSlap = 1000;
+    const actor = mockActor({ lastSlapAt: lastSlap });
+    expect(isSlowed(actor, lastSlap + INACTIVITY_GRACE_MS + 1)).toBe(true);
+  });
+
+  it("returns true at the end of the ramp and beyond", () => {
+    const lastSlap = 1000;
+    const actor = mockActor({ lastSlapAt: lastSlap });
+    const endOfRamp = lastSlap + INACTIVITY_GRACE_MS + INACTIVITY_RAMP_MS;
+    expect(isSlowed(actor, endOfRamp)).toBe(true);
+    expect(isSlowed(actor, endOfRamp + 10_000)).toBe(true);
+  });
+});
+
+describe("AntiCampSystem — constants", () => {
+  it("exposes INACTIVITY_GRACE_MS as a positive number (default 5000)", () => {
+    expect(INACTIVITY_GRACE_MS).toBeGreaterThan(0);
+    expect(INACTIVITY_GRACE_MS).toBe(5000);
+  });
+
+  it("exposes INACTIVITY_RAMP_MS as a positive number (default 4000)", () => {
+    expect(INACTIVITY_RAMP_MS).toBeGreaterThan(0);
+    expect(INACTIVITY_RAMP_MS).toBe(4000);
+  });
+
+  it("exposes INACTIVITY_MIN_MULTIPLIER in (0, 1) (default 0.4)", () => {
+    expect(INACTIVITY_MIN_MULTIPLIER).toBeGreaterThan(0);
+    expect(INACTIVITY_MIN_MULTIPLIER).toBeLessThan(1);
+    expect(INACTIVITY_MIN_MULTIPLIER).toBe(0.4);
+  });
+});

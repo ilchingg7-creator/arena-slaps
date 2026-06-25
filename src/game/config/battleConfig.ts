@@ -67,6 +67,21 @@ export const battleConfig = {
     /** How long the defender is locked into knockback velocity (ms). */
     knockbackDurationMs: 280,
   },
+  /**
+   * Anti-camp tuning. When an actor hasn't landed a slap in
+   * `graceMs` milliseconds, their movement speed starts ramping down
+   * linearly over `rampMs` until it reaches `minMultiplier` of the base
+   * speed. Resets instantly on the next successful slap. See
+   * `AntiCampSystem.ts` for the implementation.
+   */
+  antiCamp: {
+    /** Grace period (ms) after the last successful slap — full speed. */
+    graceMs: 5000,
+    /** Linear ramp duration (ms) from full speed down to minMultiplier. */
+    rampMs: 4000,
+    /** Floor multiplier — the slowest an actor can be slowed to (0.4 = 40%). */
+    minMultiplier: 0.4,
+  },
   player: {
     color: 0x3d405b,
     knockbackSpeed: 560,

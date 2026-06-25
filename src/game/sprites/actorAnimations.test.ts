@@ -33,6 +33,7 @@ function mockActor(overrides: ActorOverrides = {}): ActorState {
     knockbackBoostUntil: 0,
     knockbackUntil: 0,
     lastAttackAt: Number.NEGATIVE_INFINITY,
+    lastSlapAttemptAt: Number.NEGATIVE_INFINITY,
     moveSpeed: 260,
     size: 36,
     slapRange: 84,
@@ -43,6 +44,10 @@ function mockActor(overrides: ActorOverrides = {}): ActorState {
     shieldUntil: 0,
     frozenUntil: 0,
     doubleSlapUntil: 0,
+    dodgeUntil: 0,
+    dodgeCooldownUntil: 0,
+    comboStacks: 0,
+    lastSlapAt: Number.NEGATIVE_INFINITY,
     sprite: { x: 0, y: 0 },
     ...overrides,
   } as unknown as ActorState;
@@ -349,10 +354,100 @@ describe("getActorEffectTint", () => {
     });
     expect(getActorEffectTint(actor, 1000)).toBe(EFFECT_TINTS.knockback);
   });
+
+  // --- RED: Bug — slowed tint from AntiCampSystem ---
+  describe("slowed tint (AntiCampSystem integration)", () => {
+    it("returns the slowed tint when the actor is past the grace window", () => {
+      // Actor last slapped at t=1000. With the default grace of 5000ms,
+      // at t=7000 the actor is 1s into the ramp → slowed tint.
+      const actor = mockActor({ lastSlapAt: 1000 });
+      expect(getActorEffectTint(actor, 7000)).toBe(EFFECT_TINTS.slowed);
+    });
+
+    it("returns null for a fresh actor (never slapped, never slowed)", () => {
+      const actor = mockActor({ lastSlapAt: Number.NEGATIVE_INFINITY });
+      expect(getActorEffectTint(actor, 10_000)).toBeNull();
+    });
+
+    it("returns null immediately after a successful slap (within grace)", () => {
+      const actor = mockActor({ lastSlapAt: 5000 });
+      expect(getActorEffectTint(actor, 5000)).toBeNull();
+      // At exactly the grace boundary (5000 + 5000 = 10000) — still null.
+      expect(getActorEffectTint(actor, 10_000)).toBeNull();
+    });
+
+    it("returns the slowed tint long after the ramp ends (clamped)", () => {
+      const actor = mockActor({ lastSlapAt: 1000 });
+      // 60s past the ramp — still slowed.
+      expect(getActorEffectTint(actor, 1000 + 5000 + 4000 + 60_000)).toBe(
+        EFFECT_TINTS.slowed,
+      );
+    });
+
+    it("priority: frozen overrides slowed", () => {
+      // Frozen is highest priority — should win over slowed.
+      const actor = mockActor({
+        lastSlapAt: 1000,
+        frozenUntil: 10_000,
+      });
+      expect(getActorEffectTint(actor, 7000)).toBe(EFFECT_TINTS.frozen);
+    });
+
+    it("priority: shielded overrides slowed", () => {
+      const actor = mockActor({
+        lastSlapAt: 1000,
+        shieldHitsRemaining: 1,
+        shieldUntil: 10_000,
+      });
+      expect(getActorEffectTint(actor, 7000)).toBe(EFFECT_TINTS.shielded);
+    });
+
+    it("priority: mega-knockback overrides slowed", () => {
+      const actor = mockActor({
+        lastSlapAt: 1000,
+        knockbackBoostUntil: 10_000,
+        knockbackMultiplier: 1.75,
+      });
+      expect(getActorEffectTint(actor, 7000)).toBe(EFFECT_TINTS.megaKnockback);
+    });
+
+    it("priority: double-slap overrides slowed", () => {
+      const actor = mockActor({
+        lastSlapAt: 1000,
+        doubleSlapUntil: 10_000,
+      });
+      expect(getActorEffectTint(actor, 7000)).toBe(EFFECT_TINTS.doubleSlap);
+    });
+
+    it("priority: speed (Boost) overrides slowed", () => {
+      // A Boosted actor who is also camping — the Boost tint wins so the
+      // player sees they still have the power-up active.
+      const actor = mockActor({
+        lastSlapAt: 1000,
+        speedBoostUntil: 10_000,
+      });
+      expect(getActorEffectTint(actor, 7000)).toBe(EFFECT_TINTS.speed);
+    });
+
+    it("priority: regular knockback overrides slowed", () => {
+      const actor = mockActor({
+        lastSlapAt: 1000,
+        knockbackBoostUntil: 10_000,
+        knockbackMultiplier: 1.25,
+      });
+      expect(getActorEffectTint(actor, 7000)).toBe(EFFECT_TINTS.knockback);
+    });
+
+    it("priority: slowed wins over NO effect (it's the lowest non-null priority)", () => {
+      // When no other effect is active, slowed shows.
+      const actor = mockActor({ lastSlapAt: 1000 });
+      expect(getActorEffectTint(actor, 7000)).toBe(EFFECT_TINTS.slowed);
+    });
+  });
 });
 
 describe("EFFECT_TINTS", () => {
-  it("exposes all six documented effect tint keys", () => {
+  it("exposes all seven documented effect tint keys", () => {
     expect(Object.keys(EFFECT_TINTS).sort()).toEqual(
       [
         "frozen",
@@ -361,6 +456,7 @@ describe("EFFECT_TINTS", () => {
         "doubleSlap",
         "speed",
         "knockback",
+        "slowed",
       ].sort(),
     );
   });

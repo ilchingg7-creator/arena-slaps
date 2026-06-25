@@ -25,6 +25,7 @@
 
 import type { ActorState } from "../entities/Player";
 import { isFrozen, isShieldActive, isDoubleSlapReady } from "../systems/PowerUpSystem";
+import { isSlowed } from "../systems/AntiCampSystem";
 import type { AnimationState } from "./AnimatedSprite";
 
 /**
@@ -39,6 +40,7 @@ import type { AnimationState } from "./AnimatedSprite";
  *   - doubleSlap   → 0x9b5de5 (purple)
  *   - speed        → 0x81b29a (sage green, matches Boost power-up)
  *   - knockback    → 0xf2cc8f (warm yellow, matches Heavy Hand power-up)
+ *   - slowed       → 0x6b7a8f (muted blue-grey, signals "you're camping")
  */
 export const EFFECT_TINTS = {
   frozen: 0x88ccff,
@@ -47,6 +49,7 @@ export const EFFECT_TINTS = {
   doubleSlap: 0x9b5de5,
   speed: 0x81b29a,
   knockback: 0xf2cc8f,
+  slowed: 0x6b7a8f,
 } as const;
 
 /**
@@ -150,7 +153,12 @@ export function getActorAnimationState(
  *   4. double-slap   — Double-Slap power-up. Next slap hits twice.
  *   5. speed         — Boost power-up. Speed multiplier is active.
  *   6. knockback     — Heavy Hand power-up (regular knockback boost).
- *                      Lowest priority because it's the weakest boost.
+ *                      Lowest priority among power-up tints.
+ *   7. slowed        — AntiCampSystem penalty. The actor hasn't landed a
+ *                      slap in a while and is moving at reduced speed.
+ *                      Lowest priority overall — every power-up tint wins
+ *                      over it so the player always sees what power-up is
+ *                      active even while being penalized for camping.
  *
  * Note: the priority order is intentional, not arbitrary. Frozen > shielded
  * because frozen is a debuff the actor wants to see coming; shielded >
@@ -159,7 +167,9 @@ export function getActorAnimationState(
  * because the mega-knockback affects the actor's own appearance more
  * dramatically; double-slap > speed because double-slap is a one-shot
  * window the player needs to act on; speed > knockback because the regular
- * knockback boost is the least visually-distinct effect.
+ * knockback boost is the least visually-distinct effect; all power-up
+ * tints > slowed because camping is a passive state and shouldn't mask
+ * the player's active power-up.
  */
 export function getActorEffectTint(
   actor: ActorState,
@@ -196,6 +206,11 @@ export function getActorEffectTint(
   // 6. Regular knockback (Heavy Hand, multiplier <= 1.5).
   if (now < actor.knockbackBoostUntil) {
     return EFFECT_TINTS.knockback;
+  }
+
+  // 7. Slowed (AntiCampSystem penalty — lowest priority).
+  if (isSlowed(actor, now)) {
+    return EFFECT_TINTS.slowed;
   }
 
   return null;

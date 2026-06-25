@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { expirePowerUpBoosts } from "../systems/PowerUpSystem";
+import { getSpeedPenaltyMultiplier } from "../systems/AntiCampSystem";
 
 export type ActorConfig = {
   color: number;
@@ -180,10 +181,17 @@ export function moveActor(
     return;
   }
 
+  // Anti-camp penalty: actors who haven't landed a slap in a while move
+  // progressively slower (1.0 → 0.4 over a 5s grace + 4s ramp window).
+  // Resets instantly on the next successful slap (applySlap stamps
+  // lastSlapAt = now). Stacks multiplicatively on top of any active
+  // Boost power-up — effective speed = moveSpeed × speedMultiplier × penalty.
+  const penalty = getSpeedPenaltyMultiplier(actor, now);
+
   const normalized = direction.clone().normalize();
   actor.body.setVelocity(
-    normalized.x * actor.moveSpeed * actor.speedMultiplier,
-    normalized.y * actor.moveSpeed * actor.speedMultiplier,
+    normalized.x * actor.moveSpeed * actor.speedMultiplier * penalty,
+    normalized.y * actor.moveSpeed * actor.speedMultiplier * penalty,
   );
   actor.facing.copy(normalized);
 }
