@@ -144,6 +144,10 @@ export function saveSettings(
   settings: GameSettings,
 ): void {
   storage.setItem?.(storageKey, JSON.stringify(settings));
+  // Cloud save hook — no-op in dev mode or before CloudSaveService.init().
+  import("../services/CloudSaveService").then(({ CloudSaveService }) => {
+    CloudSaveService.saveSettings(settings);
+  }).catch(() => { /* ignore */ });
 }
 
 export const ROUND_LENGTH_OPTIONS = [30, 60, 90, 120] as const;

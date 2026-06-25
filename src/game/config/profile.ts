@@ -282,10 +282,16 @@ export function loadProfile(
 
 /**
  * Serialize {@link profile} to JSON and persist it via `storage.setItem`.
+ * Also triggers a debounced cloud save via CloudSaveService (if initialized).
  * Mirrors the {@link loadProfile} storage key so the two stay in sync.
  */
 export function saveProfile(storage: StorageLike, profile: Profile): void {
   storage.setItem?.(STORAGE_KEY, JSON.stringify(profile));
+  // Cloud save hook — no-op in dev mode or before CloudSaveService.init().
+  // Late import to avoid circular dependency at module load time.
+  import("../services/CloudSaveService").then(({ CloudSaveService }) => {
+    CloudSaveService.saveProfile(profile);
+  }).catch(() => { /* ignore — cloud save is non-critical */ });
 }
 
 /**

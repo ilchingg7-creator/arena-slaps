@@ -43,8 +43,13 @@ type YandexSDKLike = {
       };
     }) => void;
   };
-  getPlayer?: (options?: { scopes?: boolean }) => Promise<unknown>;
+  getPlayer?: (options?: { scopes?: boolean }) => Promise<YandexPlayerLike>;
   getFlags?: () => Promise<unknown>;
+};
+
+export type YandexPlayerLike = {
+  getData?: (keys?: readonly string[]) => Promise<Record<string, unknown>>;
+  setData?: (data: Record<string, unknown>, flush?: boolean) => Promise<void>;
 };
 
 class YandexSDKImpl {
@@ -163,6 +168,54 @@ class YandexSDKImpl {
         },
       },
     });
+  }
+
+  private player: YandexPlayerLike | null = null;
+
+  /**
+   * Get the Yandex Player object (for cloud save). Returns null in dev
+   * mode or if the player is not authorized. The player object exposes
+   * getData / setData for cloud saves.
+   */
+  async getPlayer(): Promise<YandexPlayerLike | null> {
+    if (!this.sdk?.getPlayer) return null;
+    if (this.player) return this.player;
+    try {
+      this.player = await this.sdk.getPlayer({ scopes: true });
+      return this.player;
+    } catch (err) {
+      console.warn("[YandexSDK] Failed to get player:", err);
+      return null;
+    }
+  }
+
+  /**
+   * Read cloud data from the player. Returns {} in dev mode or on error.
+   * @param keys Optional array of keys to fetch (fetches all if omitted).
+   */
+  async playerGetData(keys?: readonly string[]): Promise<Record<string, unknown>> {
+    const p = await this.getPlayer();
+    if (!p?.getData) return {};
+    try {
+      return await p.getData(keys);
+    } catch (err) {
+      console.warn("[YandexSDK] Failed to read cloud data:", err);
+      return {};
+    }
+  }
+
+  /**
+   * Write cloud data to the player. No-op in dev mode or on error.
+   * @param data Key-value map to store in the cloud.
+   */
+  async playerSetData(data: Record<string, unknown>): Promise<void> {
+    const p = await this.getPlayer();
+    if (!p?.setData) return;
+    try {
+      await p.setData(data);
+    } catch (err) {
+      console.warn("[YandexSDK] Failed to write cloud data:", err);
+    }
   }
 }
 
