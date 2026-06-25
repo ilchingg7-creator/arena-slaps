@@ -736,6 +736,22 @@ export class BattleScene extends Phaser.Scene {
     // Issue 1 fix: removed P2 color tint — color cosmetic category removed.
     opponentSprite.setAlpha(0);
 
+    // Bug fix: explicitly set lastSlapAt to the current scene time for
+    // BOTH actors. createActor sets lastSlapAt = -Infinity, which makes
+    // the anti-camp system fall back to battleStartAt. If the scene's
+    // clock has a large value (e.g., the player sat in the menu for a
+    // long time and Phaser reused the scene instance), the fallback
+    // reference can be far in the past → max slowdown immediately.
+    // Setting lastSlapAt = this.time.now here guarantees the grace
+    // window starts from THIS moment, not from some stale clock value.
+    const battleNow = this.time.now;
+    player.lastSlapAt = battleNow;
+    if (opponent.kind === "bot") {
+      opponent.bot.lastSlapAt = battleNow;
+    } else {
+      opponent.player.lastSlapAt = battleNow;
+    }
+
     this.physics.add.collider(player.sprite, opponentSprite);
 
     const keyboard = this.input.keyboard;
