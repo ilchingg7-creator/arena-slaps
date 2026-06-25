@@ -98,14 +98,15 @@ describe("spriteManifest", () => {
     expect(keys).toContain("powerup-shield");
   });
 
-  it("has 23 total sprite definitions (5 originals + 12 new character states + 3 new power-ups + 3 backgrounds)", () => {
+  it("has 48 total sprite definitions (was 40 + 8 cosmetic sprites)", () => {
     // Breakdown:
-    //   - 5 originals: player-idle, bot-idle, powerup-speed, powerup-knockback, powerup-shield
-    //   - 12 new character states: player + bot × 6 each (run-n/s/e/w + slap + fall)
-    //   - 3 new power-ups: powerup-mega-knockback, powerup-freeze, powerup-double-slap
-    //   - 3 backgrounds: menu-bg, arena-bg, arena-platform
-    // Total = 5 + 12 + 3 + 3 = 23.
-    expect(SPRITE_DEFINITIONS).toHaveLength(40);
+    //   - 40 existing (5 originals + 12 character states + 6 power-ups
+    //     + 3 backgrounds + 2 logo/mute + 4 sfx/music toggles + 10 map
+    //     backgrounds/platforms)
+    //   - 8 new cosmetic sprites: 4 headwear (cap, crown, horns,
+    //     party-hat) + 2 trail particles (dust, sparkle) + 2 slap FX
+    //     (star, lightning)
+    expect(SPRITE_DEFINITIONS).toHaveLength(48);
   });
 
   it("ships the 12 new character state keys (player + bot × run-n/s/e/w + slap + fall)", () => {
@@ -165,18 +166,20 @@ describe("spriteManifest", () => {
     }
   });
 
-  it("getSpritesByCategory('character') returns exactly 14 entries (7 player + 7 bot)", () => {
+  it("getSpritesByCategory('character') returns 18 entries (7 player + 7 bot + 4 headwear)", () => {
     const chars = getSpritesByCategory("character");
-    expect(chars).toHaveLength(14);
+    expect(chars).toHaveLength(18);
     const playerStates = chars.filter((d) => d.key.startsWith("player-"));
     const botStates = chars.filter((d) => d.key.startsWith("bot-"));
+    const headwear = chars.filter((d) => d.key.startsWith("headwear-"));
     expect(playerStates).toHaveLength(7);
     expect(botStates).toHaveLength(7);
+    expect(headwear).toHaveLength(4);
   });
 
-  it("getSpritesByCategory('effect') returns exactly 6 entries (3 original + 3 new power-ups)", () => {
+  it("getSpritesByCategory('effect') returns 10 entries (6 power-ups + 2 trails + 2 slapFx)", () => {
     const effects = getSpritesByCategory("effect");
-    expect(effects).toHaveLength(6);
+    expect(effects).toHaveLength(10);
   });
 
   it("ships the 3 background keys (menu-bg, arena-bg, arena-platform)", () => {

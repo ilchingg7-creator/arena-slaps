@@ -327,6 +327,44 @@ export const SPRITE_DEFINITIONS: readonly SpriteDefinition[] = [
     key: "arena-platform-grass", path: png("arena-platform-grass"), category: "background",
     width: 920, height: 520, fallback: "rectangle", fallbackColor: 0x28501e,
   },
+
+  // --- Cosmetic headwear (4 overlays — drawn above the actor sprite) ---
+  {
+    key: "headwear-cap", path: png("headwear-cap"), category: "character",
+    width: 48, height: 48, fallback: "rectangle", fallbackColor: 0x325aa0,
+  },
+  {
+    key: "headwear-crown", path: png("headwear-crown"), category: "character",
+    width: 48, height: 48, fallback: "rectangle", fallbackColor: 0xf0c83c,
+  },
+  {
+    key: "headwear-horns", path: png("headwear-horns"), category: "character",
+    width: 48, height: 48, fallback: "rectangle", fallbackColor: 0xb41e1e,
+  },
+  {
+    key: "headwear-party-hat", path: png("headwear-party-hat"), category: "character",
+    width: 48, height: 48, fallback: "rectangle", fallbackColor: 0xb432c8,
+  },
+
+  // --- Cosmetic trail particles (small soft circles for emitters) ---
+  {
+    key: "trail-dust", path: png("trail-dust"), category: "effect",
+    width: 16, height: 16, fallback: "circle", fallbackColor: 0xb4aa96,
+  },
+  {
+    key: "trail-sparkle", path: png("trail-sparkle"), category: "effect",
+    width: 16, height: 16, fallback: "circle", fallbackColor: 0xffffff,
+  },
+
+  // --- Cosmetic slap FX (burst textures, 48×48) ---
+  {
+    key: "slapfx-star", path: png("slapfx-star"), category: "effect",
+    width: 48, height: 48, fallback: "circle", fallbackColor: 0xffdc3c,
+  },
+  {
+    key: "slapfx-lightning", path: png("slapfx-lightning"), category: "effect",
+    width: 48, height: 48, fallback: "circle", fallbackColor: 0x78b4ff,
+  },
 ];
 
 export const SPRITE_ATLASES: readonly AtlasDefinition[] = [

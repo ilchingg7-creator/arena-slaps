@@ -67,7 +67,13 @@ import {
 import { resolveNicknames, type NicknamePair } from "./nicknameHelpers";
 import { I18nService } from "../i18n/I18nService";
 import { DEFAULT_MAP_KEY, getMapByKey } from "../config/mapManifest";
-import { resolveP1Cosmetics, resolveP2Cosmetics } from "../cosmetics/resolveCosmetics";
+import { resolveP1Cosmetics, resolveP2Cosmetics, type ResolvedCosmetics } from "../cosmetics/resolveCosmetics";
+import {
+  createCosmeticVisuals,
+  applyOutline,
+  applyTitleToLabel,
+  type CosmeticVisuals,
+} from "../cosmetics/CosmeticVisuals";
 
 type Opponent =
   | { kind: "bot"; bot: Bot; ai: BotAIState }
@@ -201,6 +207,27 @@ type BattleRuntime = {
    * achievement (3+ ring-outs suffered AND a win).
    */
   ringOutsSufferedThisBattle: number;
+  /**
+   * P1's cosmetic visuals (headwear overlay + trail emitter + slapFx).
+   * null when no visual cosmetics are equipped. Updated every frame in
+   * update() to track the player's position.
+   */
+  p1CosmeticVisuals: CosmeticVisuals | null;
+  /**
+   * Opponent's cosmetic visuals (only for 2P-local — bots don't equip
+   * cosmetics). null in 1P-vs-bot mode or when no visual cosmetics.
+   */
+  opponentCosmeticVisuals: CosmeticVisuals | null;
+  /**
+   * P1's resolved cosmetics (color, outline, trail, slapFx, title,
+   * headwear). Cached at create() time so slapP1 can read the slapFx
+   * texture key without re-resolving every slap.
+   */
+  p1Cosmetics: ResolvedCosmetics | null;
+  /**
+   * Opponent's resolved cosmetics (only set in 2P-local mode).
+   */
+  opponentCosmetics: ResolvedCosmetics | null;
 };
 
 /**
@@ -733,19 +760,52 @@ export class BattleScene extends Phaser.Scene {
     // Rendered above each actor and repositioned every frame in `update()`
     // so they track the actors as they move around the arena. Depth 10
     // keeps them on top of the arena graphics + animated sprites.
+    // --- Build name labels with optional title cosmetic ---
+    // applyTitleToLabel appends the title (e.g. "Rookie") below the
+    // nickname when a title cosmetic is equipped. Falls back to just the
+    // nickname when no title is equipped.
+    const p1LabelText = applyTitleToLabel(
+      nicknames.player,
+      p1Cosmetics.title,
+      (titleKey) => {
+        try {
+          return i18n.t(`cosmetic.title.${titleKey}` as never);
+        } catch {
+          return titleKey;
+        }
+      },
+    );
     const playerNameLabel = this.add
-      .text(player.sprite.x, player.sprite.y - 40, nicknames.player, {
+      .text(player.sprite.x, player.sprite.y - 40, p1LabelText, {
         color: "#f4f1de",
         fontFamily: "Arial",
         fontSize: "16px",
+        align: "center",
       })
       .setOrigin(0.5)
       .setDepth(10);
+
+    // Opponent label — only add title in 2P-local mode (bots don't equip).
+    const oppLabelText =
+      settings.mode === "2p-local" && opponent.kind === "player2"
+        ? applyTitleToLabel(
+            nicknames.opponent,
+            resolveP2Cosmetics(profile, battleConfig.bot.color).title,
+            (titleKey) => {
+              try {
+                return i18n.t(`cosmetic.title.${titleKey}` as never);
+              } catch {
+                return titleKey;
+              }
+            },
+          )
+        : nicknames.opponent;
     const opponentNameLabel = this.add
-      .text(opponentSprite.x, opponentSprite.y - 40, nicknames.opponent, {
+      .text(opponentSprite.x, opponentSprite.y - 40, oppLabelText, {
         color: "#f4f1de",
         fontFamily: "Arial",
         fontSize: "16px",
+        align: "center",
       })
       .setOrigin(0.5)
       .setDepth(10);
@@ -818,7 +878,33 @@ export class BattleScene extends Phaser.Scene {
       maxComboReached: 0,
       dodgesThisBattle: 0,
       ringOutsSufferedThisBattle: 0,
+      p1CosmeticVisuals: null,
+      opponentCosmeticVisuals: null,
+      p1Cosmetics: null,
+      opponentCosmetics: null,
     };
+
+    // --- Create cosmetic visuals (headwear + trail + slapFx) ---
+    // P1's visuals are always created (cosmetics may be empty → null).
+    this.runtime.p1Cosmetics = p1Cosmetics;
+    this.runtime.p1CosmeticVisuals = createCosmeticVisuals(this, p1Cosmetics);
+    // Apply outline if equipped.
+    if (p1Cosmetics.outline !== null) {
+      applyOutline(this, player.sprite, p1Cosmetics.outline, battleConfig.player.size);
+    }
+    // Apply title to the P1 HUD label (set later in create() when the
+    // label is built — we cache the resolved cosmetics here so the label
+    // builder can read p1Cosmetics.title).
+
+    // Opponent visuals — only in 2P-local mode (bots don't equip cosmetics).
+    if (settings.mode === "2p-local" && opponent.kind === "player2") {
+      const oppCosmetics = resolveP2Cosmetics(profile, battleConfig.bot.color);
+      this.runtime.opponentCosmetics = oppCosmetics;
+      this.runtime.opponentCosmeticVisuals = createCosmeticVisuals(this, oppCosmetics);
+      if (oppCosmetics.outline !== null) {
+        applyOutline(this, opponent.player.sprite, oppCosmetics.outline, battleConfig.player.size);
+      }
+    }
 
     const controlsHint =
       settings.mode === "2p-local"
@@ -860,6 +946,11 @@ export class BattleScene extends Phaser.Scene {
       );
       if (hit) {
         rt.audio.playSlapHit();
+        // Play P1's slap FX cosmetic at the defender's position.
+        if (rt.p1CosmeticVisuals) {
+          const defender = this.opponentActor();
+          rt.p1CosmeticVisuals.playSlapFx(defender.sprite.x, defender.sprite.y);
+        }
       } else {
         rt.audio.playSlapMiss();
       }
@@ -882,6 +973,10 @@ export class BattleScene extends Phaser.Scene {
       );
       if (hit) {
         rt.audio.playSlapHit();
+        // Play P2's slap FX cosmetic at the defender's (P1's) position.
+        if (rt.opponentCosmeticVisuals) {
+          rt.opponentCosmeticVisuals.playSlapFx(rt.player.sprite.x, rt.player.sprite.y);
+        }
       } else {
         rt.audio.playSlapMiss();
       }
@@ -998,6 +1093,12 @@ export class BattleScene extends Phaser.Scene {
       if (this.pauseMenu) {
         this.pauseMenu.destroy();
         this.pauseMenu = null;
+      }
+      // Destroy cosmetic visuals (headwear images, particle emitters)
+      // so they don't leak into the next battle.
+      if (this.runtime) {
+        this.runtime.p1CosmeticVisuals?.destroy();
+        this.runtime.opponentCosmeticVisuals?.destroy();
       }
       this.runtime = null;
     });
@@ -1500,6 +1601,29 @@ export class BattleScene extends Phaser.Scene {
       opponentActor.sprite.x,
       opponentActor.sprite.y - 40,
     );
+
+    // --- Update cosmetic visuals (headwear position + trail emission) ---
+    // Track each actor's position + velocity so headwear stays glued
+    // to the actor's head and the trail emitter only emits while moving.
+    if (runtime.p1CosmeticVisuals) {
+      const vx = runtime.player.body.velocity.x;
+      const vy = runtime.player.body.velocity.y;
+      runtime.p1CosmeticVisuals.update(
+        runtime.player.sprite.x,
+        runtime.player.sprite.y,
+        vx * vx + vy * vy,
+      );
+    }
+    if (runtime.opponentCosmeticVisuals) {
+      const opp = this.opponentActor();
+      const vx = opp.body.velocity.x;
+      const vy = opp.body.velocity.y;
+      runtime.opponentCosmeticVisuals.update(
+        opp.sprite.x,
+        opp.sprite.y,
+        vx * vx + vy * vy,
+      );
+    }
 
     updateHud(runtime);
   }
