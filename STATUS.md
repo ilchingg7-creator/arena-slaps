@@ -1,12 +1,80 @@
 # Arena Slaps — Status
 
-**Version:** v1.7.0
+**Version:** v1.8.0
 **Last updated:** 2026-06-26
-**Build:** `5.09s` · **Tests:** `1015/1015 passed (60 files)` · **tsc:** clean · **Bundle:** `364 KB gzip`
+**Build:** `5.38s` · **Tests:** `1017/1017 passed (60 files)` · **tsc:** clean · **Bundle:** `364 KB gzip`
 
 ---
 
 ## Recent work (latest first)
+
+### v1.8.0 — UX polish + bot balance + P2 dodge + ProgressScene (2026-06-26)
+
+Major UX and balance iteration across 12 commits.
+
+**ShopScene rewrite:**
+- Tab-based layout (Items / Packs) — no more overflow on 1280×720.
+- Visual previews for each item: headwear PNG, outline stroke, trail
+  tinted texture, slap FX PNG, pack count badge.
+- Hover tooltip on packs showing full cosmetic list.
+- Pack names use product titleKey (not first cosmetic name).
+- Buy buttons disabled in dev mode (grey, non-interactive).
+- Yandex catalog prices loaded on entry (falls back to defaultPrice).
+- Currency: ₽ → **ЯН** (Yandex platform currency).
+- Individual titles removed (only available via pack_titles).
+
+**CosmeticsScene improvements:**
+- Previews **always visible** (even when locked) at 40% alpha.
+- Text no longer overlaps icons (preview shifted up, name shifted down).
+- Default category: "color" → "outline" (color was removed).
+- Back button text fixed ("Внешний вид" → "Назад").
+- P2 cosmetics now **actually applied in battle** (registry → profile
+  merge fix — was the most critical cosmetics bug).
+- P1 equipped cosmetics filtered by ownership on resolve (Bug 4 fix —
+  prevents 2P exploit where paid cosmetics could persist to P1 profile).
+
+**ProgressScene (merged Progression + Achievements):**
+- Single scene with two tabs: "Уровни" (level, XP, unlock ladder) +
+  "Достижения" (18-achievement grid).
+- Tab switching in-place (no scene.restart).
+- MainMenu: 6 buttons → **5** (merged Progression + Achievements).
+- Levels 9-10: display only title name, no "—" placeholder.
+
+**Trail cosmetic fixed:**
+- Switched to manual `emitParticleAt` (Phaser 3.80 emitter.x/y unreliable).
+- Particles spawn at actor's feet (+20px below center).
+- Direction-aware: moving right → trail on left, moving left → on right.
+- Brighter/puffier: scale 1.0, alpha 1.0, lifespan 600ms, quantity 2,
+  speed 0-30 random spread.
+
+**Bot balance:**
+- Dodge chances nerfed: easy 0.40→0.25, medium 0.75→0.45, hard 0.95→0.55.
+- Reaction time increased: easy 350→400ms, medium 200→250ms, hard 100→200ms.
+- Slap intervals increased: easy 800→1000ms, medium 500→700ms, hard
+  450→600ms. Bot was slapping faster than a human could (automatic
+  timer vs manual key press).
+
+**P2 dodge:**
+- P2 can now dodge in 2P-local mode (CTRL key).
+- Same mechanics as P1: 200ms i-frames, 1.5s cooldown, 2x speed burst.
+
+**Map names:**
+- Shortened RU names: "Базовая арена" → "Базовая", etc. No more
+  button overflow.
+
+**Cloud Save fixes (from code review):**
+- Cloud profile loaded when local is empty (new device — Bug 1).
+- Safe-parse local profile (corrupt localStorage — Bug 2).
+- Pending data retained on flush failure (Bug 3).
+- Local-wins pushes to cloud after init (Bug 9).
+- `playerSetData` flush parameter added (Bug 8).
+
+**Commits:** `08c6cfd`, `c6b8f5c`, `1b3c250`, `449eabd`, `815205e`,
+`c96c6dd`, `89c219f`, `4fd6311`, `ddc2ebe`, `bdda819`, `a06d557`,
+`82ba74a`, `925b6a7`
+**Tests:** 1015 → 1017
+
+---
 
 ### v1.7.0 — Cloud save + In-App Purchases (2026-06-26)
 
@@ -30,8 +98,8 @@ Two major platform features added in this release:
 - `IAPService` — `init()` restores purchases from Yandex →
   `profile.cosmetics.owned`. `purchase()` calls Yandex dialog → adds
   cosmetics → `saveProfile`. `isPurchased()` / `getCatalog()` for UI.
-- `IAPManifest` — 27 products: 21 individual cosmetics (19 ₽ each) +
-  5 category packs (29-49 ₽) + 1 Everything Bundle (149 ₽).
+- `IAPManifest` — 27 products: 21 individual cosmetics (19 ЯН each) +
+  5 category packs (29-49 ЯН) + 1 Everything Bundle (149 ЯН).
 - **21 paid cosmetics** added to `CosmeticsManifest`:
   - 6 headwear: wizard, pirate, space, ninja, viking, tophat
   - 4 trails: fire, rainbow, galaxy, poison
@@ -57,7 +125,6 @@ Two major platform features added in this release:
 
 **Commits:** `9aa2573`, `85c52f4`, `610ee60`, `73e9cbb`
 **Tests:** 976 → 1015 (+39)
-**Scenes:** 9 → 11 (+CosmeticsScene was already there, +ShopScene)
 
 ---
 
@@ -412,21 +479,22 @@ Three integration bugs surfaced by QA:
 
 ## Architecture
 
-### Scenes (11 total, registered in `gameConfig.ts`)
+### Scenes (10 initial + 2 lazy = 12 total)
 
 | # | Scene | Role |
 |---|---|---|
 | 1 | `BootScene` | Initial setup, hands off to Preload |
 | 2 | `PreloadScene` | Asset loading, "Loading..." text, emits `ready` |
-| 3 | `MainMenuScene` | Title + 6 navigation buttons (incl. Shop) |
-| 4 | `BattleSetupScene` | Mode selection, nickname resolution, "Внешний вид" button, dynamic-imports BattleScene + ResultsScene |
+| 3 | `MainMenuScene` | Title + 5 navigation buttons |
+| 4 | `BattleSetupScene` | Mode selection, nickname resolution, "Внешний вид" button |
 | 5 | `AudioSettingsScene` | Volume sliders for SFX + Music, mute toggles |
 | 6 | `ProfileScene` | Player nickname, stats, win rate, favorite mode/power-up |
-| 7 | `ProgressionScene` | Level + XP bar + unlocks grid |
-| 8 | `AchievementsScene` | 18-achievement grid (6×3), unlocked count |
-| 9 | `CosmeticsScene` | 5-category cosmetic picker (P1/P2 toggle in 2P) |
-| 10 | `ShopScene` | IAP shop — 21 items + 6 packs, buy/restore |
-| 11 | `BattleScene` (lazy) + `ResultsScene` (lazy) | Code-split via dynamic import |
+| 7 | `ProgressScene` | Levels + Achievements (tabbed, replaces 2 old scenes) |
+| 8 | `CosmeticsScene` | 5-category cosmetic picker (P1/P2 toggle in 2P) |
+| 9 | `ShopScene` | IAP shop — 18 items + 6 packs, buy/restore |
+| 10 | (lazy) `BattleScene` | Code-split via dynamic import |
+| 11 | (lazy) `ResultsScene` | Code-split via dynamic import |
+| 12 | `ProgressionScene` + `AchievementsScene` | Dead code (replaced by ProgressScene) |
 
 ### Key systems
 
@@ -480,7 +548,7 @@ Three integration bugs surfaced by QA:
 
 ## Test coverage
 
-- **1015 tests** across **60 test files**.
+- **1017 tests** across **60 test files**.
 - **TDD methodology** — every bugfix and feature goes RED → GREEN:
   - RED: write failing tests that pin the desired behavior.
   - GREEN: implement the minimum code to make tests pass.
