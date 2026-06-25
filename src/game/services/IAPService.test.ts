@@ -22,24 +22,24 @@ describe("IAPService", () => {
       const saveProfile = vi.fn();
 
       await IAPService.init(profile, saveProfile, async () => [
-        { productID: "hw_wizard", purchaseToken: "tok_1" },
+        { productID: "hw_halo", purchaseToken: "tok_1" },
         { productID: "trail_fire", purchaseToken: "tok_2" },
       ]);
 
-      expect(profile.cosmetics.owned).toContain("headwear-wizard");
+      expect(profile.cosmetics.owned).toContain("headwear-halo");
       expect(profile.cosmetics.owned).toContain("trail-fire");
       expect(saveProfile).toHaveBeenCalled();
     });
 
     it("does not add duplicates on re-init", async () => {
-      const profile = makeProfile(["headwear-wizard"]);
+      const profile = makeProfile(["headwear-halo"]);
       const saveProfile = vi.fn();
 
       await IAPService.init(profile, saveProfile, async () => [
-        { productID: "hw_wizard", purchaseToken: "tok_1" },
+        { productID: "hw_halo", purchaseToken: "tok_1" },
       ]);
 
-      expect(profile.cosmetics.owned.filter((id) => id === "headwear-wizard")).toHaveLength(1);
+      expect(profile.cosmetics.owned.filter((id) => id === "headwear-halo")).toHaveLength(1);
     });
 
     it("handles bundle_all correctly (adds all 21 cosmetics)", async () => {
@@ -67,22 +67,22 @@ describe("IAPService", () => {
 
   describe("isPurchased", () => {
     it("returns true for a purchased product", () => {
-      const profile = makeProfile(["headwear-wizard"]);
+      const profile = makeProfile(["headwear-halo"]);
       IAPService.setProfileForTest(profile);
-      expect(IAPService.isPurchased("hw_wizard")).toBe(true);
+      expect(IAPService.isPurchased("hw_halo")).toBe(true);
     });
 
     it("returns false for a not-purchased product", () => {
       const profile = makeProfile();
       IAPService.setProfileForTest(profile);
-      expect(IAPService.isPurchased("hw_wizard")).toBe(false);
+      expect(IAPService.isPurchased("hw_halo")).toBe(false);
     });
 
     it("returns true when a pack is purchased and checks its cosmetic", () => {
-      const profile = makeProfile(["headwear-wizard", "headwear-pirate"]);
+      const profile = makeProfile(["headwear-halo", "headwear-pirate"]);
       IAPService.setProfileForTest(profile);
-      // hw_wizard is purchased because headwear-wizard is in owned
-      expect(IAPService.isPurchased("hw_wizard")).toBe(true);
+      // hw_halo is purchased because headwear-halo is in owned
+      expect(IAPService.isPurchased("hw_halo")).toBe(true);
     });
   });
 
@@ -93,14 +93,14 @@ describe("IAPService", () => {
       IAPService.setProfileForTest(profile, saveProfile);
 
       const purchaseFn = vi.fn().mockResolvedValue({
-        productID: "hw_wizard",
+        productID: "hw_halo",
         purchaseToken: "tok_123",
       });
 
-      await IAPService.purchase("hw_wizard", purchaseFn);
+      await IAPService.purchase("hw_halo", purchaseFn);
 
-      expect(purchaseFn).toHaveBeenCalledWith("hw_wizard");
-      expect(profile.cosmetics.owned).toContain("headwear-wizard");
+      expect(purchaseFn).toHaveBeenCalledWith("hw_halo");
+      expect(profile.cosmetics.owned).toContain("headwear-halo");
       expect(saveProfile).toHaveBeenCalled();
     });
 
@@ -111,23 +111,23 @@ describe("IAPService", () => {
 
       const purchaseFn = vi.fn().mockRejectedValue(new Error("cancelled"));
 
-      await expect(IAPService.purchase("hw_wizard", purchaseFn)).rejects.toThrow();
-      expect(profile.cosmetics.owned).not.toContain("headwear-wizard");
+      await expect(IAPService.purchase("hw_halo", purchaseFn)).rejects.toThrow();
+      expect(profile.cosmetics.owned).not.toContain("headwear-halo");
     });
 
     it("does not add duplicates if already owned", async () => {
-      const profile = makeProfile(["headwear-wizard"]);
+      const profile = makeProfile(["headwear-halo"]);
       const saveProfile = vi.fn();
       IAPService.setProfileForTest(profile, saveProfile);
 
       const purchaseFn = vi.fn().mockResolvedValue({
-        productID: "hw_wizard",
+        productID: "hw_halo",
         purchaseToken: "tok_456",
       });
 
-      await IAPService.purchase("hw_wizard", purchaseFn);
+      await IAPService.purchase("hw_halo", purchaseFn);
 
-      expect(profile.cosmetics.owned.filter((id) => id === "headwear-wizard")).toHaveLength(1);
+      expect(profile.cosmetics.owned.filter((id) => id === "headwear-halo")).toHaveLength(1);
     });
 
     it("throws for an unknown product ID", async () => {
@@ -140,14 +140,14 @@ describe("IAPService", () => {
 
   describe("getCatalog", () => {
     it("returns all products with purchased flag", () => {
-      const profile = makeProfile(["headwear-wizard"]);
+      const profile = makeProfile(["headwear-halo"]);
       IAPService.setProfileForTest(profile);
 
       const catalog = IAPService.getCatalog();
       expect(catalog.length).toBeGreaterThan(0);
 
-      const wizard = catalog.find((p) => p.productId === "hw_wizard");
-      expect(wizard?.purchased).toBe(true);
+      const halo = catalog.find((p) => p.productId === "hw_halo");
+      expect(halo?.purchased).toBe(true);
 
       const pirate = catalog.find((p) => p.productId === "hw_pirate");
       expect(pirate?.purchased).toBe(false);

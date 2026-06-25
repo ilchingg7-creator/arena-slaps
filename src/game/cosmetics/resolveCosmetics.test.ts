@@ -249,20 +249,21 @@ describe("resolveP1Cosmetics / resolveP2Cosmetics", () => {
   });
 
   it("Bug 4: P1 paid cosmetics are filtered out if not owned", () => {
-    // headwear-wizard is a paid cosmetic. P1 doesn't own it (not in
-    // owned list). Even if it's in equipped (e.g. leaked from 2P),
-    // resolveP1Cosmetics should return null for headwear.
-    const profile = profileWith({ headwear: "headwear-wizard" });
+    // After the 2026-06-25 headwear swap, headwear-halo is a paid
+    // cosmetic. P1 doesn't own it (not in owned list). Even if it's
+    // in equipped (e.g. leaked from 2P), resolveP1Cosmetics should
+    // return null for headwear.
+    const profile = profileWith({ headwear: "headwear-halo" });
     const result = resolveP1Cosmetics(profile, DEFAULT_COLOR);
     expect(result.headwear).toBeNull();
   });
 
   it("Bug 4: P1 paid cosmetics work when owned", () => {
-    const profile = profileWith({ headwear: "headwear-wizard" });
-    profile.cosmetics.owned.push("headwear-wizard");
+    const profile = profileWith({ headwear: "headwear-halo" });
+    profile.cosmetics.owned.push("headwear-halo");
     const result = resolveP1Cosmetics(profile, DEFAULT_COLOR);
     expect(result.headwear).toEqual({
-      spriteKey: "headwear-wizard",
+      spriteKey: "headwear-halo",
       offsetY: -28,
     });
   });

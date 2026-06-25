@@ -24,11 +24,14 @@ export type IAPProduct = {
 
 export const IAP_PRODUCTS: readonly IAPProduct[] = [
   // --- Individual headwear (19 ЯН each) ---
-  { productId: "hw_wizard", titleKey: "shop.hw_wizard.title", descriptionKey: "shop.hw_wizard.desc", defaultPrice: "19 ЯН", cosmetics: ["headwear-wizard"], isPack: false },
+  // Headwear swap 2026-06-25: halo/crown/horns are now paid;
+  // ninja/wizard/viking are now free (level-gated), so their products
+  // are removed from the catalog.
+  { productId: "hw_halo", titleKey: "shop.hw_halo.title", descriptionKey: "shop.hw_halo.desc", defaultPrice: "19 ЯН", cosmetics: ["headwear-halo"], isPack: false },
+  { productId: "hw_crown", titleKey: "shop.hw_crown.title", descriptionKey: "shop.hw_crown.desc", defaultPrice: "19 ЯН", cosmetics: ["headwear-crown"], isPack: false },
+  { productId: "hw_horns", titleKey: "shop.hw_horns.title", descriptionKey: "shop.hw_horns.desc", defaultPrice: "19 ЯН", cosmetics: ["headwear-horns"], isPack: false },
   { productId: "hw_pirate", titleKey: "shop.hw_pirate.title", descriptionKey: "shop.hw_pirate.desc", defaultPrice: "19 ЯН", cosmetics: ["headwear-pirate"], isPack: false },
   { productId: "hw_space", titleKey: "shop.hw_space.title", descriptionKey: "shop.hw_space.desc", defaultPrice: "19 ЯН", cosmetics: ["headwear-space"], isPack: false },
-  { productId: "hw_ninja", titleKey: "shop.hw_ninja.title", descriptionKey: "shop.hw_ninja.desc", defaultPrice: "19 ЯН", cosmetics: ["headwear-ninja"], isPack: false },
-  { productId: "hw_viking", titleKey: "shop.hw_viking.title", descriptionKey: "shop.hw_viking.desc", defaultPrice: "19 ЯН", cosmetics: ["headwear-viking"], isPack: false },
   { productId: "hw_tophat", titleKey: "shop.hw_tophat.title", descriptionKey: "shop.hw_tophat.desc", defaultPrice: "19 ЯН", cosmetics: ["headwear-tophat"], isPack: false },
 
   // --- Individual trails (19 ЯН each) ---
@@ -52,13 +55,13 @@ export const IAP_PRODUCTS: readonly IAPProduct[] = [
   // --- Individual titles: removed (only available via pack_titles) ---
 
   // --- Packs (with discount) ---
-  { productId: "pack_headwear", titleKey: "shop.pack_headwear.title", descriptionKey: "shop.pack_headwear.desc", defaultPrice: "49 ЯН", cosmetics: ["headwear-wizard", "headwear-pirate", "headwear-space", "headwear-ninja", "headwear-viking", "headwear-tophat"], isPack: true },
+  { productId: "pack_headwear", titleKey: "shop.pack_headwear.title", descriptionKey: "shop.pack_headwear.desc", defaultPrice: "49 ЯН", cosmetics: ["headwear-halo", "headwear-crown", "headwear-horns", "headwear-pirate", "headwear-space", "headwear-tophat"], isPack: true },
   { productId: "pack_trails", titleKey: "shop.pack_trails.title", descriptionKey: "shop.pack_trails.desc", defaultPrice: "39 ЯН", cosmetics: ["trail-fire", "trail-rainbow", "trail-galaxy", "trail-poison"], isPack: true },
   { productId: "pack_slapfx", titleKey: "shop.pack_slapfx.title", descriptionKey: "shop.pack_slapfx.desc", defaultPrice: "39 ЯН", cosmetics: ["slapfx-explosion", "slapfx-confetti", "slapfx-skull", "slapfx-heart"], isPack: true },
   { productId: "pack_outlines", titleKey: "shop.pack_outlines.title", descriptionKey: "shop.pack_outlines.desc", defaultPrice: "39 ЯН", cosmetics: ["outline-gold", "outline-rainbow", "outline-neon-pink", "outline-neon-green"], isPack: true },
   { productId: "pack_titles", titleKey: "shop.pack_titles.title", descriptionKey: "shop.pack_titles.desc", defaultPrice: "29 ЯН", cosmetics: ["title-titan", "title-legend-plus", "title-patrician"], isPack: true },
   { productId: "bundle_all", titleKey: "shop.bundle_all.title", descriptionKey: "shop.bundle_all.desc", defaultPrice: "149 ЯН", cosmetics: [
-    "headwear-wizard", "headwear-pirate", "headwear-space", "headwear-ninja", "headwear-viking", "headwear-tophat",
+    "headwear-halo", "headwear-crown", "headwear-horns", "headwear-pirate", "headwear-space", "headwear-tophat",
     "trail-fire", "trail-rainbow", "trail-galaxy", "trail-poison",
     "slapfx-explosion", "slapfx-confetti", "slapfx-skull", "slapfx-heart",
     "outline-gold", "outline-rainbow", "outline-neon-pink", "outline-neon-green",

@@ -210,26 +210,29 @@ export const COSMETICS: readonly CosmeticDefinition[] = [
     source: { kind: "free", unlockLevel: 3 },
     effect: { spriteKey: "headwear-cap", offsetY: -28 },
   },
+  // Headwear swap (per product decision 2026-06-25):
+  //   halo/crown/horns moved to the shop (paid); ninja/wizard/viking
+  //   moved into the free level-gated track in their place.
   {
-    id: "headwear-crown",
+    id: "headwear-ninja",
     category: "headwear",
-    nameKey: "cosmetic.headwear.crown",
-    source: { kind: "free", unlockLevel: 7 },
-    effect: { spriteKey: "headwear-crown", offsetY: -28 },
-  },
-  {
-    id: "headwear-horns",
-    category: "headwear",
-    nameKey: "cosmetic.headwear.horns",
-    source: { kind: "free", unlockLevel: 9 },
-    effect: { spriteKey: "headwear-horns", offsetY: -26 },
-  },
-  {
-    id: "headwear-halo",
-    category: "headwear",
-    nameKey: "cosmetic.headwear.halo",
+    nameKey: "cosmetic.headwear.ninja",
     source: { kind: "free", unlockLevel: 5 },
-    effect: { spriteKey: "headwear-halo", offsetY: -28 },
+    effect: { spriteKey: "headwear-ninja", offsetY: -26 },
+  },
+  {
+    id: "headwear-wizard",
+    category: "headwear",
+    nameKey: "cosmetic.headwear.wizard",
+    source: { kind: "free", unlockLevel: 7 },
+    effect: { spriteKey: "headwear-wizard", offsetY: -28 },
+  },
+  {
+    id: "headwear-viking",
+    category: "headwear",
+    nameKey: "cosmetic.headwear.viking",
+    source: { kind: "free", unlockLevel: 9 },
+    effect: { spriteKey: "headwear-viking", offsetY: -28 },
   },
   {
     id: "headwear-helmet",
@@ -249,11 +252,13 @@ export const COSMETICS: readonly CosmeticDefinition[] = [
   },
 
   // --- Paid headwear (19 ₽ each) ---
-  { id: "headwear-wizard", category: "headwear", nameKey: "cosmetic.headwear.wizard", source: { kind: "paid", productId: "hw_wizard", pack: "" }, effect: { spriteKey: "headwear-wizard", offsetY: -28 } },
+  // Headwear swap: halo/crown/horns moved here from the free track;
+  // ninja/wizard/viking moved the other way (now free, level-gated).
+  { id: "headwear-halo", category: "headwear", nameKey: "cosmetic.headwear.halo", source: { kind: "paid", productId: "hw_halo", pack: "" }, effect: { spriteKey: "headwear-halo", offsetY: -28 } },
+  { id: "headwear-crown", category: "headwear", nameKey: "cosmetic.headwear.crown", source: { kind: "paid", productId: "hw_crown", pack: "" }, effect: { spriteKey: "headwear-crown", offsetY: -28 } },
+  { id: "headwear-horns", category: "headwear", nameKey: "cosmetic.headwear.horns", source: { kind: "paid", productId: "hw_horns", pack: "" }, effect: { spriteKey: "headwear-horns", offsetY: -26 } },
   { id: "headwear-pirate", category: "headwear", nameKey: "cosmetic.headwear.pirate", source: { kind: "paid", productId: "hw_pirate", pack: "" }, effect: { spriteKey: "headwear-pirate", offsetY: -28 } },
   { id: "headwear-space", category: "headwear", nameKey: "cosmetic.headwear.space", source: { kind: "paid", productId: "hw_space", pack: "" }, effect: { spriteKey: "headwear-space", offsetY: -28 } },
-  { id: "headwear-ninja", category: "headwear", nameKey: "cosmetic.headwear.ninja", source: { kind: "paid", productId: "hw_ninja", pack: "" }, effect: { spriteKey: "headwear-ninja", offsetY: -26 } },
-  { id: "headwear-viking", category: "headwear", nameKey: "cosmetic.headwear.viking", source: { kind: "paid", productId: "hw_viking", pack: "" }, effect: { spriteKey: "headwear-viking", offsetY: -28 } },
   { id: "headwear-tophat", category: "headwear", nameKey: "cosmetic.headwear.tophat", source: { kind: "paid", productId: "hw_tophat", pack: "" }, effect: { spriteKey: "headwear-tophat", offsetY: -28 } },
 
   // --- Paid trails (19 ₽ each) ---

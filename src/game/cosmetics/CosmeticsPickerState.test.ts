@@ -46,7 +46,9 @@ describe("buildPickerModel — headwear category", () => {
   it("marks level-5 headwear as locked at level 1 (lockReason=level)", () => {
     const profile = profileWith({}, 1);
     const model = buildPickerModel(profile, "headwear", false, "p1");
-    const gold = model.cells.find((c) => c.def.id === "headwear-halo");
+    // After the 2026-06-25 headwear swap, headwear-ninja is the free
+    // level-5 headwear (halo moved to the shop).
+    const gold = model.cells.find((c) => c.def.id === "headwear-ninja");
     expect(gold).toBeDefined();
     expect(gold!.available).toBe(false);
     expect(gold!.lockReason).toEqual({ kind: "level", requiredLevel: 5 });
@@ -55,7 +57,7 @@ describe("buildPickerModel — headwear category", () => {
   it("marks level-5 headwear as available at level 5", () => {
     const profile = profileWith({}, 5);
     const model = buildPickerModel(profile, "headwear", false, "p1");
-    const gold = model.cells.find((c) => c.def.id === "headwear-halo");
+    const gold = model.cells.find((c) => c.def.id === "headwear-ninja");
     expect(gold!.available).toBe(true);
     expect(gold!.lockReason).toBeUndefined();
   });
@@ -121,9 +123,9 @@ describe("equipCosmetic — basic equip", () => {
   });
 
   it("returns the input unchanged for an unavailable cosmetic", () => {
-    const profile = profileWith({}, 1); // level 1, can't equip level-4 gold
+    const profile = profileWith({}, 1); // level 1, can't equip level-5 ninja
     const equipped = { headwear: "headwear-none" };
-    const next = equipCosmetic(equipped, "headwear-halo", profile, false);
+    const next = equipCosmetic(equipped, "headwear-ninja", profile, false);
     expect(next).toBe(equipped); // unchanged reference
     expect(next.headwear).toBe("headwear-none");
   });
@@ -137,8 +139,8 @@ describe("equipCosmetic — basic equip", () => {
 
   it("allows ANY cosmetic in 2P mode regardless of level", () => {
     const profile = profileWith({}, 1);
-    const next = equipCosmetic({}, "headwear-halo", profile, true);
-    expect(next.headwear).toBe("headwear-halo");
+    const next = equipCosmetic({}, "headwear-ninja", profile, true);
+    expect(next.headwear).toBe("headwear-ninja");
   });
 });
 
@@ -159,8 +161,8 @@ describe("equipCosmetic — toggle behavior", () => {
 
   it("replaces the equipped cosmetic with a new one in the same category", () => {
     const profile = profileWith({ headwear: "headwear-cap" }, 5);
-    const next = equipCosmetic({ headwear: "headwear-cap" }, "headwear-halo", profile, false);
-    expect(next.headwear).toBe("headwear-halo");
+    const next = equipCosmetic({ headwear: "headwear-cap" }, "headwear-ninja", profile, false);
+    expect(next.headwear).toBe("headwear-ninja");
   });
 });
 
@@ -195,18 +197,20 @@ describe("buildPickerModel — all 6 non-empty categories", () => {
 });
 
 describe("buildPickerModel — headwear", () => {
-  it("marks headwear-crown as locked at level 1", () => {
+  it("marks headwear-wizard as locked at level 1", () => {
+    // After the 2026-06-25 headwear swap, headwear-wizard is the free
+    // level-7 headwear (crown moved to the shop).
     const profile = profileWith({}, 1);
     const model = buildPickerModel(profile, "headwear", false, "p1");
-    const crown = model.cells.find((c) => c.def.id === "headwear-crown");
+    const crown = model.cells.find((c) => c.def.id === "headwear-wizard");
     expect(crown!.available).toBe(false);
     expect(crown!.lockReason).toEqual({ kind: "level", requiredLevel: 7 });
   });
 
-  it("marks headwear-crown as available at level 7", () => {
+  it("marks headwear-wizard as available at level 7", () => {
     const profile = profileWith({}, 7);
     const model = buildPickerModel(profile, "headwear", false, "p1");
-    const crown = model.cells.find((c) => c.def.id === "headwear-crown");
+    const crown = model.cells.find((c) => c.def.id === "headwear-wizard");
     expect(crown!.available).toBe(true);
   });
 });
