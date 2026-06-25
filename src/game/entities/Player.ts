@@ -201,7 +201,7 @@ export function moveActor(
   actor.facing.copy(normalized);
 }
 
-export function resetActor(actor: ActorState): void {
+export function resetActor(actor: ActorState, now = 0): void {
   // Use the spawn point (set at creation time). The caller (BattleScene)
   // updates actor.spawn to a random position within their half of the
   // arena before calling resetActor, so each respawn is random.
@@ -223,5 +223,10 @@ export function resetActor(actor: ActorState): void {
   actor.dodgeUntil = 0;
   actor.dodgeCooldownUntil = 0;
   actor.comboStacks = 0;
-  actor.lastSlapAt = Number.NEGATIVE_INFINITY;
+  // Bug fix: reset lastSlapAt to `now` (not -Infinity) so the anti-camp
+  // grace window restarts after a ring-out respawn. Setting it to
+  // -Infinity caused the anti-camp system to use battleStartAt as the
+  // reference, which was already far in the past → max slowdown
+  // immediately after respawn.
+  actor.lastSlapAt = now > 0 ? now : Number.NEGATIVE_INFINITY;
 }

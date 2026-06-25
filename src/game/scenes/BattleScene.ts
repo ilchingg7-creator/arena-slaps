@@ -366,6 +366,7 @@ function updateHud(runtime: BattleRuntime): void {
 export function resetOffender(
   runtime: BattleRuntimeLike,
   who: "player" | "opponent",
+  now = 0,
 ): void {
   const arena = runtime.arena;
   if (who === "player") {
@@ -377,7 +378,7 @@ export function resetOffender(
       const y = arena.top + margin + Math.random() * ((arena.bottom - arena.top) - margin * 2);
       runtime.player.spawn.set(x, y);
     }
-    resetActor(runtime.player);
+    resetActor(runtime.player, now);
     return;
   }
   if (runtime.opponent.kind === "bot") {
@@ -388,7 +389,7 @@ export function resetOffender(
       const y = arena.top + margin + Math.random() * ((arena.bottom - arena.top) - margin * 2);
       runtime.opponent.bot.spawn.set(x, y);
     }
-    resetActor(runtime.opponent.bot);
+    resetActor(runtime.opponent.bot, now);
   } else {
     if (arena) {
       const halfWidth = (arena.right - arena.left) / 2;
@@ -397,7 +398,7 @@ export function resetOffender(
       const y = arena.top + margin + Math.random() * ((arena.bottom - arena.top) - margin * 2);
       runtime.opponent.player.spawn.set(x, y);
     }
-    resetActor(runtime.opponent.player);
+    resetActor(runtime.opponent.player, now);
   }
 }
 
@@ -1520,7 +1521,7 @@ export class BattleScene extends Phaser.Scene {
         animatedSprite: runtime.playerAnim,
         onComplete: () => {
           if (this.runtime) {
-            resetOffender(this.runtime, "player");
+            resetOffender(this.runtime, "player", this.time.now);
             // Kill any in-flight tweens on the sprite BEFORE restoring
             // alpha/scale — otherwise the fall tween (alpha:0, scale:0.2)
             // can overwrite our restoration on the next frame if it
@@ -1557,7 +1558,7 @@ export class BattleScene extends Phaser.Scene {
         animatedSprite: runtime.opponentAnim,
         onComplete: () => {
           if (this.runtime) {
-            resetOffender(this.runtime, "opponent");
+            resetOffender(this.runtime, "opponent", this.time.now);
             const opp = this.opponentActor();
             this.tweens.killTweensOf(runtime.opponentAnim.gameObject);
             const go = runtime.opponentAnim.gameObject as unknown as {
