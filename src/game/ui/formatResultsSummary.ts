@@ -63,12 +63,18 @@ export function formatResultsSummary(input: FormatResultsInput): string[] {
 
   // Level-up banner (won't fire for 2P since no XP, but defensive).
   if (battleEnd.levelUp.leveledUp) {
-    const unlockKeys = battleEnd.levelUp.newUnlocks
-      .map((u) => u.key)
+    // Translate each unlock key to its display name via the
+    // `unlock.<key>` translation table (e.g. "bot-medium" → "Bot: Medium",
+    // "arena-neon" → "Map: Neon", "title-master" → "Title: Master").
+    // Falls back to the raw key if no translation exists (defensive —
+    // shouldn't happen in practice, but a future unlock type without a
+    // translation entry shouldn't crash the results screen).
+    const unlockNames = battleEnd.levelUp.newUnlocks
+      .map((u) => t(`unlock.${u.key}`, u.key))
       .join(", ");
-    if (unlockKeys) {
+    if (unlockNames) {
       lines.push(
-        `${t("results.levelUp", "Level up!")} → ${battleEnd.levelUp.newLevel} (${t("results.newUnlocks", "new")}: ${unlockKeys})`,
+        `${t("results.levelUp", "Level up!")} → ${battleEnd.levelUp.newLevel} (${t("results.newUnlocks", "new")}: ${unlockNames})`,
       );
     } else {
       lines.push(

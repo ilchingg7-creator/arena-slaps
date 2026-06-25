@@ -245,4 +245,126 @@ describe("formatResultsSummary", () => {
       expect(lines).toContain("Level: 2");
     });
   });
+
+  // --- RED: Bug — unlock names must be translated, not raw keys ---
+  describe("Bug: level-up unlock names are translated", () => {
+    // Translator stub that resolves `unlock.<key>` to a human-readable
+    // name (mirrors the real translations.ts table).
+    const translatingT = (key: string, fallback: string): string => {
+      const map: Record<string, string> = {
+        "unlock.bot-easy": "Bot: Easy",
+        "unlock.bot-medium": "Bot: Medium",
+        "unlock.bot-hard": "Bot: Hard",
+        "unlock.arena-default": "Map: Default",
+        "unlock.arena-neon": "Map: Neon",
+        "unlock.arena-cosmic": "Map: Cosmic",
+        "unlock.arena-volcano": "Map: Volcano",
+        "unlock.arena-ice": "Map: Ice",
+        "unlock.arena-grass": "Map: Grass",
+        "unlock.title-rookie": "Title: Rookie",
+        "unlock.title-fighter": "Title: Fighter",
+        "unlock.title-master": "Title: Master",
+        "unlock.title-champion": "Title: Champion",
+        "unlock.title-legend": "Title: Legend",
+      };
+      return map[key] ?? fallback;
+    };
+
+    it("translates a bot unlock key to its display name (e.g. bot-medium → 'Bot: Medium')", () => {
+      const lines = formatResultsSummary({
+        battleEnd: makeBattleEnd({
+          levelUp: {
+            leveledUp: true,
+            newLevel: 3,
+            newUnlocks: [{ type: "bot", key: "bot-medium" }],
+          },
+        }),
+        t: translatingT,
+      });
+      const levelUpLine = lines.find((l) => l.startsWith("Level up!"));
+      expect(levelUpLine).toBeDefined();
+      expect(levelUpLine).toContain("Bot: Medium");
+      // The raw key must NOT appear in the output.
+      expect(levelUpLine).not.toContain("bot-medium");
+    });
+
+    it("translates a map unlock key to its display name (e.g. arena-neon → 'Map: Neon')", () => {
+      const lines = formatResultsSummary({
+        battleEnd: makeBattleEnd({
+          levelUp: {
+            leveledUp: true,
+            newLevel: 2,
+            newUnlocks: [{ type: "map", key: "arena-neon" }],
+          },
+        }),
+        t: translatingT,
+      });
+      const levelUpLine = lines.find((l) => l.startsWith("Level up!"));
+      expect(levelUpLine).toBeDefined();
+      expect(levelUpLine).toContain("Map: Neon");
+      expect(levelUpLine).not.toContain("arena-neon");
+    });
+
+    it("translates a title unlock key to its display name (e.g. title-master → 'Title: Master')", () => {
+      const lines = formatResultsSummary({
+        battleEnd: makeBattleEnd({
+          levelUp: {
+            leveledUp: true,
+            newLevel: 5,
+            newUnlocks: [{ type: "title", key: "title-master" }],
+          },
+        }),
+        t: translatingT,
+      });
+      const levelUpLine = lines.find((l) => l.startsWith("Level up!"));
+      expect(levelUpLine).toBeDefined();
+      expect(levelUpLine).toContain("Title: Master");
+      expect(levelUpLine).not.toContain("title-master");
+    });
+
+    it("translates MULTIPLE unlocks in the same level-up line (comma-separated)", () => {
+      const lines = formatResultsSummary({
+        battleEnd: makeBattleEnd({
+          levelUp: {
+            leveledUp: true,
+            newLevel: 4,
+            newUnlocks: [
+              { type: "bot", key: "bot-hard" },
+              { type: "map", key: "arena-volcano" },
+              { type: "title", key: "title-fighter" },
+            ],
+          },
+        }),
+        t: translatingT,
+      });
+      const levelUpLine = lines.find((l) => l.startsWith("Level up!"));
+      expect(levelUpLine).toBeDefined();
+      expect(levelUpLine).toContain("Bot: Hard");
+      expect(levelUpLine).toContain("Map: Volcano");
+      expect(levelUpLine).toContain("Title: Fighter");
+      // None of the raw keys should leak.
+      expect(levelUpLine).not.toContain("bot-hard");
+      expect(levelUpLine).not.toContain("arena-volcano");
+      expect(levelUpLine).not.toContain("title-fighter");
+    });
+
+    it("falls back to the raw key when no translation exists (defensive)", () => {
+      // If a future unlock key isn't in the translation table, the raw
+      // key should still appear (better than empty) — but this is a
+      // fallback, not the happy path.
+      const lines = formatResultsSummary({
+        battleEnd: makeBattleEnd({
+          levelUp: {
+            leveledUp: true,
+            newLevel: 2,
+            newUnlocks: [{ type: "bot", key: "bot-future-unknown" }],
+          },
+        }),
+        t: translatingT,
+      });
+      const levelUpLine = lines.find((l) => l.startsWith("Level up!"));
+      expect(levelUpLine).toBeDefined();
+      expect(levelUpLine).toContain("bot-future-unknown");
+    });
+  });
 });
