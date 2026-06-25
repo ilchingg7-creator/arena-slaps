@@ -247,12 +247,15 @@ export class ResultsScene extends Phaser.Scene {
     );
 
     this.input.keyboard?.on("keydown-ENTER", goMenu);
-  }
 
-  shutdown(): void {
-    if (this.notification) {
-      this.notification.destroy();
-      this.notification = null;
-    }
+    // Bug 12 fix: use the standard events.on("shutdown") pattern
+    // instead of a method override — Phaser calls the shutdown event
+    // on scene stop/transition, matching the BattleScene pattern.
+    this.events.once("shutdown", () => {
+      if (this.notification) {
+        this.notification.destroy();
+        this.notification = null;
+      }
+    });
   }
 }

@@ -45,27 +45,43 @@ export const CloudSaveService = {
   ): Promise<void> {
     cloudSetData = cloudSet;
 
+    let localWinsAfterMerge = false;
+
     try {
       const cloud = await cloudGet(["profile", "settings"]);
 
       // --- Merge profile ---
+      // Bug 2 fix: safe-parse local profile in its own try/catch so a
+      // corrupt localStorage doesn't kill the entire init.
       const localProfileRaw = storage.getItem?.("arena-slaps:profile") ?? null;
-      const localProfile = localProfileRaw
-        ? (JSON.parse(localProfileRaw) as Profile)
-        : null;
+      let localProfile: Profile | null = null;
+      if (localProfileRaw) {
+        try {
+          localProfile = JSON.parse(localProfileRaw) as Profile;
+        } catch {
+          console.warn("[CloudSave] Local profile is corrupt — will use cloud if available");
+        }
+      }
+
       const cloudProfileRaw = cloud.profile as string | undefined;
 
-      if (cloudProfileRaw && localProfile) {
+      if (cloudProfileRaw) {
         try {
           const cloudProfile = JSON.parse(cloudProfileRaw) as Profile;
+          // Bug 1 fix: if local is null (new device) or cloud is newer,
+          // load from cloud.
           if (
-            typeof cloudProfile.lastPlayedAt === "number" &&
-            cloudProfile.lastPlayedAt > (localProfile.lastPlayedAt ?? 0)
+            !localProfile ||
+            (typeof cloudProfile.lastPlayedAt === "number" &&
+              cloudProfile.lastPlayedAt > (localProfile.lastPlayedAt ?? 0))
           ) {
             storage.setItem?.("arena-slaps:profile", cloudProfileRaw);
-            console.log("[CloudSave] Cloud profile is newer — loaded from cloud");
+            console.log("[CloudSave] Cloud profile is newer or local is empty — loaded from cloud");
           } else {
             console.log("[CloudSave] Local profile is newer — keeping local");
+            // Bug 9 fix: local is newer → schedule a cloud push so the
+            // cloud gets updated with the latest local data.
+            localWinsAfterMerge = true;
           }
         } catch {
           console.warn("[CloudSave] Cloud profile is corrupt — keeping local");
@@ -88,6 +104,17 @@ export const CloudSaveService = {
     }
 
     initialized = true;
+
+    // Bug 9 fix: if local profile won the merge, push it to cloud now
+    // so the cloud is up-to-date. Without this, the cloud only gets
+    // updated on the next saveProfile call.
+    if (localWinsAfterMerge) {
+      const localRaw = storage.getItem?.("arena-slaps:profile");
+      if (localRaw) {
+        pendingProfile = localRaw;
+        scheduleFlush();
+      }
+    }
   },
 
   /**
@@ -153,20 +180,24 @@ async function doFlush(): Promise<void> {
   if (!cloudSetData) return;
   if (!pendingProfile && !pendingSettings) return;
 
+  // Bug 3 fix: capture the data but DON'T clear pending until the
+  // cloud write succeeds. If it fails, the data stays pending and
+  // will be retried on the next flush or debounce tick.
   const data: Record<string, unknown> = {};
   if (pendingProfile) {
     data.profile = pendingProfile;
-    pendingProfile = null;
   }
   if (pendingSettings) {
     data.settings = pendingSettings;
-    pendingSettings = null;
   }
 
   try {
     await cloudSetData(data);
+    // Success — clear pending.
+    pendingProfile = null;
+    pendingSettings = null;
     console.log("[CloudSave] Flushed to cloud");
   } catch {
-    console.warn("[CloudSave] Flush failed — data is still in localStorage");
+    console.warn("[CloudSave] Flush failed — pending data retained for retry");
   }
 }

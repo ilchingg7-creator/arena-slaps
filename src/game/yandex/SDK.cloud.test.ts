@@ -70,7 +70,7 @@ describe("YandexSDK — cloud save methods", () => {
     const { YandexSDK } = await import("./SDK");
     await YandexSDK.init();
     await YandexSDK.playerSetData({ profile: '{"level":10}' });
-    expect(mockPlayer.setData).toHaveBeenCalledWith({ profile: '{"level":10}' });
+    expect(mockPlayer.setData).toHaveBeenCalledWith({ profile: '{"level":10}' }, false);
   });
 
   it("returns null from getPlayer in dev mode (no SDK)", async () => {

@@ -21,7 +21,7 @@
  */
 
 import type { Profile, EquippedCosmetics } from "../config/profile";
-import { getCosmeticById } from "../config/CosmeticsManifest";
+import { getCosmeticById, isCosmeticAvailable } from "../config/CosmeticsManifest";
 
 export type ResolvedCosmetics = {
   /** Color hex value (e.g. 0x3d405b) for the actor's sprite. */
@@ -136,13 +136,23 @@ export function resolveCosmetics(
 /**
  * Convenience wrapper: resolve P1's cosmetics from the profile.
  * Uses `defaultColor` from the actor config (caller passes it).
+ *
+ * Bug 4 fix: P1's equipped cosmetics are validated against the
+ * player's actual ownership/level using isCosmeticAvailable with
+ * is2P=false. Any equipped cosmetic that P1 doesn't actually own
+ * (e.g. a paid cosmetic equipped in 2P mode that leaked into the
+ * persistent profile) is silently dropped — resolveCosmetics will
+ * return null/default for that slot. This prevents the 2P free-cosmetics
+ * exploit where a player could equip a paid cosmetic for P1 in 2P mode
+ * and have it persist into 1P mode.
  */
 export function resolveP1Cosmetics(
   profile: Profile,
   defaultColor: number,
 ): ResolvedCosmetics {
+  const filtered = filterEquippedByOwnership(profile, profile.cosmetics.equipped);
   return resolveCosmetics({
-    equipped: profile.cosmetics.equipped,
+    equipped: filtered,
     defaultColor,
   });
 }
@@ -150,6 +160,7 @@ export function resolveP1Cosmetics(
 /**
  * Convenience wrapper: resolve P2's cosmetics from the profile.
  * P2 uses `cosmetics.p2Equipped` (the transient 2P-local slot).
+ * P2's cosmetics are NOT filtered — in 2P mode everything is available.
  */
 export function resolveP2Cosmetics(
   profile: Profile,
@@ -159,4 +170,27 @@ export function resolveP2Cosmetics(
     equipped: profile.cosmetics.p2Equipped,
     defaultColor,
   });
+}
+
+/**
+ * Bug 4 fix: filter equipped cosmetics to only include items the player
+ * actually owns or has unlocked via progression. This prevents paid/
+ * locked cosmetics that were equipped during a 2P session from
+ * persisting into 1P gameplay.
+ */
+function filterEquippedByOwnership(
+  profile: Profile,
+  equipped: EquippedCosmetics,
+): EquippedCosmetics {
+  const result: EquippedCosmetics = {};
+  const slots: Array<keyof EquippedCosmetics> = [
+    "outline", "trail", "slapFx", "title", "headwear",
+  ];
+  for (const slot of slots) {
+    const id = equipped[slot];
+    if (id && isCosmeticAvailable(profile, id, false)) {
+      result[slot] = id;
+    }
+  }
+  return result;
 }

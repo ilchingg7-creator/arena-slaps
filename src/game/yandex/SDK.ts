@@ -230,11 +230,11 @@ class YandexSDKImpl {
    * Write cloud data to the player. No-op in dev mode or on error.
    * @param data Key-value map to store in the cloud.
    */
-  async playerSetData(data: Record<string, unknown>): Promise<void> {
+  async playerSetData(data: Record<string, unknown>, flush = false): Promise<void> {
     const p = await this.getPlayer();
     if (!p?.setData) return;
     try {
-      await p.setData(data);
+      await p.setData(data, flush);
     } catch (err) {
       console.warn("[YandexSDK] Failed to write cloud data:", err);
     }

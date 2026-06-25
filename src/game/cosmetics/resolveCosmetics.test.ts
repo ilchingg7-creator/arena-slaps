@@ -206,15 +206,19 @@ describe("resolveP1Cosmetics / resolveP2Cosmetics", () => {
   function profileWith(
     equipped: EquippedCosmetics,
     p2Equipped: EquippedCosmetics = {},
+    level = 10,
   ): Profile {
     return {
       ...DEFAULT_PROFILE,
       powerUpStats: {},
+      level,
       cosmetics: { owned: [], equipped, p2Equipped },
     };
   }
 
   it("resolveP1Cosmetics reads from profile.cosmetics.equipped", () => {
+    // Bug 4 fix: P1 cosmetics are filtered by ownership. headwear-cap
+    // requires level 3 — use level 10 so it passes.
     const profile = profileWith({ headwear: "headwear-cap" });
     const result = resolveP1Cosmetics(profile, DEFAULT_COLOR);
     expect(result.headwear).toEqual({
@@ -242,5 +246,24 @@ describe("resolveP1Cosmetics / resolveP2Cosmetics", () => {
     expect(p1.headwear?.spriteKey).toBe("headwear-cap");
     expect(p2.headwear?.spriteKey).toBe("headwear-crown");
     expect(p1.headwear).not.toEqual(p2.headwear);
+  });
+
+  it("Bug 4: P1 paid cosmetics are filtered out if not owned", () => {
+    // headwear-wizard is a paid cosmetic. P1 doesn't own it (not in
+    // owned list). Even if it's in equipped (e.g. leaked from 2P),
+    // resolveP1Cosmetics should return null for headwear.
+    const profile = profileWith({ headwear: "headwear-wizard" });
+    const result = resolveP1Cosmetics(profile, DEFAULT_COLOR);
+    expect(result.headwear).toBeNull();
+  });
+
+  it("Bug 4: P1 paid cosmetics work when owned", () => {
+    const profile = profileWith({ headwear: "headwear-wizard" });
+    profile.cosmetics.owned.push("headwear-wizard");
+    const result = resolveP1Cosmetics(profile, DEFAULT_COLOR);
+    expect(result.headwear).toEqual({
+      spriteKey: "headwear-wizard",
+      offsetY: -28,
+    });
   });
 });

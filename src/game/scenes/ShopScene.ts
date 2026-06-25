@@ -7,27 +7,30 @@ import { getAudioService } from "../audio/getAudioService";
 import { loadSettings } from "../config/gameSettings";
 import { IAPService } from "../services/IAPService";
 import { IAP_PRODUCTS, type IAPProduct } from "../config/IAPManifest";
-import { YandexSDK } from "../yandex/SDK";
+import { YandexSDK, type YandexProduct } from "../yandex/SDK";
 import { getCosmeticById } from "../config/CosmeticsManifest";
+
+type Tab = "items" | "packs";
 
 /**
  * Shop scene — displays purchasable cosmetics and packs, handles
  * purchase flow via Yandex IAP, and restore purchases.
  *
- * Layout:
- *   - Title at top
- *   - "Individual Items" section (scrollable grid)
- *   - "Discount Packs" section
- *   - Restore + Back buttons at bottom
+ * Bug 5 fix: uses tab-based layout (Items / Packs) instead of a single
+ * scrolling list that overflowed 1280×720.
  *
- * In dev mode (no SDK), items show but purchase buttons are disabled
- * with a "local mode" notice.
+ * Bug 6 fix: buy buttons are non-interactive in dev mode.
+ *
+ * Bug 7 fix: loads real prices from Yandex catalog on create.
  */
 export class ShopScene extends Phaser.Scene {
   private gridObjects: Phaser.GameObjects.GameObject[] = [];
   private i18n: I18nService | null = null;
   private audio: ReturnType<typeof getAudioService> | null = null;
   private storage: Storage | null = null;
+  private currentTab: Tab = "items";
+  private yandexPrices: Map<string, string> = new Map();
+  private tabTexts: { items: Phaser.GameObjects.Text | null; packs: Phaser.GameObjects.Text | null } = { items: null, packs: null };
 
   constructor() {
     super("ShopScene");
@@ -37,14 +40,14 @@ export class ShopScene extends Phaser.Scene {
     const width = this.scale.width;
     const height = this.scale.height;
     this.storage = typeof window !== "undefined" ? window.localStorage : null;
-    this.i18n = I18nService.load(this.storage!);
-    const settings = loadSettings(this.storage!);
+    this.i18n = I18nService.load(this.storage);
+    const settings = loadSettings(this.storage);
     this.audio = getAudioService(this, settings);
     this.audio?.playMenuTheme();
 
-    const profile = loadProfile(this.storage!);
+    const profile = loadProfile(this.storage);
     IAPService.setProfileForTest(profile, (p) => {
-      if (this.storage!) saveProfile(this.storage, p);
+      if (this.storage) saveProfile(this.storage, p);
     });
 
     createBackground(this as unknown as Phaser.Scene, { key: "menu-bg" });
@@ -63,7 +66,7 @@ export class ShopScene extends Phaser.Scene {
     // --- Dev mode notice ---
     if (!YandexSDK.isAvailable()) {
       this.add
-        .text(width / 2, height * 0.12, this.i18n?.t("shop.devMode"), {
+        .text(width / 2, height * 0.11, this.i18n?.t("shop.devMode"), {
           color: "#e07a5f",
           fontFamily: "Arial",
           fontSize: "14px",
@@ -73,18 +76,57 @@ export class ShopScene extends Phaser.Scene {
         .setOrigin(0.5);
     }
 
-    // --- Individual Items section ---
-    const individuals = IAP_PRODUCTS.filter((p) => !p.isPack);
-    this.renderSection(this.i18n?.t("shop.individual"), height * 0.16, individuals);
+    // --- Bug 7: Load Yandex catalog prices ---
+    this.loadYandexPrices();
 
-    // --- Packs section ---
-    const packs = IAP_PRODUCTS.filter((p) => p.isPack);
-    const packsStartY = height * 0.16 + Math.ceil(individuals.length / 4) * 80 + 40;
-    this.renderSection(this.i18n?.t("shop.packs"), packsStartY, packs);
+    // --- Tab buttons ---
+    const tabY = height * 0.15;
+    this.tabTexts.items = this.add
+      .text(width / 2 - 80, tabY, this.i18n?.t("shop.individual"), {
+        color: this.currentTab === "items" ? "#f4d35e" : "#f4f1de",
+        fontFamily: "Arial",
+        fontSize: "20px",
+        fontStyle: this.currentTab === "items" ? "bold" : "normal",
+        stroke: "#000000",
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+
+    this.tabTexts.packs = this.add
+      .text(width / 2 + 80, tabY, this.i18n?.t("shop.packs"), {
+        color: this.currentTab === "packs" ? "#f4d35e" : "#f4f1de",
+        fontFamily: "Arial",
+        fontSize: "20px",
+        fontStyle: this.currentTab === "packs" ? "bold" : "normal",
+        stroke: "#000000",
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+
+    this.tabTexts.items.on("pointerup", () => {
+      this.audio?.playMenuClick();
+      if (this.currentTab !== "items") {
+        this.currentTab = "items";
+        this.updateTabColors();
+        this.refreshGrid();
+      }
+    });
+    this.tabTexts.packs.on("pointerup", () => {
+      this.audio?.playMenuClick();
+      if (this.currentTab !== "packs") {
+        this.currentTab = "packs";
+        this.updateTabColors();
+        this.refreshGrid();
+      }
+    });
+
+    // --- Grid ---
+    this.refreshGrid();
 
     // --- Restore + Back buttons ---
     const buttonY = height * 0.92;
-
     if (YandexSDK.isAvailable()) {
       createStyledButton(
         this as unknown as Parameters<typeof createStyledButton>[0],
@@ -124,30 +166,38 @@ export class ShopScene extends Phaser.Scene {
     });
   }
 
-  private renderSection(
-    title: string,
-    startY: number,
-    products: readonly IAPProduct[],
-  ): void {
+  private updateTabColors(): void {
+    if (this.tabTexts.items) {
+      this.tabTexts.items.setColor(this.currentTab === "items" ? "#f4d35e" : "#f4f1de");
+      this.tabTexts.items.setFontStyle(this.currentTab === "items" ? "bold" : "normal");
+    }
+    if (this.tabTexts.packs) {
+      this.tabTexts.packs.setColor(this.currentTab === "packs" ? "#f4d35e" : "#f4f1de");
+      this.tabTexts.packs.setFontStyle(this.currentTab === "packs" ? "bold" : "normal");
+    }
+  }
+
+  private refreshGrid(): void {
+    for (const obj of this.gridObjects) obj.destroy();
+    this.gridObjects = [];
+
+    const products = this.currentTab === "items"
+      ? IAP_PRODUCTS.filter((p) => !p.isPack)
+      : IAP_PRODUCTS.filter((p) => p.isPack);
+
+    this.renderGrid(products);
+  }
+
+  private renderGrid(products: readonly IAPProduct[]): void {
     const width = this.scale.width;
+    const height = this.scale.height;
     if (!this.i18n) return;
 
-    this.add
-      .text(width / 2, startY, title, {
-        color: "#f4d35e",
-        fontFamily: "Arial",
-        fontSize: "18px",
-        fontStyle: "bold",
-        stroke: "#000000",
-        strokeThickness: 2,
-      })
-      .setOrigin(0.5);
-
     const cellW = 140;
-    const cellH = 70;
-    const gap = 10;
-    const cols = 4;
-    const gridStartY = startY + 30;
+    const cellH = 80;
+    const gap = 12;
+    const cols = 5;
+    const gridStartY = height * 0.22;
 
     products.forEach((product, index) => {
       const row = Math.floor(index / cols);
@@ -166,79 +216,93 @@ export class ShopScene extends Phaser.Scene {
         .setStrokeStyle(1, isPurchased ? 0x81b29a : 0x444444);
       this.gridObjects.push(bg);
 
-      // Item name (first cosmetic in the product)
+      // Item name
       const firstCosmetic = product.cosmetics[0];
       const cosmeticDef = getCosmeticById(firstCosmetic);
       const itemName = cosmeticDef
         ? (this.i18n?.t(cosmeticDef.nameKey as never) ?? product.productId)
         : product.productId;
       this.add
-        .text(x + cellW / 2, y + 14, itemName, {
+        .text(x + cellW / 2, y + 16, itemName, {
           color: "#f4f1de",
           fontFamily: "Arial",
           fontSize: "12px",
           align: "center",
         })
         .setOrigin(0.5);
-      this.gridObjects.push(this.add.text(x + cellW / 2, y + 14, "", {}));
+      this.gridObjects.push(this.add.text(0, 0, "", {})); // placeholder
 
-      // Price or "Purchased"
+      // Bug 7: use Yandex price if available, else default
+      const price = this.yandexPrices.get(product.productId) ?? product.defaultPrice;
+
       if (isPurchased) {
         this.add
-          .text(x + cellW / 2, y + 42, this.i18n?.t("shop.purchased") ?? "Purchased", {
+          .text(x + cellW / 2, y + 48, (this.i18n?.t("shop.purchased") ?? "Purchased"), {
             color: "#81b29a",
             fontFamily: "Arial",
-            fontSize: "12px",
+            fontSize: "13px",
             fontStyle: "bold",
           })
           .setOrigin(0.5);
       } else {
-        const priceText = product.defaultPrice;
+        const buyText = `${this.i18n?.t("shop.buy")} ${price}`;
         const buyBtn = this.add
-          .text(x + cellW / 2, y + 42, `${this.i18n?.t("shop.buy")} ${priceText}`, {
+          .text(x + cellW / 2, y + 48, buyText, {
             color: "#f4d35e",
             fontFamily: "Arial",
-            fontSize: "12px",
+            fontSize: "13px",
             fontStyle: "bold",
             backgroundColor: "#2a2d44",
             padding: { x: 8, y: 4 },
           })
-          .setOrigin(0.5)
-          .setInteractive({ useHandCursor: true });
+          .setOrigin(0.5);
 
-        buyBtn.on("pointerup", () => {
-          this.audio?.playMenuClick();
-          this.handlePurchase(product);
-        });
+        // Bug 6 fix: only make interactive if SDK is available
+        if (YandexSDK.isAvailable()) {
+          buyBtn.setInteractive({ useHandCursor: true });
+          buyBtn.on("pointerup", () => {
+            this.audio?.playMenuClick();
+            this.handlePurchase(product);
+          });
+        } else {
+          buyBtn.setColor("#555555");
+        }
       }
     });
   }
 
-  private async handlePurchase(product: IAPProduct): Promise<void> {
-    if (!YandexSDK.isAvailable()) {
-      console.log("[ShopScene] Dev mode — purchase not available");
-      return;
+  private async loadYandexPrices(): Promise<void> {
+    if (!YandexSDK.isAvailable()) return;
+    try {
+      const catalog = await YandexSDK.iapGetCatalog();
+      for (const product of catalog) {
+        this.yandexPrices.set(product.id, product.price);
+      }
+      if (this.yandexPrices.size > 0) {
+        this.refreshGrid();
+      }
+    } catch {
+      // Keep default prices
     }
+  }
 
+  private async handlePurchase(product: IAPProduct): Promise<void> {
     try {
       await IAPService.purchase(product.productId, (id) =>
         YandexSDK.iapPurchase(id),
       );
       console.log(`[ShopScene] Purchase successful: ${product.productId}`);
-      // Refresh the scene to show "Purchased" status
       this.scene.restart();
     } catch (err) {
       console.warn(`[ShopScene] Purchase failed:`, err);
-      // Player cancelled or error — don't crash
     }
   }
 
   private async restorePurchases(): Promise<void> {
-    if (!this.audio || !this.storage!) return;
+    if (!this.audio || !this.storage) return;
     this.audio?.playMenuClick();
-
     try {
-      const profile = loadProfile(this.storage!);
+      const profile = loadProfile(this.storage);
       await IAPService.init(
         profile,
         (p) => { if (this.storage) saveProfile(this.storage, p); },
