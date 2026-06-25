@@ -202,19 +202,19 @@ describe("AntiCampSystem — isSlowed", () => {
 });
 
 describe("AntiCampSystem — constants", () => {
-  it("exposes INACTIVITY_GRACE_MS as a positive number (default 5000)", () => {
+  it("exposes INACTIVITY_GRACE_MS as a positive number (default 8000)", () => {
     expect(INACTIVITY_GRACE_MS).toBeGreaterThan(0);
-    expect(INACTIVITY_GRACE_MS).toBe(5000);
+    expect(INACTIVITY_GRACE_MS).toBe(8000);
   });
 
-  it("exposes INACTIVITY_RAMP_MS as a positive number (default 4000)", () => {
+  it("exposes INACTIVITY_RAMP_MS as a positive number (default 5000)", () => {
     expect(INACTIVITY_RAMP_MS).toBeGreaterThan(0);
-    expect(INACTIVITY_RAMP_MS).toBe(4000);
+    expect(INACTIVITY_RAMP_MS).toBe(5000);
   });
 
-  it("exposes INACTIVITY_MIN_MULTIPLIER in (0, 1) (default 0.4)", () => {
+  it("exposes INACTIVITY_MIN_MULTIPLIER in (0, 1) (default 0.5)", () => {
     expect(INACTIVITY_MIN_MULTIPLIER).toBeGreaterThan(0);
     expect(INACTIVITY_MIN_MULTIPLIER).toBeLessThan(1);
-    expect(INACTIVITY_MIN_MULTIPLIER).toBe(0.4);
+    expect(INACTIVITY_MIN_MULTIPLIER).toBe(0.5);
   });
 });

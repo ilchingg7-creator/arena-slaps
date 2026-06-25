@@ -10,6 +10,7 @@ import {
   getCosmeticsByCategory,
   isCosmeticAvailable,
   type CosmeticCategory,
+  type CosmeticDefinition,
 } from "../config/CosmeticsManifest";
 import { equipCosmetic } from "../cosmetics/CosmeticsPickerState";
 import type { GameMode } from "../config/gameSettings";
@@ -18,39 +19,37 @@ import type { GameMode } from "../config/gameSettings";
  * Cosmetics scene — full-screen overlay where the player picks
  * cosmetics for P1 (always) and P2 (only in 2P-local mode).
  *
- * Layout:
- *   - Title at top
- *   - Target toggle (P1 / P2) — only visible in 2P mode
- *   - Category tabs (Color / Outline / Trail / Slap FX / Title /
- *     Power-up Skin / Headwear)
- *   - Grid of cosmetic cells for the selected category
- *   - Back button at the bottom
+ * Bug 4 fix: previously every tab/target/equip click called
+ * `scene.restart()`, which destroyed + recreated ALL game objects
+ * (title, tabs, toggle, grid, back button) on every click. This caused
+ * visible UI hangs. Fix: persistent UI elements (title, toggle, tabs,
+ * back button) are created ONCE in create(); only the grid cells are
+ * destroyed + re-rendered via `refreshGrid()`.
  *
- * State:
- *   - P1 edits are persisted to profile.cosmetics.equipped.
- *   - P2 edits are kept in profile.cosmetics.p2Equipped (transient —
- *     cleared on resetProfileStats).
- *   - In 2P mode, both players can pick ANY cosmetic (the 2P free-cosmetics
- *     rule from isCosmeticAvailable with is2P=true).
+ * Bug 5 fix: added a live preview at the top showing the currently
+ * equipped color + headwear so the player can see what they're picking.
+ *
+ * Bug 6 fix: the name label position in BattleScene was adjusted so
+ * the title text doesn't overlap the sprite.
  */
 export class CosmeticsScene extends Phaser.Scene {
   private selectedCategory: CosmeticCategory = "color";
   private target: "p1" | "p2" = "p1";
   private is2P = false;
   private profile: Profile | null = null;
-  private pickerObjects: Phaser.GameObjects.GameObject[] = [];
+  private gridObjects: Phaser.GameObjects.GameObject[] = [];
+  private p1Button: Phaser.GameObjects.Text | null = null;
+  private p2Button: Phaser.GameObjects.Text | null = null;
+  private tabTexts: Map<CosmeticCategory, Phaser.GameObjects.Text> = new Map();
+  private previewObjects: Phaser.GameObjects.GameObject[] = [];
+  private i18n: I18nService | null = null;
+  private audio: ReturnType<typeof getAudioService> | null = null;
+  private storage: Storage | null = null;
 
   constructor() {
     super("CosmeticsScene");
   }
 
-  /**
-   * Bug 1 fix: init() now reads target + selectedCategory from the
-   * data payload instead of always resetting them. This lets the scene
-   * restart preserve the player's tab/category selection. When entering
-   * from BattleSetupScene (no target/category in data), defaults to
-   * P1 + color.
-   */
   init(
     data:
       | {
@@ -68,16 +67,14 @@ export class CosmeticsScene extends Phaser.Scene {
   create(): void {
     const width = this.scale.width;
     const height = this.scale.height;
-    const storage = typeof window !== "undefined" ? window.localStorage : null;
-    const i18n = I18nService.load(storage);
-    const settings = loadSettings(storage);
-    const audio = getAudioService(this, settings);
-    audio.playMenuTheme();
+    this.storage = typeof window !== "undefined" ? window.localStorage : null;
+    this.i18n = I18nService.load(this.storage);
+    const settings = loadSettings(this.storage);
+    this.audio = getAudioService(this, settings);
+    this.audio.playMenuTheme();
 
-    this.profile = loadProfile(storage);
-    // Bug 6 fix: restore P2's transient cosmetics from the registry (if
-    // set earlier in this session). P2's loadout is NOT persisted to
-    // localStorage — only P1's is.
+    this.profile = loadProfile(this.storage);
+    // Restore P2's transient cosmetics from registry.
     const p2FromRegistry = this.registry.get("p2CosmeticsEquipped") as
       | EquippedCosmetics
       | undefined;
@@ -96,10 +93,10 @@ export class CosmeticsScene extends Phaser.Scene {
 
     // --- Title ---
     this.add
-      .text(width / 2, height * 0.08, i18n.t("cosmetics.title"), {
+      .text(width / 2, height * 0.06, this.i18n.t("cosmetics.title"), {
         color: "#f4f1de",
         fontFamily: "Arial",
-        fontSize: "38px",
+        fontSize: "34px",
         stroke: "#000000",
         strokeThickness: 5,
       })
@@ -107,23 +104,23 @@ export class CosmeticsScene extends Phaser.Scene {
 
     // --- Target toggle (P1 / P2) — only in 2P mode ---
     if (this.is2P) {
-      const toggleY = height * 0.14;
-      const p1Button = this.add
-        .text(width / 2 - 80, toggleY, i18n.t("cosmetics.player1"), {
+      const toggleY = height * 0.12;
+      this.p1Button = this.add
+        .text(width / 2 - 80, toggleY, this.i18n.t("cosmetics.player1"), {
           color: this.target === "p1" ? "#f4d35e" : "#f4f1de",
           fontFamily: "Arial",
-          fontSize: "22px",
+          fontSize: "20px",
           fontStyle: "bold",
           stroke: "#000000",
           strokeThickness: 3,
         })
         .setOrigin(0.5)
         .setInteractive({ useHandCursor: true });
-      const p2Button = this.add
-        .text(width / 2 + 80, toggleY, i18n.t("cosmetics.player2"), {
+      this.p2Button = this.add
+        .text(width / 2 + 80, toggleY, this.i18n.t("cosmetics.player2"), {
           color: this.target === "p2" ? "#f4d35e" : "#f4f1de",
           fontFamily: "Arial",
-          fontSize: "22px",
+          fontSize: "20px",
           fontStyle: "bold",
           stroke: "#000000",
           strokeThickness: 3,
@@ -131,25 +128,24 @@ export class CosmeticsScene extends Phaser.Scene {
         .setOrigin(0.5)
         .setInteractive({ useHandCursor: true });
 
-      p1Button.on("pointerup", () => {
-        audio.playMenuClick();
+      this.p1Button.on("pointerup", () => {
+        this.audio?.playMenuClick();
+        if (this.target === "p1") return;
         this.target = "p1";
-        this.scene.restart({
-          mode: this.is2P ? "2p-local" : "1p-vs-bot",
-          target: this.target,
-          selectedCategory: this.selectedCategory,
-        });
+        this.updateToggleColors();
+        this.refreshGrid();
       });
-      p2Button.on("pointerup", () => {
-        audio.playMenuClick();
+      this.p2Button.on("pointerup", () => {
+        this.audio?.playMenuClick();
+        if (this.target === "p2") return;
         this.target = "p2";
-        this.scene.restart({
-          mode: this.is2P ? "2p-local" : "1p-vs-bot",
-          target: this.target,
-          selectedCategory: this.selectedCategory,
-        });
+        this.updateToggleColors();
+        this.refreshGrid();
       });
     }
+
+    // --- Preview (live preview of equipped cosmetics) ---
+    this.renderPreview();
 
     // --- Category tabs ---
     const categories: CosmeticCategory[] = [
@@ -161,8 +157,9 @@ export class CosmeticsScene extends Phaser.Scene {
       "powerUpSkin",
       "headwear",
     ];
-    const tabY = height * 0.20;
+    const tabY = height * 0.22;
     const tabStep = width / (categories.length + 1);
+    const i18n = this.i18n!;
     categories.forEach((cat, index) => {
       const tabX = tabStep * (index + 1);
       const isActive = cat === this.selectedCategory;
@@ -170,7 +167,7 @@ export class CosmeticsScene extends Phaser.Scene {
         .text(tabX, tabY, i18n.t(`cosmetics.category.${cat}` as never), {
           color: isActive ? "#f4d35e" : "#f4f1de",
           fontFamily: "Arial",
-          fontSize: "16px",
+          fontSize: "15px",
           fontStyle: isActive ? "bold" : "normal",
           stroke: "#000000",
           strokeThickness: 2,
@@ -178,46 +175,73 @@ export class CosmeticsScene extends Phaser.Scene {
         .setOrigin(0.5)
         .setInteractive({ useHandCursor: true });
       tab.on("pointerup", () => {
-        audio.playMenuClick();
+        this.audio?.playMenuClick();
+        if (this.selectedCategory === cat) return;
         this.selectedCategory = cat;
-        this.scene.restart({
-          mode: this.is2P ? "2p-local" : "1p-vs-bot",
-          target: this.target,
-          selectedCategory: this.selectedCategory,
-        });
+        this.updateTabColors();
+        this.refreshGrid();
       });
+      this.tabTexts.set(cat, tab);
     });
 
-    // --- Cosmetic cells grid ---
-    this.renderCells(i18n, audio, storage);
+    // --- Grid (initial render) ---
+    this.refreshGrid();
 
     // --- Back button ---
     createStyledButton(
       this as unknown as Parameters<typeof createStyledButton>[0],
       {
         x: width / 2,
-        y: height * 0.92,
-        text: i18n.t("cosmetics.title"),
+        y: height * 0.93,
+        text: this.i18n.t("cosmetics.title"),
         variant: "primary",
         onClick: () => {
-          audio.playMenuClick();
+          this.audio?.playMenuClick();
           this.scene.start("BattleSetupScene");
         },
       },
     );
 
     this.input.keyboard?.on("keydown-ESC", () => {
-      audio.playMenuClick();
+      this.audio?.playMenuClick();
       this.scene.start("BattleSetupScene");
     });
   }
 
-  private renderCells(
-    i18n: I18nService,
-    audio: ReturnType<typeof getAudioService>,
-    storage: Storage | null,
-  ): void {
-    if (!this.profile) return;
+  /** Update P1/P2 toggle colors without restarting the scene. */
+  private updateToggleColors(): void {
+    if (this.p1Button) {
+      this.p1Button.setColor(this.target === "p1" ? "#f4d35e" : "#f4f1de");
+    }
+    if (this.p2Button) {
+      this.p2Button.setColor(this.target === "p2" ? "#f4d35e" : "#f4f1de");
+    }
+  }
+
+  /** Update category tab colors without restarting the scene. */
+  private updateTabColors(): void {
+    for (const [cat, tab] of this.tabTexts) {
+      const isActive = cat === this.selectedCategory;
+      tab.setColor(isActive ? "#f4d35e" : "#f4f1de");
+      tab.setFontStyle(isActive ? "bold" : "normal");
+    }
+  }
+
+  /** Destroy old grid cells + render new ones. Does NOT restart the scene. */
+  private refreshGrid(): void {
+    // Destroy old grid cells.
+    for (const obj of this.gridObjects) {
+      obj.destroy();
+    }
+    this.gridObjects = [];
+    this.renderGrid();
+    // Also refresh the preview to reflect any equip changes.
+    this.renderPreview();
+  }
+
+  /** Render the grid of cosmetic cells for the selected category. */
+  private renderGrid(): void {
+    if (!this.profile || !this.i18n || !this.audio) return;
     const width = this.scale.width;
     const height = this.scale.height;
     const cells = getCosmeticsByCategory(this.selectedCategory);
@@ -225,7 +249,7 @@ export class CosmeticsScene extends Phaser.Scene {
     const cellSize = 56;
     const cellGap = 12;
     const cellsPerRow = 6;
-    const gridStartY = height * 0.32;
+    const gridStartY = height * 0.34;
 
     cells.forEach((def, index) => {
       const row = Math.floor(index / cellsPerRow);
@@ -258,33 +282,56 @@ export class CosmeticsScene extends Phaser.Scene {
           isEquipped ? 3 : 1,
           isEquipped ? 0xf4d35e : 0x444444,
         );
-      this.pickerObjects.push(cell);
+      this.gridObjects.push(cell);
 
       // Preview content
       if (this.selectedCategory === "color" && isAvailable) {
         const colorVal = (def.effect as { value: number }).value;
-        this.add
+        const preview = this.add
           .rectangle(x, y, cellSize - 10, cellSize - 10, colorVal, 1)
           .setOrigin(0.5);
+        this.gridObjects.push(preview);
       } else if (this.selectedCategory === "outline" && isAvailable) {
         const outlineVal = (def.effect as { value: number }).value;
-        this.add
+        const preview = this.add
           .rectangle(x, y, cellSize - 16, cellSize - 16, 0x222222, 1)
           .setOrigin(0.5)
           .setStrokeStyle(3, outlineVal);
+        this.gridObjects.push(preview);
+      } else if (this.selectedCategory === "headwear" && isAvailable) {
+        // Show the headwear sprite as preview if texture exists.
+        const spriteKey = (def.effect as { spriteKey: string }).spriteKey;
+        if (spriteKey && this.textures.exists(spriteKey)) {
+          const preview = this.add
+            .image(x, y, spriteKey)
+            .setDisplaySize(cellSize - 8, cellSize - 8)
+            .setOrigin(0.5);
+          this.gridObjects.push(preview);
+        } else {
+          const name = this.i18n!.t(def.nameKey as never);
+          const preview = this.add
+            .text(x, y, name.slice(0, 4), {
+              color: "#f4f1de",
+              fontFamily: "Arial",
+              fontSize: "12px",
+              align: "center",
+            })
+            .setOrigin(0.5);
+          this.gridObjects.push(preview);
+        }
       } else {
-        // Text label preview
-        const name = i18n.t(def.nameKey as never);
+        const name = this.i18n!.t(def.nameKey as never);
         const isNoneVariant = def.id.endsWith("-none");
         const previewText = isNoneVariant ? "—" : name.slice(0, 4);
-        this.add
+        const preview = this.add
           .text(x, y, previewText, {
             color: isAvailable ? "#f4f1de" : "#888888",
             fontFamily: "Arial",
-            fontSize: "14px",
+            fontSize: "13px",
             align: "center",
           })
           .setOrigin(0.5);
+        this.gridObjects.push(preview);
       }
 
       // Lock indicator
@@ -296,7 +343,7 @@ export class CosmeticsScene extends Phaser.Scene {
             : source.kind === "2p-free"
               ? "2P"
               : "🔒";
-        this.add
+        const lock = this.add
           .text(x + cellSize / 2 - 8, y - cellSize / 2 + 8, lockText, {
             color: "#f4d35e",
             fontFamily: "Arial",
@@ -304,6 +351,7 @@ export class CosmeticsScene extends Phaser.Scene {
             fontStyle: "bold",
           })
           .setOrigin(0.5);
+        this.gridObjects.push(lock);
       } else {
         // Clickable — equip on click
         cell.setInteractive(
@@ -311,24 +359,91 @@ export class CosmeticsScene extends Phaser.Scene {
           Phaser.Geom.Rectangle.Contains,
         );
         cell.on("pointerup", () => {
-          audio.playMenuClick();
-          this.equipCosmetic(def.id, storage);
+          this.audio?.playMenuClick();
+          this.equipCosmetic(def.id);
         });
       }
 
       // Cell name below
-      this.add
-        .text(x, y + cellSize / 2 + 12, i18n.t(def.nameKey as never), {
+      const nameLabel = this.add
+        .text(x, y + cellSize / 2 + 12, this.i18n!.t(def.nameKey as never), {
           color: "#f4f1de",
           fontFamily: "Arial",
           fontSize: "10px",
           align: "center",
         })
         .setOrigin(0.5);
+      this.gridObjects.push(nameLabel);
     });
   }
 
-  private equipCosmetic(cosmeticId: string, storage: Storage | null): void {
+  /** Render a live preview of the currently equipped cosmetics. */
+  private renderPreview(): void {
+    // Destroy old preview objects.
+    for (const obj of this.previewObjects) {
+      obj.destroy();
+    }
+    this.previewObjects = [];
+
+    if (!this.profile || !this.i18n) return;
+    const width = this.scale.width;
+    const height = this.scale.height;
+    const previewY = height * 0.16;
+
+    const equipped =
+      this.target === "p1"
+        ? this.profile.cosmetics.equipped
+        : this.profile.cosmetics.p2Equipped;
+
+    // Show a colored rectangle for the equipped color.
+    if (equipped.color) {
+      const def = COSMETICS.find((c) => c.id === equipped.color);
+      if (def) {
+        const colorVal = (def.effect as { value: number }).value;
+        const previewRect = this.add
+          .rectangle(width / 2 - 30, previewY, 40, 40, colorVal, 1)
+          .setStrokeStyle(2, 0xf4f1de)
+          .setOrigin(0.5);
+        this.previewObjects.push(previewRect);
+      }
+    }
+
+    // Show headwear overlay on the preview.
+    if (equipped.headwear) {
+      const def = COSMETICS.find((c) => c.id === equipped.headwear);
+      if (def) {
+        const spriteKey = (def.effect as { spriteKey: string }).spriteKey;
+        if (spriteKey && this.textures.exists(spriteKey)) {
+          const hat = this.add
+            .image(width / 2 - 30, previewY - 22, spriteKey)
+            .setDisplaySize(32, 32)
+            .setOrigin(0.5);
+          this.previewObjects.push(hat);
+        }
+      }
+    }
+
+    // Show title text.
+    if (equipped.title) {
+      const def = COSMETICS.find((c) => c.id === equipped.title);
+      if (def && def.id !== "title-none") {
+        const titleKey = (def.effect as { key: string }).key;
+        const titleText = this.add
+          .text(width / 2 + 30, previewY, this.i18n.t(`cosmetic.title.${titleKey}` as never), {
+            color: "#f4d35e",
+            fontFamily: "Arial",
+            fontSize: "16px",
+            fontStyle: "bold",
+            stroke: "#000000",
+            strokeThickness: 2,
+          })
+          .setOrigin(0.5);
+        this.previewObjects.push(titleText);
+      }
+    }
+  }
+
+  private equipCosmetic(cosmeticId: string): void {
     if (!this.profile) return;
     const currentEquipped =
       this.target === "p1"
@@ -348,16 +463,8 @@ export class CosmeticsScene extends Phaser.Scene {
           equipped: next,
         },
       };
-      // Persist P1's loadout
-      if (storage) saveProfile(storage, this.profile);
+      if (this.storage) saveProfile(this.storage, this.profile);
     } else {
-      // Bug 6 fix: P2's loadout is TRANSIENT — kept in the Phaser
-      // registry (session-only), NOT saved to localStorage. The
-      // documentation in CosmeticsManifest + profile.ts says p2Equipped
-      // is a transient slot; this now matches the implementation.
-      // P2's selection survives scene transitions within the session
-      // (registry persists across scenes) but is wiped when the game
-      // tab closes.
       this.profile = {
         ...this.profile,
         cosmetics: {
@@ -367,12 +474,7 @@ export class CosmeticsScene extends Phaser.Scene {
       };
       this.registry.set("p2CosmeticsEquipped", next);
     }
-    // Re-render the grid to reflect the new equipped state. Pass target
-    // + category so they survive the restart (Bug 1 fix).
-    this.scene.restart({
-      mode: this.is2P ? "2p-local" : "1p-vs-bot",
-      target: this.target,
-      selectedCategory: this.selectedCategory,
-    });
+    // Bug 4 fix: refresh the grid in-place instead of scene.restart().
+    this.refreshGrid();
   }
 }

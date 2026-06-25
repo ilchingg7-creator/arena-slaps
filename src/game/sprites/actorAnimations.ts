@@ -25,7 +25,6 @@
 
 import type { ActorState } from "../entities/Player";
 import { isFrozen, isShieldActive, isDoubleSlapReady } from "../systems/PowerUpSystem";
-import { isSlowed } from "../systems/AntiCampSystem";
 import type { AnimationState } from "./AnimatedSprite";
 
 /**
@@ -209,10 +208,10 @@ export function getActorEffectTint(
     return EFFECT_TINTS.knockback;
   }
 
-  // 7. Slowed (AntiCampSystem penalty — lowest priority).
-  if (isSlowed(actor, now, battleStartAt)) {
-    return EFFECT_TINTS.slowed;
-  }
+  // Note: the "slowed" tint from AntiCampSystem was removed from here
+  // because it overrode the cosmetic base tint, making the player's
+  // chosen color invisible. The speed reduction itself is sufficient
+  // feedback for the camping penalty — no visual tint needed.
 
   return null;
 }

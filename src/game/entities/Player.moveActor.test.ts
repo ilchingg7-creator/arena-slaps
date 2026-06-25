@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("phaser", () => ({}));
 
 import { moveActor, type ActorState } from "./Player";
-import { INACTIVITY_GRACE_MS } from "../systems/AntiCampSystem";
+import { INACTIVITY_GRACE_MS, INACTIVITY_MIN_MULTIPLIER } from "../systems/AntiCampSystem";
 
 function mockActor(overrides: Partial<ActorState> = {}): ActorState {
   const velocityCalls: Array<{ x: number; y: number }> = [];
@@ -112,7 +112,7 @@ describe("moveActor — anti-camp penalty integration", () => {
     const calls = (actor as unknown as { __velocityCalls: Array<{ x: number; y: number }> }).__velocityCalls;
     const last = calls[calls.length - 1];
     // Min multiplier is 0.4 → 260 * 0.4 = 104
-    expect(last.x).toBeCloseTo(104, 1);
+    expect(last.x).toBeCloseTo(260 * INACTIVITY_MIN_MULTIPLIER, 1);
   });
 
   it("stacks the penalty on top of an active Boost power-up", () => {
@@ -128,8 +128,8 @@ describe("moveActor — anti-camp penalty integration", () => {
     moveActor(actor, unitDirection(), now);
     const calls = (actor as unknown as { __velocityCalls: Array<{ x: number; y: number }> }).__velocityCalls;
     const last = calls[calls.length - 1];
-    // 260 * 1.35 * 0.4 = 140.4
-    expect(last.x).toBeCloseTo(140.4, 1);
+    // 260 * 1.35 * INACTIVITY_MIN_MULTIPLIER
+    expect(last.x).toBeCloseTo(260 * 1.35 * INACTIVITY_MIN_MULTIPLIER, 1);
   });
 
   it("resets to full speed on the next frame after a successful slap", () => {

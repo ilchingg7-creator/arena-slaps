@@ -84,13 +84,11 @@ export function createCosmeticVisuals(
   // ~50ms) and short particle lifespan (~400ms) so the trail is visible
   // but doesn't clutter the screen.
   let trailEmitter: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
+  let trailPaused = true;
   if (hasTrail && cosmetics.trail) {
     const textureKey = cosmetics.trail.textureKey;
     if (scene.textures.exists(textureKey)) {
       trailEmitter = scene.add.particles(0, 0, textureKey, {
-        // Emit at the actor's position (updated in update()).
-        x: 0,
-        y: 0,
         // Emit one particle every 50ms while moving.
         frequency: 50,
         // Particles live for 400ms then fade.
@@ -101,13 +99,13 @@ export function createCosmeticVisuals(
         // Tint with the trail's color.
         tint: cosmetics.trail.color,
         // Slight random offset so particles don't all stack on one
-        // point. Phaser 3.80 uses `speed` (no spread field) — a small
-        // radial speed gives the same scatter effect.
+        // point.
         speed: { min: 0, max: 20 },
         // Don't emit by gravity (top-down game).
         gravityY: 0,
       });
-      trailEmitter.stop(); // start paused; update() will pulse on movement
+      // Start paused; update() will resume when the actor moves.
+      trailEmitter.pause();
     }
   }
 
@@ -130,14 +128,13 @@ export function createCosmeticVisuals(
       // Emit only when the actor is actually moving (velocity > threshold).
       // 100 (px/s)^2 = ~10 px/s in any direction — well below intentional
       // movement but above float jitter.
-      if (velocitySq > 100) {
-        if (!trailEmitter.emitting) {
-          trailEmitter.start();
-        }
-      } else {
-        if (trailEmitter.emitting) {
-          trailEmitter.stop();
-        }
+      const shouldEmit = velocitySq > 100;
+      if (shouldEmit && trailPaused) {
+        trailEmitter.resume();
+        trailPaused = false;
+      } else if (!shouldEmit && !trailPaused) {
+        trailEmitter.pause();
+        trailPaused = true;
       }
     }
   }

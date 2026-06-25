@@ -798,13 +798,13 @@ export class BattleScene extends Phaser.Scene {
       },
     );
     const playerNameLabel = this.add
-      .text(player.sprite.x, player.sprite.y - 40, p1LabelText, {
+      .text(player.sprite.x, player.sprite.y - 50, p1LabelText, {
         color: "#f4f1de",
         fontFamily: "Arial",
         fontSize: "16px",
         align: "center",
       })
-      .setOrigin(0.5)
+      .setOrigin(0.5, 1)
       .setDepth(10);
 
     // Opponent label — only add title in 2P-local mode (bots don't equip).
@@ -823,13 +823,13 @@ export class BattleScene extends Phaser.Scene {
           )
         : nicknames.opponent;
     const opponentNameLabel = this.add
-      .text(opponentSprite.x, opponentSprite.y - 40, oppLabelText, {
+      .text(opponentSprite.x, opponentSprite.y - 50, oppLabelText, {
         color: "#f4f1de",
         fontFamily: "Arial",
         fontSize: "16px",
         align: "center",
       })
-      .setOrigin(0.5)
+      .setOrigin(0.5, 1)
       .setDepth(10);
 
     this.runtime = {
@@ -1615,11 +1615,11 @@ export class BattleScene extends Phaser.Scene {
     // used in `create()` so the label sits just above the sprite.
     runtime.playerNameLabel.setPosition(
       runtime.player.sprite.x,
-      runtime.player.sprite.y - 40,
+      runtime.player.sprite.y - 50,
     );
     runtime.opponentNameLabel.setPosition(
       opponentActor.sprite.x,
-      opponentActor.sprite.y - 40,
+      opponentActor.sprite.y - 50,
     );
 
     // --- Update cosmetic visuals (headwear position + trail emission) ---
