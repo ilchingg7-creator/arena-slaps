@@ -161,6 +161,11 @@ type BattleRuntime = {
    * the dodge velocity (2x move speed) for the 200ms duration.
    */
   dodgeKeyP1: Phaser.Input.Keyboard.Key;
+  /**
+   * P2 dodge key (2P-local mode). Defaults to Right-Shift. Same dodge
+   * mechanics as P1: 200ms i-frames, 1.5s cooldown, 2x speed burst.
+   */
+  dodgeKeyP2: Phaser.Input.Keyboard.Key;
   touchMovement: DirectionInput;
   wasd: {
     down: Phaser.Input.Keyboard.Key;
@@ -787,6 +792,13 @@ export class BattleScene extends Phaser.Scene {
       keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT) ??
       createDisabledKey();
 
+    // P2 dodge key: CTRL (near the arrow keys for P2). Left-Shift is
+    // already used by P1, and Phaser doesn't distinguish L/R Shift via
+    // KeyCodes, so CTRL is the natural choice for P2's dodge.
+    const dodgeKeyP2 =
+      keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.CTRL) ??
+      createDisabledKey();
+
     // --- Floating name labels (Task 3b) ---
     // Rendered above each actor and repositioned every frame in `update()`
     // so they track the actors as they move around the arena. Depth 10
@@ -866,6 +878,7 @@ export class BattleScene extends Phaser.Scene {
       slapKeyP1,
       slapKeyP2,
       dodgeKeyP1,
+      dodgeKeyP2,
       touchMovement,
       wasd: {
         down: keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.S) ?? createDisabledKey(),
@@ -1384,17 +1397,51 @@ export class BattleScene extends Phaser.Scene {
       // of stamping ai.lastSlapAttemptAt = now).
       applyBotSlap(runtime, this.time.now);
     } else {
-      if (!isKnockedBack(runtime.opponent.player, this.time.now) && !isFrozen(runtime.opponent.player, this.time.now)) {
+      // --- P2 movement + dodge (mirrors P1's dodge logic) ---
+      const p2Now = this.time.now;
+      const p2Dodging = isDodging(runtime.opponent.player, p2Now);
+      let p2DodgeTriggered = false;
+
+      if (
+        Phaser.Input.Keyboard.JustDown(runtime.dodgeKeyP2) &&
+        canDodge(runtime.opponent.player, p2Now)
+      ) {
+        const p2Dir = getP2Direction(runtime);
+        if (p2Dir.lengthSq() > 0) {
+          const dodgeStarted = startDodge(runtime.opponent.player, { x: p2Dir.x, y: p2Dir.y }, p2Now);
+          if (dodgeStarted) {
+            p2DodgeTriggered = true;
+            runtime.dodgesThisBattle += 1;
+          }
+          runtime.opponent.player.body.setVelocity(
+            p2Dir.x *
+              runtime.opponent.player.moveSpeed *
+              runtime.opponent.player.speedMultiplier *
+              getDodgeSpeedMultiplier(),
+            p2Dir.y *
+              runtime.opponent.player.moveSpeed *
+              runtime.opponent.player.speedMultiplier *
+              getDodgeSpeedMultiplier(),
+          );
+        }
+      }
+
+      if (p2Dodging || p2DodgeTriggered) {
+        // Mid-dodge — leave velocity intact, don't call moveActor.
+      } else if (
+        !isKnockedBack(runtime.opponent.player, p2Now) &&
+        !isFrozen(runtime.opponent.player, p2Now)
+      ) {
         moveActor(
           runtime.opponent.player,
           getP2Direction(runtime),
-          this.time.now,
+          p2Now,
         );
       }
 
       // Bug 4 fix: use the slapP2 helper (defined above) instead of
       // duplicating the applySlap + audio + slapFx logic here.
-      if (Phaser.Input.Keyboard.JustDown(runtime.slapKeyP2) && !isFrozen(runtime.opponent.player, this.time.now)) {
+      if (Phaser.Input.Keyboard.JustDown(runtime.slapKeyP2) && !isFrozen(runtime.opponent.player, p2Now)) {
         runtime.slapP2();
       }
     }
