@@ -105,6 +105,7 @@ describe("profile", () => {
       powerUpTypesUsed: [],
       mapsPlayed: [],
       p2GamesPlayed: 0,
+      cosmetics: { owned: [], equipped: {}, p2Equipped: {} },
     };
     saveProfile(storage, profile);
     expect(capturedKey).toBe("arena-slaps:profile");
@@ -155,6 +156,7 @@ describe("profile", () => {
       powerUpTypesUsed: [],
       mapsPlayed: [],
       p2GamesPlayed: 0,
+      cosmetics: { owned: [], equipped: {}, p2Equipped: {} },
     };
     const reset = resetProfileStats(profile);
     expect(reset.nickname).toBe("Alice");

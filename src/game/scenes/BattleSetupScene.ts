@@ -360,15 +360,27 @@ export class BattleSetupScene extends Phaser.Scene {
 
     startButton = createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
       x: width / 2,
-      y: height * 0.78,
+      y: height * 0.74,
       text: i18n.t("battlesetup.startBattle"),
       variant: "success",
       onClick: startBattle,
     });
 
+    // --- Cosmetics button (opens CosmeticsScene overlay) ---
     createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
       x: width / 2,
-      y: height * 0.90,
+      y: height * 0.84,
+      text: i18n.t("cosmetics.title"),
+      variant: "secondary",
+      onClick: () => {
+        audio.playMenuClick();
+        this.scene.start("CosmeticsScene", { mode: settings.mode });
+      },
+    });
+
+    createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
+      x: width / 2,
+      y: height * 0.93,
       text: i18n.t("battlesetup.back"),
       variant: "secondary",
       onClick: () => {

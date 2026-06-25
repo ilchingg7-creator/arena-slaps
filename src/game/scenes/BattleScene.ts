@@ -67,6 +67,7 @@ import {
 import { resolveNicknames, type NicknamePair } from "./nicknameHelpers";
 import { I18nService } from "../i18n/I18nService";
 import { DEFAULT_MAP_KEY, getMapByKey } from "../config/mapManifest";
+import { resolveP1Cosmetics, resolveP2Cosmetics } from "../cosmetics/resolveCosmetics";
 
 type Opponent =
   | { kind: "bot"; bot: Bot; ai: BotAIState }
@@ -615,11 +616,20 @@ export class BattleScene extends Phaser.Scene {
     graphics.lineStyle(4, 0xf4f1de, 1);
     graphics.strokeRectShape(arena);
 
+    // --- Resolve P1 cosmetics (color, headwear, etc.) from the profile ---
+    // The profile is loaded from localStorage; equipped cosmetics live in
+    // profile.cosmetics.equipped. resolveP1Cosmetics returns concrete
+    // values (color hex, headwear sprite key, etc.) that we can pass to
+    // createPlayer + the AnimatedSprite overlay system.
+    const profile = loadProfile(storage);
+    const p1Cosmetics = resolveP1Cosmetics(profile, battleConfig.player.color);
+
     const player = createPlayer(
       this,
       arena.left + 160,
       arena.centerY,
       battleConfig.player,
+      p1Cosmetics.color,
     );
 
     // --- AnimatedSprite (Task 2a): wrap the player's rectangle with a
@@ -649,6 +659,10 @@ export class BattleScene extends Phaser.Scene {
                 ...battleConfig.player,
                 color: battleConfig.bot.color,
               },
+              // P2 cosmetics: resolve from profile.cosmetics.p2Equipped.
+              // Falls back to the orange bot color when no cosmetic is
+              // equipped (the default for P2).
+              resolveP2Cosmetics(profile, battleConfig.bot.color).color,
             ),
           }
         : {

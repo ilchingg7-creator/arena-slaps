@@ -1,5 +1,33 @@
 export type GameMode = "1p-vs-bot" | "2p-local";
 
+/**
+ * Equipped cosmetics — one slot per category. Each field holds a
+ * cosmetic id (e.g. "color-crimson") or undefined (use default / none).
+ * See CosmeticsManifest.ts for the catalog.
+ */
+export type EquippedCosmetics = {
+  color?: string;
+  outline?: string;
+  trail?: string;
+  slapFx?: string;
+  title?: string;
+  powerUpSkin?: string;
+  headwear?: string;
+};
+
+/**
+ * Cosmetics state persisted on the profile. `owned` is the list of
+ * purchased/granted cosmetic ids (free cosmetics unlocked via level are
+ * NOT stored here — they're derived from `profile.level` at runtime).
+ * `equipped` is P1's current loadout; `p2Equipped` is a transient slot
+ * for 2P-local mode (not persisted across sessions — see BattleSetupScene).
+ */
+export type CosmeticsState = {
+  owned: string[];
+  equipped: EquippedCosmetics;
+  p2Equipped: EquippedCosmetics;
+};
+
 export type Profile = {
   nickname: string;
   avatar: "player-idle";
@@ -22,6 +50,7 @@ export type Profile = {
   powerUpTypesUsed: string[];
   mapsPlayed: string[];
   p2GamesPlayed: number;
+  cosmetics: CosmeticsState;
 };
 
 export const DEFAULT_PROFILE: Profile = {
@@ -46,6 +75,11 @@ export const DEFAULT_PROFILE: Profile = {
   powerUpTypesUsed: [],
   mapsPlayed: [],
   p2GamesPlayed: 0,
+  cosmetics: {
+    owned: [],
+    equipped: {},
+    p2Equipped: {},
+  },
 };
 
 const STORAGE_KEY = "arena-slaps:profile";
@@ -70,7 +104,17 @@ function isGameMode(value: unknown): value is GameMode {
  * the shared default.
  */
 function freshDefault(): Profile {
-  return { ...DEFAULT_PROFILE, powerUpStats: {} };
+  return {
+    ...DEFAULT_PROFILE,
+    powerUpStats: {},
+    // Deep-copy cosmetics so callers can mutate owned/equipped without
+    // touching the shared DEFAULT_PROFILE reference.
+    cosmetics: {
+      owned: [],
+      equipped: {},
+      p2Equipped: {},
+    },
+  };
 }
 
 /**
@@ -159,7 +203,56 @@ function migrateProfile(parsed: Record<string, unknown>): Profile {
     base.p2GamesPlayed = parsed.p2GamesPlayed;
   }
 
+  // Cosmetics migration: accept a partial cosmetics object. Each field
+  // is validated — `owned` must be an array of strings, `equipped` /
+  // `p2Equipped` must be objects with string-or-undefined values for
+  // each slot. Missing fields fall back to the defaults (empty owned,
+  // empty equipped / p2Equipped).
+  if (parsed.cosmetics && typeof parsed.cosmetics === "object") {
+    const cos = parsed.cosmetics as Record<string, unknown>;
+    if (Array.isArray(cos.owned)) {
+      base.cosmetics.owned = cos.owned.filter(
+        (id: unknown) => typeof id === "string",
+      );
+    }
+    if (cos.equipped && typeof cos.equipped === "object") {
+      base.cosmetics.equipped = migrateEquipped(
+        cos.equipped as Record<string, unknown>,
+      );
+    }
+    if (cos.p2Equipped && typeof cos.p2Equipped === "object") {
+      base.cosmetics.p2Equipped = migrateEquipped(
+        cos.p2Equipped as Record<string, unknown>,
+      );
+    }
+  }
+
   return base;
+}
+
+/**
+ * Validate a single EquippedCosmetics record from a parsed save. Each
+ * slot must be either a string (cosmetic id) or undefined — anything
+ * else is dropped silently so a corrupt save can't crash the game.
+ */
+function migrateEquipped(parsed: Record<string, unknown>): EquippedCosmetics {
+  const result: EquippedCosmetics = {};
+  const slots: Array<keyof EquippedCosmetics> = [
+    "color",
+    "outline",
+    "trail",
+    "slapFx",
+    "title",
+    "powerUpSkin",
+    "headwear",
+  ];
+  for (const slot of slots) {
+    const value = parsed[slot];
+    if (typeof value === "string") {
+      result[slot] = value;
+    }
+  }
+  return result;
 }
 
 /**
@@ -228,5 +321,13 @@ export function resetProfileStats(profile: Profile): Profile {
     createdAt: profile.createdAt,
     xp: profile.xp,
     level: profile.level,
+    // Preserve cosmetics — owned + equipped are tied to purchases /
+    // progression, not to per-game stats. p2Equipped is wiped (it's a
+    // transient slot for 2P-local that shouldn't survive a reset).
+    cosmetics: {
+      owned: [...profile.cosmetics.owned],
+      equipped: { ...profile.cosmetics.equipped },
+      p2Equipped: {},
+    },
   };
 }

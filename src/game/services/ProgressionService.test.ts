@@ -25,6 +25,7 @@ function mockProfile(overrides: Partial<Profile> = {}): Profile {
     powerUpTypesUsed: [],
     mapsPlayed: [],
     p2GamesPlayed: 0,
+    cosmetics: { owned: [], equipped: {}, p2Equipped: {} },
     ...overrides,
   };
 }

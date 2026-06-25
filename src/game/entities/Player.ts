@@ -155,9 +155,10 @@ export function createPlayer(
   x: number,
   y: number,
   config: ActorConfig,
+  colorOverride?: number,
 ): Player {
   return {
-    ...createActor(scene, x, y, config),
+    ...createActor(scene, x, y, config, colorOverride),
     kind: "player",
   };
 }

@@ -206,6 +206,69 @@ export const TRANSLATIONS = {
   "achievement.social.desc": { ru: "Сыграй 10 боёв в 2P режиме", en: "Play 10 battles in 2P mode" },
   "achievement.veteran.name": { ru: "Ветеран", en: "Veteran" },
   "achievement.veteran.desc": { ru: "Сыграй 50 боёв всего", en: "Play 50 battles total" },
+
+  // --- Cosmetics UI ---
+  "cosmetics.title": { ru: "Внешний вид", en: "Appearance" },
+  "cosmetics.category.color": { ru: "Цвет", en: "Color" },
+  "cosmetics.category.outline": { ru: "Обводка", en: "Outline" },
+  "cosmetics.category.trail": { ru: "След", en: "Trail" },
+  "cosmetics.category.slapFx": { ru: "Эффект слэпа", en: "Slap FX" },
+  "cosmetics.category.title": { ru: "Титул", en: "Title" },
+  "cosmetics.category.powerUpSkin": { ru: "Скин усилений", en: "Power-up Skin" },
+  "cosmetics.category.headwear": { ru: "Головной убор", en: "Headwear" },
+  "cosmetics.locked": { ru: "Откроется на уровне", en: "Unlocks at level" },
+  "cosmetics.p2Free": { ru: "2P: бесплатно", en: "2P: free" },
+  "cosmetics.equipped": { ru: "Надето", en: "Equipped" },
+  "cosmetics.player1": { ru: "Игрок 1", en: "Player 1" },
+  "cosmetics.player2": { ru: "Игрок 2", en: "Player 2" },
+
+  // --- Cosmetic names (colors) ---
+  "cosmetic.color.navy": { ru: "Тёмно-синий", en: "Navy" },
+  "cosmetic.color.orange": { ru: "Оранжевый", en: "Orange" },
+  "cosmetic.color.crimson": { ru: "Багровый", en: "Crimson" },
+  "cosmetic.color.emerald": { ru: "Изумрудный", en: "Emerald" },
+  "cosmetic.color.gold": { ru: "Золотой", en: "Gold" },
+  "cosmetic.color.sky": { ru: "Небесный", en: "Sky" },
+  "cosmetic.color.violet": { ru: "Фиолетовый", en: "Violet" },
+  "cosmetic.color.magenta": { ru: "Маджента", en: "Magenta" },
+  "cosmetic.color.mint": { ru: "Мятный", en: "Mint" },
+  "cosmetic.color.coral": { ru: "Коралловый", en: "Coral" },
+  "cosmetic.color.2p-azure": { ru: "Лазурный (2P)", en: "Azure (2P)" },
+
+  // --- Cosmetic names (outlines) ---
+  "cosmetic.outline.none": { ru: "Нет", en: "None" },
+  "cosmetic.outline.white": { ru: "Белый", en: "White" },
+  "cosmetic.outline.cyan": { ru: "Голубой", en: "Cyan" },
+
+  // --- Cosmetic names (trails) ---
+  "cosmetic.trail.none": { ru: "Нет", en: "None" },
+  "cosmetic.trail.dust": { ru: "Пыль", en: "Dust" },
+  "cosmetic.trail.sparkle": { ru: "Искры", en: "Sparkle" },
+
+  // --- Cosmetic names (slap FX) ---
+  "cosmetic.slapfx.none": { ru: "Нет", en: "None" },
+  "cosmetic.slapfx.star": { ru: "Звёзды", en: "Star Burst" },
+  "cosmetic.slapfx.lightning": { ru: "Молния", en: "Lightning" },
+
+  // --- Cosmetic names (titles) — mirror the progression titles ---
+  "cosmetic.title.none": { ru: "Нет", en: "None" },
+  "cosmetic.title.rookie": { ru: "Новичок", en: "Rookie" },
+  "cosmetic.title.fighter": { ru: "Боец", en: "Fighter" },
+  "cosmetic.title.master": { ru: "Мастер", en: "Master" },
+  "cosmetic.title.champion": { ru: "Чемпион", en: "Champion" },
+  "cosmetic.title.veteran": { ru: "Ветеран", en: "Veteran" },
+  "cosmetic.title.legend": { ru: "Легенда", en: "Legend" },
+
+  // --- Cosmetic names (power-up skins) ---
+  "cosmetic.powerupskin.default": { ru: "По умолчанию", en: "Default" },
+  "cosmetic.powerupskin.rounded": { ru: "Округлый", en: "Rounded" },
+
+  // --- Cosmetic names (headwear) ---
+  "cosmetic.headwear.none": { ru: "Нет", en: "None" },
+  "cosmetic.headwear.cap": { ru: "Кепка", en: "Cap" },
+  "cosmetic.headwear.crown": { ru: "Корона", en: "Crown" },
+  "cosmetic.headwear.horns": { ru: "Рога", en: "Horns" },
+  "cosmetic.headwear.2p-party-hat": { ru: "Колпак (2P)", en: "Party Hat (2P)" },
 } as const;
 
 export type TranslationKey = keyof typeof TRANSLATIONS;
