@@ -255,10 +255,13 @@ export class ShopScene extends Phaser.Scene {
         }
       }
 
-      // Item name
-      const itemName = cosmeticDef
-        ? (this.i18n?.t(cosmeticDef.nameKey as never) ?? product.productId)
-        : product.productId;
+      // Item name — for packs use the product's own titleKey,
+      // for individual items use the cosmetic's nameKey.
+      const itemName = product.isPack
+        ? (this.i18n?.t(product.titleKey as never) ?? product.productId)
+        : (cosmeticDef
+          ? (this.i18n?.t(cosmeticDef.nameKey as never) ?? product.productId)
+          : product.productId);
       const nameText = this.add
         .text(x + cellW / 2, y + 64, itemName, {
           color: "#f4f1de", fontFamily: "Arial", fontSize: "11px",

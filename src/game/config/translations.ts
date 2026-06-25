@@ -312,7 +312,13 @@ export const TRANSLATIONS = {
   "shop.individual": { ru: "Отдельные предметы", en: "Individual Items" },
   "shop.packs": { ru: "Наборы со скидкой", en: "Discount Packs" },
   "shop.devMode": { ru: "Товары недоступны (локальный режим)", en: "Items unavailable (local mode)" },
+
+  // --- Pack titles ---
+  "shop.pack_headwear.title": { ru: "Набор головных уборов", en: "Headwear Pack" },
+  "shop.pack_trails.title": { ru: "Набор следов", en: "Trails Pack" },
+  "shop.pack_slapfx.title": { ru: "Набор эффектов удара", en: "Slap FX Pack" },
+  "shop.pack_outlines.title": { ru: "Набор обводок", en: "Outline Pack" },
+  "shop.pack_titles.title": { ru: "Набор титулов", en: "Titles Pack" },
+  "shop.bundle_all.title": { ru: "Всё включено", en: "Everything Bundle" },
 } as const;
-
-
 export type TranslationKey = keyof typeof TRANSLATIONS;
