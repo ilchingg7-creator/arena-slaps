@@ -1,12 +1,95 @@
 # Arena Slaps — Status
 
-**Version:** v1.5.0
+**Version:** v1.6.0
 **Last updated:** 2026-06-25
-**Build:** `4.80s` · **Tests:** `970/970 passed (56 files)` · **tsc:** clean · **Bundle:** `361 KB gzip`
+**Build:** `4.55s` · **Tests:** `976/976 passed (56 files)` · **tsc:** clean · **Bundle:** `361 KB gzip`
 
 ---
 
 ## Recent work (latest first)
+
+### v1.6.0 — Cosmetics overhaul + anti-camp stabilization (2026-06-25)
+
+Major UX iteration addressing 20+ issues across 7 commits. The cosmetics
+system went from "barely functional" to "actually playable", and the
+anti-camp penalty was stabilized after 5 rounds of fixes.
+
+**Cosmetics (5 categories, 16 items):**
+- **Removed** the `color` category entirely — Phaser's `setTint` on PNG
+  sprites was unreliable (muddy/ invisible results). The game now
+  focuses on clearly visible cosmetics.
+- **Removed** `powerUpSkin` category — both entries had no visual effect.
+- **Added** 2 new headwear: **Halo** (L5, golden ring) and **Helmet**
+  (L7, grey knight's visor). 6 headwear total.
+- **Removed** duplicate `outline-none` (identical to `outline-white`).
+- **5 active categories:** outline (2), trail (2), slapFx (2), title (7),
+  headwear (6 + 1 2P-free).
+- **2P-local mode:** ALL cosmetics available to BOTH players regardless
+  of progression. 1P-vs-bot: progression-gated (free cosmetics unlock by
+  level; 2p-free cosmetics are 2P-exclusive; paid reserved for future
+  Yandex IAP).
+
+**CosmeticsScene rewrite:**
+- Replaced ALL `scene.restart()` calls with lightweight `refreshGrid()`
+  — only the grid cells are destroyed + re-created, not the entire scene.
+- Added re-entrancy guard (`refreshInProgress` flag) to prevent Phaser
+  object leaks during rapid clicking.
+- Added live preview (headwear sprite + title text) at the top.
+- `init()` preserves target + selectedCategory across restarts.
+- P2 cosmetics are **transient** (Phaser registry, not localStorage).
+- Grid cells for headwear show actual PNG previews (not text).
+
+**CosmeticVisuals (BattleScene):**
+- **Outline:** now tracked inside `CosmeticVisuals.update()` every frame
+  (was a static rect left behind when the actor moved).
+- **Trail:** fixed Phaser 3.80 particle emitter API — `pause()/resume()`
+  with local flag instead of `stop()/start()`. Particles spawn at feet
+  (`followOffset { y: 16 }`), `speed=0` so they stay where emitted.
+- **Slap FX:** unified via `runtime.slapP1()` / `runtime.slapP2()`
+  helpers — both keyboard and tap paths now play the FX.
+- **Title:** rendered below nickname in HUD. Offset -50px, origin
+  `(0.5, 1)` — grows upward, doesn't overlap the sprite.
+
+**Anti-camp penalty (5 rounds of fixes):**
+- Grace 5s, ramp 4s, floor 0.4x (reverted from 8/5/0.5 which was too
+  soft, then from 5/4/0.4 which was correct).
+- **Removed ALL dependency on `battleStartAt`** — fresh actors
+  (`lastSlapAt = -Infinity`) are ALWAYS full speed, regardless of how
+  much time has passed. This was the root cause of the persistent
+  "slow start after long menu idle" bug: Phaser's `this.time.now` doesn't
+  reset when the scene is reused, making `battleStartAt` stale.
+- `resetActor()` now accepts `now` and sets `lastSlapAt = now` on
+  respawn — 5s grace after each ringout.
+- Anti-camp activates ONLY after the first successful slap + 5s of
+  inactivity. A camper who never engages isn't slowed (acceptable —
+  they're not a threat).
+- Removed the `slowed` tint from `getActorEffectTint` — it was
+  overriding the cosmetic base tint, making the player's chosen color
+  invisible. Speed reduction alone is sufficient feedback.
+
+**Speed tuning:**
+- Player speed: 260 → 320.
+- Bot speeds: easy 160→200, medium 200→250, hard 240→300.
+
+**Other fixes in this version:**
+- Music now stops on tab hide (reads AudioService from `game.registry`
+  directly, not `scenes[0]` which could be undefined).
+- Music resumes the correct track (menu-theme vs battle-theme) on
+  tab return, not always menu-theme.
+- `package.json` — added `"typecheck": "tsc --noEmit"` script.
+- ProfileService — `favoriteMode` now uses accurate mode counts
+  derived from `p2GamesPlayed` (was attributing all prior games to
+  favoriteMode).
+- Settings migration validates `mode` / `botDifficulty` against
+  option lists (was blindly casting).
+- Level reward (title) now included in `BattleEndOutput.levelUp` and
+  shown in ResultsScene via `formatResultsSummary`.
+
+**Commits:** `db861df`, `4ac4307`, `c958d7a`, `3133d85`, `60b6e60`,
+`7381bad`, `560a140`, `ca2d96e`
+**Tests:** 970 → 976
+
+---
 
 ### v1.5.0 — Cosmetic visual application + anti-camp + progression fix (2026-06-25)
 
@@ -343,7 +426,7 @@ Three integration bugs surfaced by QA:
 
 ## Test coverage
 
-- **970 tests** across **56 test files**.
+- **976 tests** across **56 test files**.
 - **TDD methodology** — every bugfix and feature goes RED → GREEN:
   - RED: write failing tests that pin the desired behavior.
   - GREEN: implement the minimum code to make tests pass.
@@ -418,15 +501,24 @@ arena-slaps/
   `arena-ice`, `arena-grass`) and `ALL_MAPS` matches the manifest.
   Note: 5 of the 6 maps are progression-gated, so the player must
   reach level 8 to unlock all of them (Variant B layout).
-- **Cosmetics: power-up skin** — the `powerUpSkin` cosmetic category
-  exists in the manifest + picker but has no visual effect yet. The
-  power-up sprites are still the default style. Implementing alternate
-  skins requires either reskinned PNGs per skin or a Phaser texture
-  swap in `PowerUpSystem.createPowerUpSprite`.
+- **Cosmetics: color category removed** — the `color` cosmetic
+  category was removed because Phaser's `setTint` on PNG sprites
+  produced unreliable results (muddy/invisible colors). If color
+  customization is desired in the future, it would require
+  reskinned PNGs per color (not tinting) or a vector-based sprite
+  system.
+- **Cosmetics: power-up skin removed** — the `powerUpSkin` category
+  was removed (both entries had no visual effect). Re-adding it
+  requires implementing actual reskinned PNGs in PowerUpSystem.
 - **Cosmetics: paid pack reserved** — the `paid` source type is
   declared in `CosmeticsManifest` but no paid cosmetics are shipped
   yet. Yandex IAP integration (getProducts / purchase / getPurchases)
   is the next major milestone for monetization.
+- **Anti-camp: campers who never slap aren't slowed** — fresh actors
+  (lastSlapAt = -Infinity) are always full speed. This was a
+  deliberate trade-off: depending on `battleStartAt` caused worse UX
+  (slow start after long menu idle due to Phaser scene reuse). A
+  camper who never engages isn't a real threat anyway.
 - **Vite chunk-size warning** — the main bundle is 1.55 MB (361 KB
   gzip). Could be reduced via manual chunk splitting or by moving
   more scenes to dynamic imports.
