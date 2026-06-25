@@ -219,13 +219,18 @@ export class ProgressScene extends Phaser.Scene {
       const reached = def.level <= currentLevel;
       const mark = reached ? "\u2713" : "\u2717";
       const markColor = reached ? "#81b29a" : "#e07a5f";
+      // For levels with only a title reward (no unlocks), show just the
+      // title name without the "—" placeholder or " + " prefix.
       const unlockText = def.unlocks.length > 0
         ? def.unlocks.map((u) => i18n.t(`unlock.${u.key}` as TranslationKey)).join(", ")
-        : "\u2014";
-      const rewardText = def.reward
-        ? ` + ${i18n.t(`unlock.title-${def.reward.key}` as TranslationKey)}`
         : "";
-      const rowStr = `${mark}  ${i18n.t("progression.level")} ${def.level}: ${unlockText}${rewardText}`;
+      const rewardText = def.reward
+        ? i18n.t(`unlock.title-${def.reward.key}` as TranslationKey)
+        : "";
+      // Combine: if both unlocks and reward exist, join with " + ".
+      // If only one exists, show just that. If neither, show "—".
+      const combined = [unlockText, rewardText].filter(Boolean).join(" + ") || "\u2014";
+      const rowStr = `${mark}  ${i18n.t("progression.level")} ${def.level}: ${combined}`;
       const row = this.add
         .text(labelX, rowY, rowStr, {
           color: markColor, fontFamily: "Arial", fontSize: "16px",
