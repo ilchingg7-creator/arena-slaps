@@ -1686,6 +1686,7 @@ export class BattleScene extends Phaser.Scene {
         runtime.player.sprite.x,
         runtime.player.sprite.y,
         vx * vx + vy * vy,
+        vx,
       );
     }
     if (runtime.opponentCosmeticVisuals) {
@@ -1696,6 +1697,7 @@ export class BattleScene extends Phaser.Scene {
         opp.sprite.x,
         opp.sprite.y,
         vx * vx + vy * vy,
+        vx,
       );
     }
 

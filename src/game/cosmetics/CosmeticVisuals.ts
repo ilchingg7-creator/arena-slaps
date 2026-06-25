@@ -19,7 +19,7 @@ import type { ResolvedCosmetics } from "../cosmetics/resolveCosmetics";
 
 export type CosmeticVisuals = {
   /** Update headwear + outline position + trail emission to track the actor. */
-  update: (actorX: number, actorY: number, velocitySq: number) => void;
+  update: (actorX: number, actorY: number, velocitySq: number, velocityX: number) => void;
   /** Play the slap FX burst at the given coordinates. */
   playSlapFx: (x: number, y: number) => void;
   /** Destroy all managed game objects. */
@@ -107,7 +107,7 @@ export function createCosmeticVisuals(
   // No persistent object — playSlapFx creates a one-shot image + fade
   // tween on each call. The image auto-destroys when the tween completes.
 
-  function update(actorX: number, actorY: number, velocitySq: number): void {
+  function update(actorX: number, actorY: number, velocitySq: number, velocityX: number): void {
     // Update outline position (Bug 3 fix — was previously static).
     if (outlineRect) {
       outlineRect.setPosition(actorX, actorY);
@@ -123,8 +123,11 @@ export function createCosmeticVisuals(
     if (trailEmitter) {
       const shouldEmit = velocitySq > 100;
       if (shouldEmit) {
-        // Emit at the actor's feet (below the sprite, 20px down).
-        trailEmitter.emitParticleAt(actorX, actorY + 20);
+        // Offset trail to the side opposite of movement direction:
+        // moving right → trail on the left, moving left → trail on the right.
+        // Vertical-only movement → trail centered.
+        const sideOffset = velocityX > 30 ? -14 : velocityX < -30 ? 14 : 0;
+        trailEmitter.emitParticleAt(actorX + sideOffset, actorY + 20);
       }
     }
   }
