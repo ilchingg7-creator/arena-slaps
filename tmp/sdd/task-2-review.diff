@@ -1,0 +1,1923 @@
+# Review package: bb00a99cd25d14577fcedb7fa110f2b9dc89c9a4..a64b808
+
+## Commits
+a64b808 fix: sync background visibility overlay
+99903d8 fix: align slider and pause destroy ownership
+6c61d51 fix: clean up volume slider chrome
+d87d365 fix: sync background overlays with neon theme
+ca63701 fix: preserve background overlay contract
+d4713ef feat: restyle shared neon ui primitives
+
+## Files changed
+ src/game/ui/Background.test.ts         | 186 ++++++++++++++++++++++++++++++++-
+ src/game/ui/Background.ts              | 129 +++++++++++++++++++++--
+ src/game/ui/PauseMenu.test.ts          | 148 +++++++++++++++++++++++++-
+ src/game/ui/PauseMenu.ts               |  36 +++++--
+ src/game/ui/TopRightMuteButton.test.ts |  42 ++++++++
+ src/game/ui/TopRightMuteButton.ts      |  75 ++++++++++++-
+ src/game/ui/VolumeSlider.test.ts       |  72 ++++++++++++-
+ src/game/ui/VolumeSlider.ts            | 112 ++++++++++++++++++--
+ src/game/ui/neonPrimitives.ts          |  47 +++++++++
+ 9 files changed, 814 insertions(+), 33 deletions(-)
+
+## Diff
+diff --git a/src/game/ui/Background.test.ts b/src/game/ui/Background.test.ts
+index 814fa18..7b15e01 100644
+--- a/src/game/ui/Background.test.ts
++++ b/src/game/ui/Background.test.ts
+@@ -16,66 +16,101 @@ import { createBackground } from "./Background";
+  * at runtime in this test Ч no vi.mock needed.
+  */
+ 
+ type ImageObj = {
+   kind: "image";
+   key: string;
+   x: number;
+   y: number;
+   displaySize?: { w: number; h: number };
+   depth: number;
++  alpha: number;
++  scrollFactor: { x: number; y: number };
++  visible: boolean;
+   destroyed: boolean;
+   setDisplaySize(w: number, h: number): ImageObj;
+   setDepth(d: number): ImageObj;
++  setAlpha(alpha: number): ImageObj;
++  setScrollFactor(x: number, y?: number): ImageObj;
++  setVisible(visible: boolean): ImageObj;
+   destroy(): void;
+ };
+ 
+ type RectObj = {
+   kind: "rect";
+   x: number;
+   y: number;
+   width: number;
+   height: number;
+   color: number;
+   depth: number;
++  alpha: number;
++  scrollFactor: { x: number; y: number };
++  visible: boolean;
+   destroyed: boolean;
+   setDepth(d: number): RectObj;
++  setAlpha(alpha: number): RectObj;
++  setScrollFactor(x: number, y?: number): RectObj;
++  setVisible(visible: boolean): RectObj;
+   destroy(): void;
+ };
+ 
+ type StubScene = {
+   scale: { width: number; height: number };
+   textures: { exists: ReturnType<typeof vi.fn> };
+   add: {
+     image: ReturnType<typeof vi.fn>;
+     rectangle: ReturnType<typeof vi.fn>;
++    graphics: ReturnType<typeof vi.fn>;
+   };
+   images: ImageObj[];
+   rects: RectObj[];
++  graphicsObjects: Array<{
++    depth: number;
++    alpha: number;
++    scrollFactor: { x: number; y: number };
++    visible: boolean;
++    destroyed: boolean;
++  }>;
+ };
+ 
+ function makeImage(x: number, y: number, key: string): ImageObj {
+   const obj: ImageObj = {
+     kind: "image",
+     key,
+     x,
+     y,
+     depth: 0,
++    alpha: 1,
++    scrollFactor: { x: 1, y: 1 },
++    visible: true,
+     destroyed: false,
+     setDisplaySize(w, h) {
+       this.displaySize = { w, h };
+       return this;
+     },
+     setDepth(d) {
+       this.depth = d;
+       return this;
+     },
++    setAlpha(alpha) {
++      this.alpha = alpha;
++      return this;
++    },
++    setScrollFactor(x, y = x) {
++      this.scrollFactor = { x, y };
++      return this;
++    },
++    setVisible(visible) {
++      this.visible = visible;
++      return this;
++    },
+     destroy() {
+       this.destroyed = true;
+     },
+   };
+   return obj;
+ }
+ 
+ function makeRect(
+   x: number,
+   y: number,
+@@ -84,44 +119,66 @@ function makeRect(
+   color: number,
+ ): RectObj {
+   const obj: RectObj = {
+     kind: "rect",
+     x,
+     y,
+     width,
+     height,
+     color,
+     depth: 0,
++    alpha: 1,
++    scrollFactor: { x: 1, y: 1 },
++    visible: true,
+     destroyed: false,
+     setDepth(d) {
+       this.depth = d;
+       return this;
+     },
++    setAlpha(alpha) {
++      this.alpha = alpha;
++      return this;
++    },
++    setScrollFactor(x, y = x) {
++      this.scrollFactor = { x, y };
++      return this;
++    },
++    setVisible(visible) {
++      this.visible = visible;
++      return this;
++    },
+     destroy() {
+       this.destroyed = true;
+     },
+   };
+   return obj;
+ }
+ 
+ function makeStubScene(
+   opts: {
+     loadedKeys?: ReadonlySet<string>;
+     width?: number;
+     height?: number;
+   } = {},
+ ): StubScene {
+   const loadedKeys = opts.loadedKeys ?? new Set<string>();
+   const width = opts.width ?? 1280;
+   const height = opts.height ?? 720;
+   const images: ImageObj[] = [];
+   const rects: RectObj[] = [];
++  const graphicsObjects: Array<{
++    depth: number;
++    alpha: number;
++    scrollFactor: { x: number; y: number };
++    visible: boolean;
++    destroyed: boolean;
++  }> = [];
+ 
+   const image = vi.fn((x: number, y: number, key: string) => {
+     const o = makeImage(x, y, key);
+     images.push(o);
+     return o;
+   });
+ 
+   const rectangle = vi.fn(
+     (
+       x: number,
+@@ -129,48 +186,175 @@ function makeStubScene(
+       w: number,
+       h: number,
+       color: number,
+     ) => {
+       const o = makeRect(x, y, w, h, color);
+       rects.push(o);
+       return o;
+     },
+   );
+ 
++  const graphics = vi.fn(() => {
++    const g = {
++      depth: 0,
++      alpha: 1,
++      scrollFactor: { x: 1, y: 1 },
++      visible: true,
++      destroyed: false,
++      setDepth(d: number) {
++        g.depth = d;
++        return g;
++      },
++      setAlpha(alpha: number) {
++        g.alpha = alpha;
++        return g;
++      },
++      setScrollFactor(x: number, y = x) {
++        g.scrollFactor = { x, y };
++        return g;
++      },
++      setVisible(visible: boolean) {
++        g.visible = visible;
++        return g;
++      },
++      fillStyle() {
++        return g;
++      },
++      fillRect() {
++        return g;
++      },
++      lineStyle() {
++        return g;
++      },
++      strokeRect() {
++        return g;
++      },
++      destroy() {
++        g.destroyed = true;
++        return undefined;
++      },
++    };
++    graphicsObjects.push(g);
++    return g;
++  });
++
+   return {
+     scale: { width, height },
+     textures: { exists: vi.fn((k: string) => loadedKeys.has(k)) },
+-    add: { image, rectangle },
++    add: { image, rectangle, graphics },
+     images,
+     rects,
++    graphicsObjects,
+   };
+ }
+ 
+ function asScene(stub: StubScene): Phaser.Scene {
+   return stub as unknown as Phaser.Scene;
+ }
+ 
+ describe("Background", () => {
+   it("uses scene.add.image at center coords, sets displaySize to full screen, and depth -100 when the texture is loaded", () => {
+     const scene = makeStubScene({ loadedKeys: new Set(["menu-bg"]) });
+     const bg = createBackground(asScene(scene), { key: "menu-bg" });
+     expect(scene.images).toHaveLength(1);
+     expect(scene.rects).toHaveLength(0);
+     const img = scene.images[0];
+     expect(img.key).toBe("menu-bg");
+     expect(img.x).toBe(640); // width/2 = 1280/2
+     expect(img.y).toBe(360); // height/2 = 720/2
+     expect(img.displaySize).toEqual({ w: 1280, h: 720 });
+     expect(img.depth).toBe(-100);
++    expect(scene.graphicsObjects).toHaveLength(1);
++    expect(scene.graphicsObjects[0].depth).toBe(-99);
+     expect(bg.gameObject).toBe(img);
+   });
+ 
++  it("keeps the original background contract while adding overlay layers", () => {
++    const scene = makeStubScene({ loadedKeys: new Set(["menu-bg"]) });
++    const bg = createBackground(asScene(scene), { key: "menu-bg" });
++    expect(bg.gameObject).toBeDefined();
++    expect(scene.add.graphics).toHaveBeenCalledTimes(1);
++  });
++
++  it("keeps the overlay depth in sync when callers set depth on the returned object", () => {
++    const scene = makeStubScene({ loadedKeys: new Set(["menu-bg"]) });
++    const bg = createBackground(asScene(scene), { key: "menu-bg" });
++
++    (
++      bg.gameObject as unknown as {
++        setDepth: (depth: number) => unknown;
++      }
++    ).setDepth(-20);
++
++    expect(scene.images[0].depth).toBe(-20);
++    expect(scene.graphicsObjects[0].depth).toBe(-19);
++  });
++
++  it("keeps the overlay alpha in sync when callers set alpha on the returned object", () => {
++    const scene = makeStubScene({ loadedKeys: new Set(["menu-bg"]) });
++    const bg = createBackground(asScene(scene), { key: "menu-bg" });
++
++    (
++      bg.gameObject as unknown as {
++        setAlpha: (alpha: number) => unknown;
++      }
++    ).setAlpha(0.4);
++
++    expect(scene.images[0].alpha).toBe(0.4);
++    expect(scene.graphicsObjects[0].alpha).toBe(0.4);
++  });
++
++  it("destroys the overlay when callers destroy the returned texture-backed object directly", () => {
++    const scene = makeStubScene({ loadedKeys: new Set(["menu-bg"]) });
++    const bg = createBackground(asScene(scene), { key: "menu-bg" });
++
++    bg.gameObject.destroy();
++
++    expect(scene.images[0].destroyed).toBe(true);
++    expect(scene.graphicsObjects[0].destroyed).toBe(true);
++  });
++
++  it("keeps the overlay scroll factor in sync when callers set scroll factor on the returned object", () => {
++    const scene = makeStubScene({ loadedKeys: new Set(["menu-bg"]) });
++    const bg = createBackground(asScene(scene), { key: "menu-bg" });
++
++    (
++      bg.gameObject as unknown as {
++        setScrollFactor: (x: number, y?: number) => unknown;
++      }
++    ).setScrollFactor(0.25, 0.75);
++
++    expect(scene.images[0].scrollFactor).toEqual({ x: 0.25, y: 0.75 });
++    expect(scene.graphicsObjects[0].scrollFactor).toEqual({ x: 0.25, y: 0.75 });
++  });
++
++  it("keeps the overlay visibility in sync when callers hide and show the returned object", () => {
++    const scene = makeStubScene({ loadedKeys: new Set(["menu-bg"]) });
++    const bg = createBackground(asScene(scene), { key: "menu-bg" });
++
++    (
++      bg.gameObject as unknown as {
++        setVisible: (visible: boolean) => unknown;
++      }
++    ).setVisible(false);
++    expect(scene.images[0].visible).toBe(false);
++    expect(scene.graphicsObjects[0].visible).toBe(false);
++
++    (
++      bg.gameObject as unknown as {
++        setVisible: (visible: boolean) => unknown;
++      }
++    ).setVisible(true);
++    expect(scene.images[0].visible).toBe(true);
++    expect(scene.graphicsObjects[0].visible).toBe(true);
++  });
++
+   it("falls back to a full-screen rectangle with manifest fallbackColor and depth -100 when the texture is missing", () => {
+     const scene = makeStubScene(); // no loaded keys
+     const bg = createBackground(asScene(scene), { key: "arena-bg" });
+     expect(scene.rects).toHaveLength(1);
+     expect(scene.images).toHaveLength(0);
+     const rect = scene.rects[0];
+     expect(rect.x).toBe(640);
+     expect(rect.y).toBe(360);
+     expect(rect.width).toBe(1280);
+     expect(rect.height).toBe(720);
+diff --git a/src/game/ui/Background.ts b/src/game/ui/Background.ts
+index 104acd8..bb6fdcc 100644
+--- a/src/game/ui/Background.ts
++++ b/src/game/ui/Background.ts
+@@ -19,20 +19,21 @@
+  *
+  * Type-only Phaser import: this file uses `import type Phaser from "phaser"`
+  * so it does NOT load Phaser at runtime Ч it's safe to import from unit
+  * tests (which pass a stub scene cast to `Phaser.Scene`). Phaser's actual
+  * runtime is only touched when a real `Phaser.Scene` calls
+  * {@link createBackground}.
+  */
+ 
+ import type Phaser from "phaser";
+ import { getSpriteDefinition } from "../assets/spriteManifest";
++import { NEON_COLORS } from "./neonTheme";
+ 
+ export type BackgroundConfig = {
+   /** Sprite key registered in {@link spriteManifest}. */
+   key: string;
+   /**
+    * Fill color for the fallback rectangle when the sprite texture is
+    * missing. Defaults to the manifest definition's `fallbackColor`.
+    * If provided, overrides the manifest value.
+    */
+   fallbackColor?: number;
+@@ -53,20 +54,56 @@ export type Background = {
+   destroy: () => void;
+ };
+ 
+ /** Depth at which the background is rendered (behind everything else). */
+ const BG_DEPTH = -100;
+ /** Default screen width when `scene.scale.width` is not set (e.g. test stubs). */
+ const DEFAULT_WIDTH = 1280;
+ /** Default screen height when `scene.scale.height` is not set. */
+ const DEFAULT_HEIGHT = 720;
+ 
++type BackgroundGraphics = {
++  setDepth: (depth: number) => BackgroundGraphics;
++  setAlpha?: (alpha: number) => BackgroundGraphics;
++  setScrollFactor?: (x: number, y?: number) => BackgroundGraphics;
++  setVisible?: (visible: boolean) => BackgroundGraphics;
++  fillStyle: (color: number, alpha?: number) => BackgroundGraphics;
++  fillRect: (
++    x: number,
++    y: number,
++    width: number,
++    height: number,
++  ) => BackgroundGraphics;
++  lineStyle: (width: number, color: number, alpha?: number) => BackgroundGraphics;
++  strokeRect: (
++    x: number,
++    y: number,
++    width: number,
++    height: number,
++  ) => BackgroundGraphics;
++  destroy: () => void;
++};
++
++type RenderedBackground = {
++  primary: Phaser.GameObjects.GameObject;
++  overlay?: BackgroundGraphics;
++  destroy: () => void;
++};
++
++type SyncableGameObject = Phaser.GameObjects.GameObject & {
++  setDepth?: (depth: number) => SyncableGameObject;
++  setAlpha?: (alpha: number) => SyncableGameObject;
++  setScrollFactor?: (x: number, y?: number) => SyncableGameObject;
++  setVisible?: (visible: boolean) => SyncableGameObject;
++  destroy: () => void;
++};
++
+ /**
+  * Render a full-screen background image. If the sprite texture is loaded,
+  * uses an `Image` scaled to fill the screen. Otherwise, falls back to a
+  * solid-color `Rectangle` covering the whole screen.
+  *
+  * The background is placed at depth {@link BG_DEPTH} (-100), behind
+  * everything else. Scenes should set their other objects to depth > 0
+  * (the SpriteManager already defaults to depth 0, which is > -100).
+  *
+  * Throws if `config.key` is not registered in the sprite manifest Ч
+@@ -75,44 +112,124 @@ const DEFAULT_HEIGHT = 720;
+  */
+ export function createBackground(
+   scene: Phaser.Scene,
+   config: BackgroundConfig,
+ ): Background {
+   const width = scene.scale.width ?? DEFAULT_WIDTH;
+   const height = scene.scale.height ?? DEFAULT_HEIGHT;
+   const centerX = width / 2;
+   const centerY = height / 2;
+ 
+-  function make(key: string): Phaser.GameObjects.GameObject {
++  function destroyRendered(rendered: RenderedBackground): void {
++    rendered.destroy();
++  }
++
++  function attachOverlaySync(
++    primary: Phaser.GameObjects.GameObject,
++    overlay: BackgroundGraphics,
++  ): RenderedBackground {
++    const syncable = primary as SyncableGameObject;
++    const originalSetDepth = syncable.setDepth?.bind(syncable);
++    const originalSetAlpha = syncable.setAlpha?.bind(syncable);
++    const originalSetScrollFactor = syncable.setScrollFactor?.bind(syncable);
++    const originalSetVisible = syncable.setVisible?.bind(syncable);
++    const originalDestroy = syncable.destroy.bind(syncable);
++    let destroyed = false;
++
++    if (originalSetDepth) {
++      syncable.setDepth = (depth: number) => {
++        originalSetDepth(depth);
++        overlay.setDepth(depth + 1);
++        return syncable;
++      };
++    }
++
++    if (originalSetAlpha && overlay.setAlpha) {
++      syncable.setAlpha = (alpha: number) => {
++        originalSetAlpha(alpha);
++        overlay.setAlpha!(alpha);
++        return syncable;
++      };
++    }
++
++    if (originalSetScrollFactor && overlay.setScrollFactor) {
++      syncable.setScrollFactor = (x: number, y?: number) => {
++        originalSetScrollFactor(x, y);
++        overlay.setScrollFactor!(x, y);
++        return syncable;
++      };
++    }
++
++    if (originalSetVisible && overlay.setVisible) {
++      syncable.setVisible = (visible: boolean) => {
++        originalSetVisible(visible);
++        overlay.setVisible!(visible);
++        return syncable;
++      };
++    }
++
++    syncable.destroy = () => {
++      if (destroyed) {
++        return;
++      }
++      destroyed = true;
++      overlay.destroy();
++      originalDestroy();
++    };
++
++    return {
++      primary,
++      overlay,
++      destroy() {
++        syncable.destroy();
++      },
++    };
++  }
++
++  function make(key: string): RenderedBackground {
+     // Throws synchronously for unknown keys Ч programmer error.
+     const def = getSpriteDefinition(key);
+ 
+     if (scene.textures.exists(key)) {
+       const img = scene.add.image(centerX, centerY, key);
+       img.setDisplaySize(width, height);
+       img.setDepth(BG_DEPTH);
+-      return img as unknown as Phaser.GameObjects.GameObject;
++      const overlay = (scene.add.graphics() as BackgroundGraphics)
++        .setDepth(BG_DEPTH + 1);
++      overlay.fillStyle(NEON_COLORS.bgInk, 0.3);
++      overlay.fillRect(0, 0, width, height);
++      overlay.lineStyle(2, NEON_COLORS.cyan, 0.1);
++      overlay.strokeRect(24, 24, width - 48, height - 48);
++      return attachOverlaySync(
++        img as unknown as Phaser.GameObjects.GameObject,
++        overlay,
++      );
+     }
+ 
+     // Fallback: solid-color rectangle covering the whole screen. Caller
+     // may override the manifest's fallbackColor via config.fallbackColor.
+     const color = config.fallbackColor ?? def.fallbackColor;
+     const rect = scene.add.rectangle(centerX, centerY, width, height, color);
+     rect.setDepth(BG_DEPTH);
+-    return rect as unknown as Phaser.GameObjects.GameObject;
++    return {
++      primary: rect as unknown as Phaser.GameObjects.GameObject,
++      destroy() {
++        rect.destroy();
++      },
++    };
+   }
+ 
+   let current = make(config.key);
+ 
+   return {
+     get gameObject(): Phaser.GameObjects.GameObject {
+-      return current;
++      return current.primary;
+     },
+     setKey(key: string) {
+-      current.destroy();
++      destroyRendered(current);
+       current = make(key);
+     },
+     destroy() {
+-      current.destroy();
++      destroyRendered(current);
+     },
+   };
+ }
+diff --git a/src/game/ui/PauseMenu.test.ts b/src/game/ui/PauseMenu.test.ts
+index 0252e71..46cbdb6 100644
+--- a/src/game/ui/PauseMenu.test.ts
++++ b/src/game/ui/PauseMenu.test.ts
+@@ -1,11 +1,14 @@
+ import { beforeEach, describe, expect, it, vi } from "vitest";
++import { NEON_COLORS } from "./neonTheme";
++
++const SLIDER_OWNED_KEY = "__volumeSliderOwned";
+ 
+ // --- Mocks for StyledButton + VolumeSlider ------------------------------
+ // PauseMenu composes both components. We mock them so the tests can drive
+ // button clicks directly and don't need to stand up the full Phaser add.*
+ // surface that the real components touch. Each created button stub records
+ // its config (so tests can find it by label) and exposes a `click()` helper
+ // that fires the captured onClick handler.
+ 
+ const { buttonStubs, sliderStubs } = vi.hoisted(() => ({
+   buttonStubs: [] as Array<{
+@@ -16,20 +19,21 @@ const { buttonStubs, sliderStubs } = vi.hoisted(() => ({
+     };
+     visible: boolean;
+     destroyed: boolean;
+     setVisible: (v: boolean) => void;
+     destroy: () => void;
+     click: () => void;
+   }>,
+   sliderStubs: [] as Array<{
+     destroyed: boolean;
+     initialValue: number;
++    ownedGraphics: Array<{ destroyCalls: number; destroyed: boolean }>;
+     onChange: (nextVolume: number) => void;
+     setValue: ReturnType<typeof vi.fn>;
+     getValue: ReturnType<typeof vi.fn>;
+     handlePointerMove: ReturnType<typeof vi.fn>;
+     endDrag: ReturnType<typeof vi.fn>;
+     destroy: ReturnType<typeof vi.fn>;
+   }>,
+ }));
+ 
+ vi.mock("./StyledButton", () => ({
+@@ -58,33 +62,53 @@ vi.mock("./StyledButton", () => ({
+           stub.config.onClick();
+         },
+       };
+       buttonStubs.push(stub);
+       return stub;
+     },
+   ),
+ }));
+ 
+ vi.mock("./VolumeSlider", () => ({
++  VOLUME_SLIDER_OWNED_KEY: "__volumeSliderOwned",
+   createVolumeSlider: vi.fn(
+     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+-    (_scene: unknown, _x: number, _y: number, _w: number, initialValue: number, onChange: any) => {
++    (scene: any, _x: number, _y: number, _w: number, initialValue: number, onChange: any) => {
++      const beforeCount = Array.isArray(scene?.graphicsObjects)
++        ? scene.graphicsObjects.length
++        : 0;
++      if (typeof scene?.add?.graphics === "function") {
++        scene.add.graphics();
++        scene.add.graphics();
++        scene.add.graphics();
++      }
++      const ownedGraphics =
++        Array.isArray(scene?.graphicsObjects)
++          ? scene.graphicsObjects.slice(beforeCount)
++          : [];
++      for (const g of ownedGraphics) {
++        g.__volumeSliderOwned = true;
++      }
+       const stub = {
+         destroyed: false,
+         initialValue,
++        ownedGraphics,
+         onChange: onChange as (nextVolume: number) => void,
+         setValue: vi.fn(),
+         getValue: vi.fn(() => initialValue),
+         handlePointerMove: vi.fn(),
+         endDrag: vi.fn(),
+         destroy: vi.fn(() => {
+           stub.destroyed = true;
++          for (const g of ownedGraphics) {
++            g.destroy();
++          }
+         }),
+       };
+       sliderStubs.push(stub);
+       return stub;
+     },
+   ),
+ }));
+ 
+ import { createPauseMenu, type PauseMenu } from "./PauseMenu";
+ 
+@@ -113,23 +137,52 @@ type FakeText = {
+   x: number;
+   y: number;
+   text: string;
+   style: unknown;
+   depth: number;
+   visible: boolean;
+   origin: { x: number; y: number };
+   destroyed: boolean;
+ };
+ 
++type FakeGraphics = {
++  kind: "graphics";
++  depth: number;
++  visible: boolean;
++  destroyed: boolean;
++  destroyCalls: number;
++  [SLIDER_OWNED_KEY]?: boolean;
++  setDepth: (d: number) => FakeGraphics;
++  setVisible: (v: boolean) => FakeGraphics;
++  fillStyle: (color: number, alpha?: number) => FakeGraphics;
++  fillRoundedRect: (
++    x: number,
++    y: number,
++    w: number,
++    h: number,
++    radius?: number,
++  ) => FakeGraphics;
++  lineStyle: (width: number, color: number, alpha?: number) => FakeGraphics;
++  strokeRoundedRect: (
++    x: number,
++    y: number,
++    w: number,
++    h: number,
++    radius?: number,
++  ) => FakeGraphics;
++  destroy: () => void;
++};
++
+ type FakeScene = {
+   rects: FakeRect[];
+   texts: FakeText[];
++  graphicsObjects: FakeGraphics[];
+   add: {
+     rectangle: (
+       x: number,
+       y: number,
+       w: number,
+       h: number,
+       color: number,
+     ) => {
+       setOrigin: (x?: number, y?: number) => unknown;
+       setAlpha: (a: number) => unknown;
+@@ -141,31 +194,54 @@ type FakeScene = {
+       x: number,
+       y: number,
+       value: string,
+       style?: unknown,
+     ) => {
+       setOrigin: (x?: number, y?: number) => unknown;
+       setDepth: (d: number) => unknown;
+       setVisible: (v: boolean) => unknown;
+       destroy: () => void;
+     };
++    graphics: () => {
++      setDepth: (d: number) => unknown;
++      setVisible: (v: boolean) => unknown;
++      fillStyle: (color: number, alpha?: number) => unknown;
++      fillRoundedRect: (
++        x: number,
++        y: number,
++        w: number,
++        h: number,
++        radius?: number,
++      ) => unknown;
++      lineStyle: (width: number, color: number, alpha?: number) => unknown;
++      strokeRoundedRect: (
++        x: number,
++        y: number,
++        w: number,
++        h: number,
++        radius?: number,
++      ) => unknown;
++      destroy: () => void;
++    };
+   };
+   scale: { width: number; height: number };
+ };
+ 
+ function makeScene(): FakeScene {
+   const rects: FakeRect[] = [];
+   const texts: FakeText[] = [];
++  const graphicsObjects: FakeGraphics[] = [];
+ 
+   const scene: FakeScene = {
+     rects,
+     texts,
++    graphicsObjects,
+     scale: { width: 1280, height: 720 },
+     add: {
+       rectangle(x, y, width, height, color) {
+         const r: FakeRect = {
+           kind: "rect",
+           x,
+           y,
+           width,
+           height,
+           color,
+@@ -224,20 +300,58 @@ function makeScene(): FakeScene {
+           setVisible(v: boolean) {
+             t.visible = v;
+             return proxy;
+           },
+           destroy() {
+             t.destroyed = true;
+           },
+         };
+         return proxy;
+       },
++      graphics() {
++        const g: FakeGraphics = {
++          kind: "graphics",
++          depth: 0,
++          visible: true,
++          destroyed: false,
++          destroyCalls: 0,
++          setDepth(d: number) {
++            g.depth = d;
++            return g;
++          },
++          setVisible(v: boolean) {
++            g.visible = v;
++            return g;
++          },
++          fillStyle() {
++            return g;
++          },
++          fillRoundedRect() {
++            return g;
++          },
++          lineStyle() {
++            return g;
++          },
++          strokeRoundedRect() {
++            return g;
++          },
++          destroy() {
++            g.destroyCalls += 1;
++            if (g.destroyed) {
++              throw new Error("graphics destroyed twice");
++            }
++            g.destroyed = true;
++          },
++        };
++        graphicsObjects.push(g);
++        return g;
++      },
+     },
+   };
+ 
+   return scene;
+ }
+ 
+ function findText(texts: FakeText[], value: string): FakeText | undefined {
+   return texts.find((t) => t.text === value);
+ }
+ 
+@@ -304,26 +418,27 @@ function makeStorageStub() {
+ describe("PauseMenu - construction", () => {
+   it("creates a rectangle overlay + title text + 3 main buttons", () => {
+     const scene = makeScene();
+     createPauseMenu(
+       scene as unknown as Parameters<typeof createPauseMenu>[0],
+       makeConfig({}),
+     );
+ 
+     // 1 full-screen overlay rectangle (dark, alpha 0.7).
+     expect(scene.rects).toHaveLength(1);
+-    expect(scene.rects[0].color).toBe(0x000000);
++    expect(scene.rects[0].color).toBe(NEON_COLORS.bgInk);
+     expect(scene.rects[0].alpha).toBeCloseTo(0.7, 5);
+ 
+     // Title "Paused" text exists.
+     const paused = findText(scene.texts, "Paused");
+     expect(paused).toBeDefined();
++    expect(scene.graphicsObjects.length).toBeGreaterThan(0);
+ 
+     // 3 main buttons + 1 Back button (Back lives in the settings panel).
+     expect(buttonStubs).toHaveLength(4);
+     const labels = buttonStubs.map((b) => b.config.text);
+     expect(labels).toContain("ѕродолжить");
+     expect(labels).toContain("Ќастройки");
+     expect(labels).toContain("√лавное меню");
+     expect(labels).toContain("Back");
+   });
+ 
+@@ -571,20 +686,33 @@ describe("PauseMenu - toggleSettings", () => {
+       scene as unknown as Parameters<typeof createPauseMenu>[0],
+       makeConfig({}),
+     );
+     menu.show();
+     menu.toggleSettings();
+     expect(findButton("Back")!.visible).toBe(true);
+     const settingsTitle = findText(scene.texts, "Settings");
+     if (settingsTitle) expect(settingsTitle.visible).toBe(true);
+   });
+ 
++  it("still toggles pause settings visibility while rendering a framed overlay", () => {
++    const scene = makeScene();
++    const menu = createPauseMenu(
++      scene as unknown as Parameters<typeof createPauseMenu>[0],
++      makeConfig({}),
++    );
++    menu.show();
++    expect(scene.rects.length).toBeGreaterThan(0);
++    expect(scene.graphicsObjects.length).toBeGreaterThan(0);
++    menu.toggleSettings();
++    expect(menu.isSettingsVisible()).toBe(true);
++  });
++
+   it("toggling back restores the main buttons + title", () => {
+     const scene = makeScene();
+     const menu = createPauseMenu(
+       scene as unknown as Parameters<typeof createPauseMenu>[0],
+       makeConfig({}),
+     );
+     menu.show();
+     menu.toggleSettings();
+     menu.toggleSettings();
+     for (const label of ["ѕродолжить", "Ќастройки", "√лавное меню"]) {
+@@ -662,20 +790,36 @@ describe("PauseMenu - destroy", () => {
+     const menu = createPauseMenu(
+       scene as unknown as Parameters<typeof createPauseMenu>[0],
+       makeConfig({}),
+     );
+     menu.destroy();
+     expect(sliderStubs).toHaveLength(2);
+     for (const s of sliderStubs) {
+       expect(s.destroyed).toBe(true);
+     }
+   });
++
++  it("destroy() does not double-destroy slider-owned chrome after slider.destroy()", () => {
++    const scene = makeScene();
++    const menu = createPauseMenu(
++      scene as unknown as Parameters<typeof createPauseMenu>[0],
++      makeConfig({}),
++    );
++
++    expect(() => menu.destroy()).not.toThrow();
++    for (const slider of sliderStubs) {
++      expect(slider.ownedGraphics).toHaveLength(3);
++      for (const g of slider.ownedGraphics) {
++        expect(g.destroyCalls).toBe(1);
++      }
++    }
++  });
+ });
+ 
+ // --- PauseMenu type                                                  ---
+ 
+ describe("PauseMenu - type contract", () => {
+   it("returns an object with the full PauseMenu API", () => {
+     const scene = makeScene();
+     const menu: PauseMenu = createPauseMenu(
+       scene as unknown as Parameters<typeof createPauseMenu>[0],
+       makeConfig({}),
+diff --git a/src/game/ui/PauseMenu.ts b/src/game/ui/PauseMenu.ts
+index 755328f..7c6fe37 100644
+--- a/src/game/ui/PauseMenu.ts
++++ b/src/game/ui/PauseMenu.ts
+@@ -33,23 +33,26 @@
+  */
+ 
+ import type Phaser from "phaser";
+ import {
+   createStyledButton,
+   type ButtonSceneLike,
+   type StyledButton,
+ } from "./StyledButton";
+ import {
+   createVolumeSlider,
++  VOLUME_SLIDER_OWNED_KEY,
+   type SliderSceneLike,
+   type VolumeSlider,
+ } from "./VolumeSlider";
++import { drawNeonPanel } from "./neonPrimitives";
++import { NEON_COLORS, getHudTextStyle } from "./neonTheme";
+ import type { I18nService } from "../i18n/I18nService";
+ import type { TranslationKey } from "../config/translations";
+ import type { AudioSettings } from "../audio/AudioService";
+ import type { GameSettings } from "../config/gameSettings";
+ import { saveSettings } from "../config/gameSettings";
+ 
+ /**
+  * Minimal storage surface PauseMenu needs to persist volume slider changes.
+  * Compatible with the global `Storage` and the `StorageLike` type used
+  * internally by gameSettings.ts (so callers can pass either).
+@@ -132,20 +135,21 @@ export type PauseMenu = {
+ 
+ // --- Scene duck types --------------------------------------------------
+ // PauseMenu only touches a thin slice of Phaser.Scene: `add.rectangle`,
+ // `add.text`, `add.graphics` (via StyledButton), `add.zone` (via
+ // VolumeSlider), and `scale.width` / `scale.height`. We keep the duck type
+ // minimal so the unit test can pass a plain stub object.
+ 
+ type VisibleDestroyable = {
+   setVisible: (v: boolean) => unknown;
+   destroy: () => unknown;
++  [VOLUME_SLIDER_OWNED_KEY]?: boolean;
+ };
+ 
+ type PauseRectangle = VisibleDestroyable & {
+   setOrigin: (x?: number, y?: number) => PauseRectangle;
+   setAlpha: (a: number) => PauseRectangle;
+   setDepth: (d: number) => PauseRectangle;
+ };
+ 
+ type PauseText = VisibleDestroyable & {
+   setOrigin: (x?: number, y?: number) => PauseText;
+@@ -178,39 +182,34 @@ type PauseAdd = {
+ type PauseSceneLike = {
+   add: PauseAdd;
+   scale?: { width?: number; height?: number };
+ };
+ 
+ const DEFAULT_WIDTH = 1280;
+ const DEFAULT_HEIGHT = 720;
+ const OVERLAY_DEPTH = 100;
+ const CONTENT_DEPTH = 101;
+ const OVERLAY_ALPHA = 0.7;
+-const OVERLAY_COLOR = 0x000000;
++const OVERLAY_COLOR = NEON_COLORS.bgInk;
+ 
+ const TITLE_STYLE = {
+-  color: "#f4f1de",
+-  fontFamily: "Arial",
++  ...getHudTextStyle("title"),
+   fontSize: "48px",
+-  fontStyle: "bold",
+ } as const;
+ 
+ const SETTINGS_TITLE_STYLE = {
+-  color: "#f4f1de",
+-  fontFamily: "Arial",
++  ...getHudTextStyle("title"),
+   fontSize: "42px",
+-  fontStyle: "bold",
+ } as const;
+ 
+ const LABEL_STYLE = {
+-  color: "#f4f1de",
+-  fontFamily: "Arial",
++  ...getHudTextStyle("score"),
+   fontSize: "22px",
+ } as const;
+ 
+ /**
+  * Create a pause menu overlay. The menu is initially hidden.
+  *
+  * The caller is responsible for pausing/resuming the battle scene:
+  *   - On Esc press:   `pauseMenu.show(); scene.pause(battleSceneKey);`
+  *   - On Resume click: `pauseMenu.hide()` is called internally; the
+  *     `onResume` callback should call `scene.resume()`.
+@@ -241,20 +240,33 @@ export function createPauseMenu(
+ 
+   // --- Main menu elements (overlay + title + 3 buttons) ----------------
+   // These are created with the ORIGINAL scene.add Ч they're managed
+   // individually (not via the settings-panel tracking list).
+   const overlay = s.add
+     .rectangle(centerX, centerY, width, height, OVERLAY_COLOR)
+     .setAlpha(OVERLAY_ALPHA)
+     .setDepth(OVERLAY_DEPTH);
+   overlay.setVisible(false);
+ 
++  const frame =
++    typeof s.add.graphics === "function"
++      ? drawNeonPanel(
++          s as unknown as Parameters<typeof drawNeonPanel>[0],
++          centerX - 220,
++          centerY - 250,
++          440,
++          500,
++        )
++      : null;
++  frame?.setDepth?.(OVERLAY_DEPTH + 1);
++  frame?.setVisible?.(false);
++
+   const title = s.add
+     .text(centerX, centerY - 180, TITLE_TEXT, TITLE_STYLE)
+     .setOrigin(0.5, 0.5)
+     .setDepth(CONTENT_DEPTH);
+   title.setVisible(false);
+ 
+   const mainButtons: StyledButton[] = [];
+ 
+   const resumeButton = createStyledButton(
+     s as unknown as ButtonSceneLike,
+@@ -491,29 +503,31 @@ export function createPauseMenu(
+     }
+     for (const comp of settingsComposites) {
+       comp.setVisible(v);
+     }
+   }
+ 
+   function show(): void {
+     visible = true;
+     settingsVisible = false;
+     overlay.setVisible(true);
++    frame?.setVisible?.(true);
+     title.setVisible(true);
+     showMainButtons(true);
+     showSettingsPanel(false);
+   }
+ 
+   function hide(): void {
+     visible = false;
+     settingsVisible = false;
+     overlay.setVisible(false);
++    frame?.setVisible?.(false);
+     title.setVisible(false);
+     showMainButtons(false);
+     showSettingsPanel(false);
+   }
+ 
+   function toggleSettings(): void {
+     settingsVisible = !settingsVisible;
+     // The "Paused" title and 3 main buttons are hidden when the settings
+     // panel is shown, and vice versa. The overlay stays visible throughout.
+     title.setVisible(!settingsVisible);
+@@ -532,27 +546,31 @@ export function createPauseMenu(
+   function destroy(): void {
+     // 1. Remove slider hit-zone listeners WHILE THE ZONES STILL EXIST.
+     //    VolumeSlider.destroy() only calls hitZone.removeAllListeners Ч
+     //    if we destroy the zones first, removeAllListeners might error.
+     for (const slider of settingsSliders) {
+       slider.destroy();
+     }
+     // 2. Destroy tracked primitives (rectangles + texts + zones created
+     //    by VolumeSlider + our own text labels).
+     for (const obj of settingsPrimitives) {
++      if (obj[VOLUME_SLIDER_OWNED_KEY]) {
++        continue;
++      }
+       obj.destroy();
+     }
+     // 3. Destroy composites (Back button Ч destroys its graphics + text).
+     for (const comp of settingsComposites) {
+       comp.destroy();
+     }
+     // 4. Destroy main menu elements.
++    frame?.destroy?.();
+     overlay.destroy();
+     title.destroy();
+     for (const btn of mainButtons) {
+       btn.destroy();
+     }
+   }
+ 
+   function handlePointerMove(pointer: {
+     x: number;
+     y: number;
+diff --git a/src/game/ui/TopRightMuteButton.test.ts b/src/game/ui/TopRightMuteButton.test.ts
+index b4350a7..f2c02b6 100644
+--- a/src/game/ui/TopRightMuteButton.test.ts
++++ b/src/game/ui/TopRightMuteButton.test.ts
+@@ -16,34 +16,75 @@ type FakeText = {
+ 
+ type FakeImage = {
+   x: number;
+   y: number;
+   key: string;
+   origin: { x: number; y: number };
+   visible: boolean;
+   handlers: Map<string, () => void>;
+ };
+ 
++type FakeGraphics = {
++  visible: boolean;
++  depth: number;
++};
++
+ type FakeScene = MuteButtonSceneLike & {
+   texts: FakeText[];
+   images: FakeImage[];
++  graphics: FakeGraphics[];
+   click(): void;
+   clickImage(index: number): void;
+ };
+ 
+ function makeScene(width = 1280): FakeScene {
+   const texts: FakeText[] = [];
+   const images: FakeImage[] = [];
++  const graphics: FakeGraphics[] = [];
+   const scene: FakeScene = {
+     texts,
+     images,
++    graphics,
+     add: {
++      graphics() {
++        const g: FakeGraphics = {
++          visible: true,
++          depth: 0,
++        };
++        graphics.push(g);
++        return {
++          fillStyle() {
++            return this;
++          },
++          fillRoundedRect() {
++            return this;
++          },
++          lineStyle() {
++            return this;
++          },
++          strokeRoundedRect() {
++            return this;
++          },
++          setDepth(depth: number) {
++            g.depth = depth;
++            return this;
++          },
++          setVisible(v: boolean) {
++            g.visible = v;
++            return this;
++          },
++        } as unknown as NonNullable<MuteButtonSceneLike["add"]["graphics"]> extends (
++          ...args: never[]
++        ) => infer R
++          ? R
++          : never;
++      },
+       text(x, y, value, _style) {
+         const t: FakeText = {
+           x,
+           y,
+           text: value,
+           origin: { x: 0.5, y: 0.5 },
+           handlers: new Map(),
+           visible: true,
+         };
+         texts.push(t);
+@@ -114,20 +155,21 @@ function makeScene(width = 1280): FakeScene {
+     },
+   };
+   return scene;
+ }
+ 
+ describe("TopRightMuteButton", () => {
+   it("creates a text button at the top-right corner", () => {
+     const scene = makeScene(1280);
+     createTopRightMuteButton(scene, { sfxMuted: false, musicMuted: false }, () => {});
+     expect(scene.texts).toHaveLength(1);
++    expect(scene.graphics).toHaveLength(1);
+     expect(scene.texts[0].x).toBe(1260); // width - margin(20)
+     expect(scene.texts[0].y).toBe(20);
+     expect(scene.texts[0].origin).toEqual({ x: 1, y: 0 });
+   });
+ 
+   it("shows '?? Sound' when not muted", () => {
+     const scene = makeScene();
+     createTopRightMuteButton(scene, { sfxMuted: false, musicMuted: false }, () => {});
+     expect(scene.texts[0].text).toBe("?? Sound");
+   });
+diff --git a/src/game/ui/TopRightMuteButton.ts b/src/game/ui/TopRightMuteButton.ts
+index 2c34940..339100d 100644
+--- a/src/game/ui/TopRightMuteButton.ts
++++ b/src/game/ui/TopRightMuteButton.ts
+@@ -6,22 +6,25 @@
+  * speaker icon + short label ("SOUND" / "MUTED") that works in both
+  * RU and EN languages. The color (green vs red) reinforces the state.
+  *
+  * The button does NOT own settings Ч it reads the initial state and calls
+  * `onChange` with the new state. The scene is responsible for persisting
+  * to localStorage and updating the AudioService.
+  *
+  * Falls back to a text label if the sprite textures are not loaded.
+  */
+ 
++import { NEON_COLORS, NEON_PANEL, getHudTextStyle } from "./neonTheme";
++
+ export type MuteButtonSceneLike = {
+   add: {
++    graphics?: () => MuteButtonGraphics;
+     text: (
+       x: number,
+       y: number,
+       value: string,
+       style?: {
+         align?: string;
+         backgroundColor?: string;
+         color?: string;
+         fontFamily?: string;
+         fontSize?: string;
+@@ -48,20 +51,41 @@ type MuteButtonText = {
+ };
+ 
+ type MuteButtonImage = {
+   setOrigin: (x?: number, y?: number) => MuteButtonImage;
+   setInteractive: (config?: { useHandCursor?: boolean }) => MuteButtonImage;
+   on: (event: string, handler: () => void) => MuteButtonImage;
+   setVisible: (visible: boolean) => MuteButtonImage;
+   setTexture: (key: string) => MuteButtonImage;
+ };
+ 
++type MuteButtonGraphics = {
++  fillStyle: (color: number, alpha?: number) => MuteButtonGraphics;
++  fillRoundedRect: (
++    x: number,
++    y: number,
++    width: number,
++    height: number,
++    radius?: number,
++  ) => MuteButtonGraphics;
++  lineStyle: (width: number, color: number, alpha?: number) => MuteButtonGraphics;
++  strokeRoundedRect: (
++    x: number,
++    y: number,
++    width: number,
++    height: number,
++    radius?: number,
++  ) => MuteButtonGraphics;
++  setDepth: (depth: number) => MuteButtonGraphics;
++  setVisible: (visible: boolean) => MuteButtonGraphics;
++};
++
+ export type MuteButtonState = {
+   sfxMuted: boolean;
+   musicMuted: boolean;
+ };
+ 
+ /**
+  * Optional labels for the text fallback. When sprites are available, these
+  * are ignored. When sprites are missing (e.g. in tests), the button falls
+  * back to a text label using these strings.
+  */
+@@ -73,37 +97,83 @@ export type MuteButtonOptions = {
+ export type TopRightMuteButton = {
+   setState: (state: MuteButtonState) => void;
+   isMasterMuted: () => boolean;
+ };
+ 
+ const DEFAULT_SOUND_LABEL = "?? Sound";
+ const DEFAULT_MUTED_LABEL = "?? Muted";
+ 
+ const SPRITE_SOUND = "mute-sound";
+ const SPRITE_MUTED = "mute-muted";
++const BUTTON_WIDTH = 148;
++const BUTTON_HEIGHT = 42;
++const BUTTON_PADDING = 4;
++const textStyle = getHudTextStyle("score");
++
++function colorToHex(color: number): string {
++  return `#${color.toString(16).padStart(6, "0")}`;
++}
++
++function createButtonChrome(
++  scene: MuteButtonSceneLike,
++  x: number,
++  y: number,
++): MuteButtonGraphics | null {
++  if (typeof scene.add.graphics !== "function") {
++    return null;
++  }
++
++  const chrome = scene.add.graphics().setDepth(0);
++  chrome.fillStyle(NEON_COLORS.bgPanel, 0.92);
++  chrome.fillRoundedRect(
++    x - (BUTTON_WIDTH + 6),
++    y - 8,
++    BUTTON_WIDTH,
++    BUTTON_HEIGHT,
++    NEON_PANEL.radius,
++  );
++  chrome.lineStyle(6, NEON_COLORS.cyan, 0.14);
++  chrome.strokeRoundedRect(
++    x - (BUTTON_WIDTH + 6),
++    y - 8,
++    BUTTON_WIDTH,
++    BUTTON_HEIGHT,
++    NEON_PANEL.radius,
++  );
++  chrome.lineStyle(NEON_PANEL.borderWidth, NEON_COLORS.cyan, 1);
++  chrome.strokeRoundedRect(
++    x - (BUTTON_WIDTH + 2),
++    y - 4,
++    BUTTON_WIDTH - BUTTON_PADDING * 2,
++    BUTTON_HEIGHT - BUTTON_PADDING * 2,
++    NEON_PANEL.radius - 2,
++  );
++  return chrome;
++}
+ 
+ function isMasterMuted(state: MuteButtonState): boolean {
+   return state.sfxMuted && state.musicMuted;
+ }
+ 
+ export function createTopRightMuteButton(
+   scene: MuteButtonSceneLike,
+   initialState: MuteButtonState,
+   onChange: (next: MuteButtonState) => void,
+   options?: MuteButtonOptions,
+ ): TopRightMuteButton {
+   const width = scene.scale?.width ?? 1280;
+   const margin = 20;
+   const soundLabel = options?.soundLabel ?? DEFAULT_SOUND_LABEL;
+   const mutedLabel = options?.mutedLabel ?? DEFAULT_MUTED_LABEL;
+ 
+   let state: MuteButtonState = { ...initialState };
++  createButtonChrome(scene, width - margin, margin);
+ 
+   const spritesAvailable =
+     scene.textures?.exists?.(SPRITE_SOUND) === true &&
+     scene.textures?.exists?.(SPRITE_MUTED) === true;
+ 
+   // --- Sprite-based button (preferred) ---
+   if (spritesAvailable) {
+     const initialKey = isMasterMuted(state) ? SPRITE_MUTED : SPRITE_SOUND;
+     const soundImg = scene.add.image(width - margin, margin, SPRITE_SOUND)
+       .setOrigin(1, 0)
+@@ -139,24 +209,23 @@ export function createTopRightMuteButton(
+       },
+       isMasterMuted() {
+         return isMasterMuted(state);
+       },
+     };
+   }
+ 
+   // --- Text fallback (tests / missing sprites) ---
+   const button = scene.add
+     .text(width - margin, margin, isMasterMuted(state) ? mutedLabel : soundLabel, {
++      ...textStyle,
+       align: "center",
+-      backgroundColor: isMasterMuted(state) ? "#e07a5f" : "#3d405b",
+-      color: "#f4f1de",
+-      fontFamily: "Arial",
++      color: colorToHex(NEON_COLORS.text),
+       fontSize: "18px",
+       padding: { x: 14, y: 8 },
+     })
+     .setOrigin(1, 0)
+     .setInteractive({ useHandCursor: true });
+ 
+   const toggle = () => {
+     if (isMasterMuted(state)) {
+       state = { sfxMuted: false, musicMuted: false };
+     } else {
+diff --git a/src/game/ui/VolumeSlider.test.ts b/src/game/ui/VolumeSlider.test.ts
+index 17b6750..d437101 100644
+--- a/src/game/ui/VolumeSlider.test.ts
++++ b/src/game/ui/VolumeSlider.test.ts
+@@ -1,12 +1,16 @@
+ import { describe, expect, it } from "vitest";
+-import { createVolumeSlider, type SliderSceneLike } from "./VolumeSlider";
++import {
++  VOLUME_SLIDER_OWNED_KEY,
++  createVolumeSlider,
++  type SliderSceneLike,
++} from "./VolumeSlider";
+ 
+ type Rect = {
+   kind: "rect";
+   x: number;
+   y: number;
+   width: number;
+   height: number;
+   color: number;
+   origin: { x: number; y: number };
+   depth: number;
+@@ -24,37 +28,85 @@ type Text = {
+ type Zone = {
+   kind: "zone";
+   x: number;
+   y: number;
+   width: number;
+   height: number;
+   interactive: boolean;
+   handlers: Map<string, (pointer: unknown) => void>;
+ };
+ 
++type Graphics = {
++  kind: "graphics";
++  visible: boolean;
++  depth: number;
++  destroyed: boolean;
++};
++
+ type FakeScene = SliderSceneLike & {
+   rects: Rect[];
+   texts: Text[];
+   zones: Zone[];
++  graphics: Graphics[];
+   emit(event: string, pointer: unknown): void;
+ };
+ 
+ function makeScene(): FakeScene {
+   const rects: Rect[] = [];
+   const texts: Text[] = [];
+   const zones: Zone[] = [];
++  const graphics: Graphics[] = [];
+ 
+   const scene: FakeScene = {
+     rects,
+     texts,
+     zones,
++    graphics,
+     add: {
++      graphics() {
++        const g = {
++          kind: "graphics",
++          visible: true,
++          depth: 0,
++          destroyed: false,
++          [VOLUME_SLIDER_OWNED_KEY]: false,
++          clear() {
++            return g;
++          },
++          fillStyle() {
++            return g;
++          },
++          fillRoundedRect() {
++            return g;
++          },
++          lineStyle() {
++            return g;
++          },
++          strokeRoundedRect() {
++            return g;
++          },
++          setDepth(d: number) {
++            g.depth = d;
++            return g;
++          },
++          setVisible(v: boolean) {
++            g.visible = v;
++            return g;
++          },
++          destroy() {
++            g.destroyed = true;
++            return g;
++          },
++        } as Graphics & { [VOLUME_SLIDER_OWNED_KEY]: boolean } & Record<string, unknown>;
++        graphics.push(g);
++        return g as never;
++      },
+       rectangle(x, y, width, height, color) {
+         const r: Rect = {
+           kind: "rect",
+           x,
+           y,
+           width,
+           height,
+           color,
+           origin: { x: 0.5, y: 0.5 },
+           depth: 0,
+@@ -148,20 +200,28 @@ function makeScene(): FakeScene {
+       if (h) h(pointer);
+     },
+   };
+   return scene;
+ }
+ 
+ describe("VolumeSlider", () => {
+   it("creates track, fill, handle, label, and hit zone", () => {
+     const scene = makeScene();
+     createVolumeSlider(scene, 100, 50, 200, 0.5, () => void 0);
++    expect(scene.graphics).toHaveLength(3);
++    expect(
++      scene.graphics.every(
++        (g) =>
++          (g as unknown as Record<string, unknown>)[VOLUME_SLIDER_OWNED_KEY] ===
++          true,
++      ),
++    ).toBe(true);
+     expect(scene.rects).toHaveLength(3); // track + fill + handle
+     expect(scene.texts).toHaveLength(1); // label
+     expect(scene.zones).toHaveLength(1);
+     expect(scene.zones[0].interactive).toBe(true);
+   });
+ 
+   it("initial label shows percentage of the initial value", () => {
+     const scene = makeScene();
+     createVolumeSlider(scene, 100, 50, 200, 0.7, () => void 0);
+     expect(scene.texts[0].text).toBe("70%");
+@@ -212,20 +272,30 @@ describe("VolumeSlider", () => {
+ 
+   it("destroy removes all hit-zone listeners", () => {
+     const scene = makeScene();
+     const slider = createVolumeSlider(scene, 100, 50, 200, 0.5, () => void 0);
+     const zone = scene.zones[0];
+     expect(zone.handlers.size).toBeGreaterThan(0);
+     slider.destroy();
+     expect(zone.handlers.size).toBe(0);
+   });
+ 
++  it("destroy tears down the task-added chrome graphics objects", () => {
++    const scene = makeScene();
++    const slider = createVolumeSlider(scene, 100, 50, 200, 0.5, () => void 0);
++    expect(scene.graphics).toHaveLength(3);
++
++    slider.destroy();
++
++    expect(scene.graphics.every((g) => g.destroyed)).toBe(true);
++  });
++
+   it("does not fire onChange on pointermove when not dragging", () => {
+     const scene = makeScene();
+     const changes: number[] = [];
+     createVolumeSlider(scene, 100, 50, 200, 0.5, (v) => changes.push(v));
+     scene.emit("pointermove", { x: 100, y: 50, isDown: false });
+     expect(changes).toHaveLength(0);
+   });
+ 
+   it("fires onChange on pointermove while dragging", () => {
+     const scene = makeScene();
+diff --git a/src/game/ui/VolumeSlider.ts b/src/game/ui/VolumeSlider.ts
+index d4c70a8..da79834 100644
+--- a/src/game/ui/VolumeSlider.ts
++++ b/src/game/ui/VolumeSlider.ts
+@@ -8,22 +8,27 @@
+  *
+  * Interaction:
+  *   - pointerdown on the track -> jump handle to pointer x and start dragging
+  *   - pointermove while dragging -> update handle and value
+  *   - pointerup anywhere -> stop dragging
+  *
+  * The slider does NOT depend on Phaser types directly (uses a minimal duck
+  * type) so it can be exercised in unit tests with a stub scene.
+  */
+ 
++import { NEON_COLORS, NEON_PANEL, getHudTextStyle } from "./neonTheme";
++
++export const VOLUME_SLIDER_OWNED_KEY = "__volumeSliderOwned";
++
+ export type SliderSceneLike = {
+   add: {
++    graphics?: () => SliderGraphics;
+     rectangle: (
+       x: number,
+       y: number,
+       width: number,
+       height: number,
+       color: number,
+     ) => SliderRectangle;
+     text: (
+       x: number,
+       y: number,
+@@ -59,129 +64,211 @@ type SliderText = {
+ };
+ 
+ type SliderZone = {
+   setInteractive: (config?: {
+     useHandCursor?: boolean;
+   }) => SliderZone;
+   on: (event: string, handler: (pointer: SliderPointer) => void) => SliderZone;
+   removeAllListeners?: () => SliderZone;
+ };
+ 
++type SliderGraphics = {
++  clear: () => SliderGraphics;
++  fillStyle: (color: number, alpha?: number) => SliderGraphics;
++  fillRoundedRect: (
++    x: number,
++    y: number,
++    width: number,
++    height: number,
++    radius?: number,
++  ) => SliderGraphics;
++  lineStyle: (width: number, color: number, alpha?: number) => SliderGraphics;
++  strokeRoundedRect: (
++    x: number,
++    y: number,
++    width: number,
++    height: number,
++    radius?: number,
++  ) => SliderGraphics;
++  setDepth: (depth: number) => SliderGraphics;
++  setVisible: (visible: boolean) => SliderGraphics;
++  destroy?: () => void;
++  [VOLUME_SLIDER_OWNED_KEY]?: boolean;
++};
++
+ type SliderPointer = {
+   x: number;
+   y: number;
+   isDown: boolean;
+ };
+ 
+ export type VolumeSlider = {
+   setValue: (next: number) => void;
+   getValue: () => number;
+   /** Forward a global pointermove event so the slider keeps updating when the pointer leaves its hit zone (B8). */
+   handlePointerMove: (pointer: SliderPointer) => void;
+   /** End the current drag (called from a global pointerup listener). */
+   endDrag: () => void;
+   destroy: () => void;
+ };
+ 
+-const TRACK_COLOR = 0x3d405b;
+-const FILL_COLOR = 0x81b29a;
+-const HANDLE_COLOR = 0xf4f1de;
+-const LABEL_COLOR = "#f4f1de";
++const TRACK_COLOR = NEON_COLORS.bgPanelAlt;
++const FILL_COLOR = NEON_COLORS.lime;
++const HANDLE_COLOR = NEON_COLORS.text;
++const labelStyle = getHudTextStyle("score");
+ const SNAP_STEP = 0.05; // 5% increments
+ const TRACK_HEIGHT = 12;
+ const HANDLE_SIZE = 22;
++const TRACK_RADIUS = NEON_PANEL.radius - 2;
+ 
+ function clamp01(v: number): number {
+   if (Number.isNaN(v)) {
+     return 0;
+   }
+   return Math.min(1, Math.max(0, v));
+ }
+ 
+ function snapToStep(v: number, step: number): number {
+   return Math.round(v / step) * step;
+ }
+ 
+ function formatPercent(v: number): string {
+   return `${Math.round(v * 100)}%`;
+ }
+ 
++function markSliderOwned<T extends SliderGraphics | undefined>(graphics: T): T {
++  if (graphics) {
++    graphics[VOLUME_SLIDER_OWNED_KEY] = true;
++  }
++  return graphics;
++}
++
+ export function createVolumeSlider(
+   scene: SliderSceneLike,
+   centerX: number,
+   centerY: number,
+   trackWidth: number,
+   initialValue: number,
+   onChange: (nextVolume: number) => void,
+ ): VolumeSlider {
+   let value = clamp01(initialValue);
+   let dragging = false;
+ 
+   // Track (background)
+   const track = scene.add
+     .rectangle(centerX, centerY, trackWidth, TRACK_HEIGHT, TRACK_COLOR)
+     .setOrigin(0.5, 0.5)
+     .setDepth(1);
+ 
+-  // Fill (left-anchored) Ч removed entirely. The green fill was visually
+-  // distracting during drag; the handle position + percentage label are
+-  // sufficient indicators. We create a zero-width invisible rectangle
+-  // so the applyValue() code still works (it sets fill.width / fill.x),
+-  // but the rectangle is never rendered.
++  // Fill bookkeeping rectangle. The visible lime fill is rendered by the
++  // slider-owned neon chrome graphics; this hidden rectangle only keeps
++  // width/x state that applyValue() updates and renderChrome() reads.
+   const trackLeft = centerX - trackWidth / 2;
+   const fill = scene.add
+     .rectangle(centerX, centerY, 0, 0, FILL_COLOR)
+     .setOrigin(0.5, 0.5)
+     .setDepth(2)
+     .setVisible(false);
+ 
+   // Handle (draggable square)
+   const handle = scene.add
+     .rectangle(centerX, centerY, HANDLE_SIZE, HANDLE_SIZE, HANDLE_COLOR)
+     .setOrigin(0.5, 0.5)
+     .setDepth(3);
+ 
+   // Percentage label
+   const label = scene.add
+     .text(centerX, centerY - 30, formatPercent(value), {
+-      color: LABEL_COLOR,
+-      fontFamily: "Arial",
++      ...labelStyle,
+       fontSize: "16px",
+     })
+     .setOrigin(0.5, 0.5);
+ 
+   // Interactive zone covering the track + a bit of vertical slack so the
+   // user doesn't have to hit the 12px-tall track exactly.
+   const hitZone = scene.add
+     .zone(centerX, centerY, trackWidth + HANDLE_SIZE, HANDLE_SIZE + 20)
+     .setInteractive({ useHandCursor: true });
+ 
++  const trackChrome = markSliderOwned(scene.add.graphics?.()?.setDepth(1));
++  const fillChrome = markSliderOwned(scene.add.graphics?.()?.setDepth(2));
++  const handleChrome = markSliderOwned(scene.add.graphics?.()?.setDepth(3));
++
++  function renderChrome(): void {
++    trackChrome?.clear();
++    trackChrome?.fillStyle(NEON_COLORS.bgPanelAlt, 1);
++    trackChrome?.fillRoundedRect(
++      trackLeft,
++      centerY - TRACK_HEIGHT / 2,
++      trackWidth,
++      TRACK_HEIGHT,
++      TRACK_RADIUS,
++    );
++    trackChrome?.lineStyle(NEON_PANEL.borderWidth, NEON_COLORS.cyan, 0.9);
++    trackChrome?.strokeRoundedRect(
++      trackLeft,
++      centerY - TRACK_HEIGHT / 2,
++      trackWidth,
++      TRACK_HEIGHT,
++      TRACK_RADIUS,
++    );
++
++    fillChrome?.clear();
++    fillChrome?.fillStyle(NEON_COLORS.lime, 1);
++    fillChrome?.fillRoundedRect(
++      trackLeft,
++      centerY - TRACK_HEIGHT / 2,
++      fill.width,
++      TRACK_HEIGHT,
++      TRACK_RADIUS,
++    );
++
++    handleChrome?.clear();
++    handleChrome?.fillStyle(NEON_COLORS.text, 1);
++    handleChrome?.fillRoundedRect(
++      handle.x - HANDLE_SIZE / 2,
++      centerY - HANDLE_SIZE / 2,
++      HANDLE_SIZE,
++      HANDLE_SIZE,
++      TRACK_RADIUS,
++    );
++    handleChrome?.lineStyle(NEON_PANEL.borderWidth, NEON_COLORS.cyan, 1);
++    handleChrome?.strokeRoundedRect(
++      handle.x - HANDLE_SIZE / 2,
++      centerY - HANDLE_SIZE / 2,
++      HANDLE_SIZE,
++      HANDLE_SIZE,
++      TRACK_RADIUS,
++    );
++  }
++
+   function applyValue(next: number): void {
+     value = clamp01(snapToStep(next, SNAP_STEP));
+     // Constrain the handle's centre to the inner range
+     // [trackLeft + HANDLE_SIZE/2, trackLeft + trackWidth - HANDLE_SIZE/2]
+     // so the 22px square never spills past either edge of the track.
+     // The fill ends at the handle's LEFT edge, so the green can never
+     // overshoot the handle (and therefore never the track either). At
+     // value=0 the fill collapses to zero width Ч no green sliver under
+     // the handle. (Bug 2: previously fill.width = value * trackWidth,
+     // which hit the right edge at value=1 and clipped past it during
+     // pointer overshoot / anti-aliasing.)
+     const handleMinX = trackLeft + HANDLE_SIZE / 2;
+     const handleMaxX = trackLeft + trackWidth - HANDLE_SIZE / 2;
+     const handleRange = Math.max(0, handleMaxX - handleMinX);
+     handle.x = handleMinX + value * handleRange;
+     const handleLeftEdge = handle.x - HANDLE_SIZE / 2;
+     const fillWidth = Math.max(0, handleLeftEdge - trackLeft);
+     fill.width = fillWidth;
+     fill.x = trackLeft + fillWidth / 2;
+     label.setText(formatPercent(value));
++    renderChrome();
+   }
+ 
+   applyValue(value);
+ 
+   function pointerToValue(pointer: SliderPointer): number {
+     return clamp01((pointer.x - trackLeft) / trackWidth);
+   }
+ 
+   hitZone.on("pointerdown", (pointer: SliderPointer) => {
+     dragging = true;
+@@ -239,13 +326,16 @@ export function createVolumeSlider(
+         return;
+       }
+       applyValue(pointerToValue(pointer));
+       onChange(value);
+     },
+     endDrag() {
+       dragging = false;
+     },
+     destroy() {
+       hitZone.removeAllListeners?.();
++      trackChrome?.destroy?.();
++      fillChrome?.destroy?.();
++      handleChrome?.destroy?.();
+     },
+   };
+ }
+diff --git a/src/game/ui/neonPrimitives.ts b/src/game/ui/neonPrimitives.ts
+new file mode 100644
+index 0000000..6cd314c
+--- /dev/null
++++ b/src/game/ui/neonPrimitives.ts
+@@ -0,0 +1,47 @@
++import { NEON_COLORS, NEON_PANEL } from "./neonTheme";
++
++type NeonGraphics = {
++  fillStyle: (color: number, alpha?: number) => NeonGraphics;
++  fillRoundedRect: (
++    x: number,
++    y: number,
++    width: number,
++    height: number,
++    radius?: number,
++  ) => NeonGraphics;
++  lineStyle: (width: number, color: number, alpha?: number) => NeonGraphics;
++  strokeRoundedRect: (
++    x: number,
++    y: number,
++    width: number,
++    height: number,
++    radius?: number,
++  ) => NeonGraphics;
++  setDepth?: (depth: number) => NeonGraphics;
++  setVisible?: (visible: boolean) => NeonGraphics;
++  clear?: () => NeonGraphics;
++  destroy?: () => void;
++};
++
++type NeonSceneLike = {
++  add: {
++    graphics: () => NeonGraphics;
++  };
++};
++
++export function drawNeonPanel(
++  scene: NeonSceneLike,
++  x: number,
++  y: number,
++  width: number,
++  height: number,
++): NeonGraphics {
++  const g = scene.add.graphics();
++  g.fillStyle(NEON_COLORS.bgPanel, 0.92);
++  g.fillRoundedRect(x, y, width, height, NEON_PANEL.radius);
++  g.lineStyle(6, NEON_COLORS.cyan, 0.14);
++  g.strokeRoundedRect(x, y, width, height, NEON_PANEL.radius);
++  g.lineStyle(NEON_PANEL.borderWidth, NEON_COLORS.cyan, 1);
++  g.strokeRoundedRect(x + 4, y + 4, width - 8, height - 8, NEON_PANEL.radius - 2);
++  return g;
++}

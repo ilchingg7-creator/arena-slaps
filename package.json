@@ -6,7 +6,9 @@
     "dev": "vite",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --environment node"
+    "test": "vitest run --environment node",
+    "generate:promo": "powershell -ExecutionPolicy Bypass -File marketing/yandex-games/generate-promo.ps1",
+    "verify:promo": "node marketing/yandex-games/verify-promo.mjs"
   },
   "dependencies": {
     "phaser": "^3.80.1"
