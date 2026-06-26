@@ -26,6 +26,7 @@
 
 import type Phaser from "phaser";
 import { getSpriteDefinition } from "../assets/spriteManifest";
+import { NEON_COLORS } from "./neonTheme";
 
 export type BackgroundConfig = {
   /** Sprite key registered in {@link spriteManifest}. */
@@ -60,6 +61,30 @@ const DEFAULT_WIDTH = 1280;
 /** Default screen height when `scene.scale.height` is not set. */
 const DEFAULT_HEIGHT = 720;
 
+type BackgroundGraphics = {
+  setDepth: (depth: number) => BackgroundGraphics;
+  fillStyle: (color: number, alpha?: number) => BackgroundGraphics;
+  fillRect: (
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+  ) => BackgroundGraphics;
+  lineStyle: (width: number, color: number, alpha?: number) => BackgroundGraphics;
+  strokeRect: (
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+  ) => BackgroundGraphics;
+  destroy: () => void;
+};
+
+type RenderedBackground = {
+  primary: Phaser.GameObjects.GameObject;
+  overlay?: BackgroundGraphics;
+};
+
 /**
  * Render a full-screen background image. If the sprite texture is loaded,
  * uses an `Image` scaled to fill the screen. Otherwise, falls back to a
@@ -82,7 +107,12 @@ export function createBackground(
   const centerX = width / 2;
   const centerY = height / 2;
 
-  function make(key: string): Phaser.GameObjects.GameObject {
+  function destroyRendered(rendered: RenderedBackground): void {
+    rendered.primary.destroy();
+    rendered.overlay?.destroy();
+  }
+
+  function make(key: string): RenderedBackground {
     // Throws synchronously for unknown keys — programmer error.
     const def = getSpriteDefinition(key);
 
@@ -90,7 +120,16 @@ export function createBackground(
       const img = scene.add.image(centerX, centerY, key);
       img.setDisplaySize(width, height);
       img.setDepth(BG_DEPTH);
-      return img as unknown as Phaser.GameObjects.GameObject;
+      const overlay = (scene.add.graphics() as BackgroundGraphics)
+        .setDepth(BG_DEPTH + 1);
+      overlay.fillStyle(NEON_COLORS.bgInk, 0.3);
+      overlay.fillRect(0, 0, width, height);
+      overlay.lineStyle(2, NEON_COLORS.cyan, 0.1);
+      overlay.strokeRect(24, 24, width - 48, height - 48);
+      return {
+        primary: img as unknown as Phaser.GameObjects.GameObject,
+        overlay,
+      };
     }
 
     // Fallback: solid-color rectangle covering the whole screen. Caller
@@ -98,21 +137,23 @@ export function createBackground(
     const color = config.fallbackColor ?? def.fallbackColor;
     const rect = scene.add.rectangle(centerX, centerY, width, height, color);
     rect.setDepth(BG_DEPTH);
-    return rect as unknown as Phaser.GameObjects.GameObject;
+    return {
+      primary: rect as unknown as Phaser.GameObjects.GameObject,
+    };
   }
 
   let current = make(config.key);
 
   return {
     get gameObject(): Phaser.GameObjects.GameObject {
-      return current;
+      return current.primary;
     },
     setKey(key: string) {
-      current.destroy();
+      destroyRendered(current);
       current = make(key);
     },
     destroy() {
-      current.destroy();
+      destroyRendered(current);
     },
   };
 }

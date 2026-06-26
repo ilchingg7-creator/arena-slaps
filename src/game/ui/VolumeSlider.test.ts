@@ -31,10 +31,17 @@ type Zone = {
   handlers: Map<string, (pointer: unknown) => void>;
 };
 
+type Graphics = {
+  kind: "graphics";
+  visible: boolean;
+  depth: number;
+};
+
 type FakeScene = SliderSceneLike & {
   rects: Rect[];
   texts: Text[];
   zones: Zone[];
+  graphics: Graphics[];
   emit(event: string, pointer: unknown): void;
 };
 
@@ -42,12 +49,47 @@ function makeScene(): FakeScene {
   const rects: Rect[] = [];
   const texts: Text[] = [];
   const zones: Zone[] = [];
+  const graphics: Graphics[] = [];
 
   const scene: FakeScene = {
     rects,
     texts,
     zones,
+    graphics,
     add: {
+      graphics() {
+        const g: Graphics = {
+          kind: "graphics",
+          visible: true,
+          depth: 0,
+        };
+        graphics.push(g);
+        return {
+          clear() {
+            return this;
+          },
+          fillStyle() {
+            return this;
+          },
+          fillRoundedRect() {
+            return this;
+          },
+          lineStyle() {
+            return this;
+          },
+          strokeRoundedRect() {
+            return this;
+          },
+          setDepth(d: number) {
+            g.depth = d;
+            return this;
+          },
+          setVisible(v: boolean) {
+            g.visible = v;
+            return this;
+          },
+        } as never;
+      },
       rectangle(x, y, width, height, color) {
         const r: Rect = {
           kind: "rect",
@@ -155,6 +197,7 @@ describe("VolumeSlider", () => {
   it("creates track, fill, handle, label, and hit zone", () => {
     const scene = makeScene();
     createVolumeSlider(scene, 100, 50, 200, 0.5, () => void 0);
+    expect(scene.graphics).toHaveLength(3);
     expect(scene.rects).toHaveLength(3); // track + fill + handle
     expect(scene.texts).toHaveLength(1); // label
     expect(scene.zones).toHaveLength(1);

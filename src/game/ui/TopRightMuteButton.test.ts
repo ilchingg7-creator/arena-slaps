@@ -23,9 +23,15 @@ type FakeImage = {
   handlers: Map<string, () => void>;
 };
 
+type FakeGraphics = {
+  visible: boolean;
+  depth: number;
+};
+
 type FakeScene = MuteButtonSceneLike & {
   texts: FakeText[];
   images: FakeImage[];
+  graphics: FakeGraphics[];
   click(): void;
   clickImage(index: number): void;
 };
@@ -33,10 +39,45 @@ type FakeScene = MuteButtonSceneLike & {
 function makeScene(width = 1280): FakeScene {
   const texts: FakeText[] = [];
   const images: FakeImage[] = [];
+  const graphics: FakeGraphics[] = [];
   const scene: FakeScene = {
     texts,
     images,
+    graphics,
     add: {
+      graphics() {
+        const g: FakeGraphics = {
+          visible: true,
+          depth: 0,
+        };
+        graphics.push(g);
+        return {
+          fillStyle() {
+            return this;
+          },
+          fillRoundedRect() {
+            return this;
+          },
+          lineStyle() {
+            return this;
+          },
+          strokeRoundedRect() {
+            return this;
+          },
+          setDepth(depth: number) {
+            g.depth = depth;
+            return this;
+          },
+          setVisible(v: boolean) {
+            g.visible = v;
+            return this;
+          },
+        } as unknown as NonNullable<MuteButtonSceneLike["add"]["graphics"]> extends (
+          ...args: never[]
+        ) => infer R
+          ? R
+          : never;
+      },
       text(x, y, value, _style) {
         const t: FakeText = {
           x,
@@ -121,6 +162,7 @@ describe("TopRightMuteButton", () => {
     const scene = makeScene(1280);
     createTopRightMuteButton(scene, { sfxMuted: false, musicMuted: false }, () => {});
     expect(scene.texts).toHaveLength(1);
+    expect(scene.graphics).toHaveLength(1);
     expect(scene.texts[0].x).toBe(1260); // width - margin(20)
     expect(scene.texts[0].y).toBe(20);
     expect(scene.texts[0].origin).toEqual({ x: 1, y: 0 });

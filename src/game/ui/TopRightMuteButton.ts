@@ -15,6 +15,7 @@
 
 export type MuteButtonSceneLike = {
   add: {
+    graphics?: () => MuteButtonGraphics;
     text: (
       x: number,
       y: number,
@@ -55,6 +56,27 @@ type MuteButtonImage = {
   setTexture: (key: string) => MuteButtonImage;
 };
 
+type MuteButtonGraphics = {
+  fillStyle: (color: number, alpha?: number) => MuteButtonGraphics;
+  fillRoundedRect: (
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    radius?: number,
+  ) => MuteButtonGraphics;
+  lineStyle: (width: number, color: number, alpha?: number) => MuteButtonGraphics;
+  strokeRoundedRect: (
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    radius?: number,
+  ) => MuteButtonGraphics;
+  setDepth: (depth: number) => MuteButtonGraphics;
+  setVisible: (visible: boolean) => MuteButtonGraphics;
+};
+
 export type MuteButtonState = {
   sfxMuted: boolean;
   musicMuted: boolean;
@@ -81,6 +103,25 @@ const DEFAULT_MUTED_LABEL = "🔇 Muted";
 const SPRITE_SOUND = "mute-sound";
 const SPRITE_MUTED = "mute-muted";
 
+function createButtonChrome(
+  scene: MuteButtonSceneLike,
+  x: number,
+  y: number,
+): MuteButtonGraphics | null {
+  if (typeof scene.add.graphics !== "function") {
+    return null;
+  }
+
+  const chrome = scene.add.graphics().setDepth(0);
+  chrome.fillStyle(0x101522, 0.92);
+  chrome.fillRoundedRect(x - 154, y - 8, 148, 42, 12);
+  chrome.lineStyle(6, 0x20f6ff, 0.14);
+  chrome.strokeRoundedRect(x - 154, y - 8, 148, 42, 12);
+  chrome.lineStyle(2, 0x20f6ff, 1);
+  chrome.strokeRoundedRect(x - 150, y - 4, 140, 34, 10);
+  return chrome;
+}
+
 function isMasterMuted(state: MuteButtonState): boolean {
   return state.sfxMuted && state.musicMuted;
 }
@@ -97,6 +138,7 @@ export function createTopRightMuteButton(
   const mutedLabel = options?.mutedLabel ?? DEFAULT_MUTED_LABEL;
 
   let state: MuteButtonState = { ...initialState };
+  createButtonChrome(scene, width - margin, margin);
 
   const spritesAvailable =
     scene.textures?.exists?.(SPRITE_SOUND) === true &&

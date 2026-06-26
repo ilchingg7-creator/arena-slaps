@@ -48,9 +48,11 @@ type StubScene = {
   add: {
     image: ReturnType<typeof vi.fn>;
     rectangle: ReturnType<typeof vi.fn>;
+    graphics: ReturnType<typeof vi.fn>;
   };
   images: ImageObj[];
   rects: RectObj[];
+  graphicsObjects: Array<{ depth: number }>;
 };
 
 function makeImage(x: number, y: number, key: string): ImageObj {
@@ -115,6 +117,7 @@ function makeStubScene(
   const height = opts.height ?? 720;
   const images: ImageObj[] = [];
   const rects: RectObj[] = [];
+  const graphicsObjects: Array<{ depth: number }> = [];
 
   const image = vi.fn((x: number, y: number, key: string) => {
     const o = makeImage(x, y, key);
@@ -136,12 +139,40 @@ function makeStubScene(
     },
   );
 
+  const graphics = vi.fn(() => {
+    const g = {
+      depth: 0,
+      setDepth(d: number) {
+        g.depth = d;
+        return g;
+      },
+      fillStyle() {
+        return g;
+      },
+      fillRect() {
+        return g;
+      },
+      lineStyle() {
+        return g;
+      },
+      strokeRect() {
+        return g;
+      },
+      destroy() {
+        return undefined;
+      },
+    };
+    graphicsObjects.push(g);
+    return g;
+  });
+
   return {
     scale: { width, height },
     textures: { exists: vi.fn((k: string) => loadedKeys.has(k)) },
-    add: { image, rectangle },
+    add: { image, rectangle, graphics },
     images,
     rects,
+    graphicsObjects,
   };
 }
 
@@ -161,7 +192,16 @@ describe("Background", () => {
     expect(img.y).toBe(360); // height/2 = 720/2
     expect(img.displaySize).toEqual({ w: 1280, h: 720 });
     expect(img.depth).toBe(-100);
+    expect(scene.graphicsObjects).toHaveLength(1);
+    expect(scene.graphicsObjects[0].depth).toBe(-99);
     expect(bg.gameObject).toBe(img);
+  });
+
+  it("keeps the original background contract while adding overlay layers", () => {
+    const scene = makeStubScene({ loadedKeys: new Set(["menu-bg"]) });
+    const bg = createBackground(asScene(scene), { key: "menu-bg" });
+    expect(bg.gameObject).toBeDefined();
+    expect(scene.add.graphics).toHaveBeenCalledTimes(1);
   });
 
   it("falls back to a full-screen rectangle with manifest fallbackColor and depth -100 when the texture is missing", () => {

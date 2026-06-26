@@ -120,9 +120,17 @@ type FakeText = {
   destroyed: boolean;
 };
 
+type FakeGraphics = {
+  kind: "graphics";
+  depth: number;
+  visible: boolean;
+  destroyed: boolean;
+};
+
 type FakeScene = {
   rects: FakeRect[];
   texts: FakeText[];
+  graphicsObjects: FakeGraphics[];
   add: {
     rectangle: (
       x: number,
@@ -148,6 +156,27 @@ type FakeScene = {
       setVisible: (v: boolean) => unknown;
       destroy: () => void;
     };
+    graphics: () => {
+      setDepth: (d: number) => unknown;
+      setVisible: (v: boolean) => unknown;
+      fillStyle: (color: number, alpha?: number) => unknown;
+      fillRoundedRect: (
+        x: number,
+        y: number,
+        w: number,
+        h: number,
+        radius?: number,
+      ) => unknown;
+      lineStyle: (width: number, color: number, alpha?: number) => unknown;
+      strokeRoundedRect: (
+        x: number,
+        y: number,
+        w: number,
+        h: number,
+        radius?: number,
+      ) => unknown;
+      destroy: () => void;
+    };
   };
   scale: { width: number; height: number };
 };
@@ -155,10 +184,12 @@ type FakeScene = {
 function makeScene(): FakeScene {
   const rects: FakeRect[] = [];
   const texts: FakeText[] = [];
+  const graphicsObjects: FakeGraphics[] = [];
 
   const scene: FakeScene = {
     rects,
     texts,
+    graphicsObjects,
     scale: { width: 1280, height: 720 },
     add: {
       rectangle(x, y, width, height, color) {
@@ -227,6 +258,41 @@ function makeScene(): FakeScene {
           },
           destroy() {
             t.destroyed = true;
+          },
+        };
+        return proxy;
+      },
+      graphics() {
+        const g: FakeGraphics = {
+          kind: "graphics",
+          depth: 0,
+          visible: true,
+          destroyed: false,
+        };
+        graphicsObjects.push(g);
+        const proxy = {
+          setDepth(d: number) {
+            g.depth = d;
+            return proxy;
+          },
+          setVisible(v: boolean) {
+            g.visible = v;
+            return proxy;
+          },
+          fillStyle() {
+            return proxy;
+          },
+          fillRoundedRect() {
+            return proxy;
+          },
+          lineStyle() {
+            return proxy;
+          },
+          strokeRoundedRect() {
+            return proxy;
+          },
+          destroy() {
+            g.destroyed = true;
           },
         };
         return proxy;
@@ -317,6 +383,7 @@ describe("PauseMenu - construction", () => {
     // Title "Paused" text exists.
     const paused = findText(scene.texts, "Paused");
     expect(paused).toBeDefined();
+    expect(scene.graphicsObjects.length).toBeGreaterThan(0);
 
     // 3 main buttons + 1 Back button (Back lives in the settings panel).
     expect(buttonStubs).toHaveLength(4);
@@ -576,6 +643,19 @@ describe("PauseMenu - toggleSettings", () => {
     expect(findButton("Back")!.visible).toBe(true);
     const settingsTitle = findText(scene.texts, "Settings");
     if (settingsTitle) expect(settingsTitle.visible).toBe(true);
+  });
+
+  it("still toggles pause settings visibility while rendering a framed overlay", () => {
+    const scene = makeScene();
+    const menu = createPauseMenu(
+      scene as unknown as Parameters<typeof createPauseMenu>[0],
+      makeConfig({}),
+    );
+    menu.show();
+    expect(scene.rects.length).toBeGreaterThan(0);
+    expect(scene.graphicsObjects.length).toBeGreaterThan(0);
+    menu.toggleSettings();
+    expect(menu.isSettingsVisible()).toBe(true);
   });
 
   it("toggling back restores the main buttons + title", () => {

@@ -43,6 +43,7 @@ import {
   type SliderSceneLike,
   type VolumeSlider,
 } from "./VolumeSlider";
+import { drawNeonPanel } from "./neonPrimitives";
 import type { I18nService } from "../i18n/I18nService";
 import type { TranslationKey } from "../config/translations";
 import type { AudioSettings } from "../audio/AudioService";
@@ -247,6 +248,19 @@ export function createPauseMenu(
     .setAlpha(OVERLAY_ALPHA)
     .setDepth(OVERLAY_DEPTH);
   overlay.setVisible(false);
+
+  const frame =
+    typeof s.add.graphics === "function"
+      ? drawNeonPanel(
+          s as unknown as Parameters<typeof drawNeonPanel>[0],
+          centerX - 220,
+          centerY - 250,
+          440,
+          500,
+        )
+      : null;
+  frame?.setDepth?.(OVERLAY_DEPTH + 1);
+  frame?.setVisible?.(false);
 
   const title = s.add
     .text(centerX, centerY - 180, TITLE_TEXT, TITLE_STYLE)
@@ -498,6 +512,7 @@ export function createPauseMenu(
     visible = true;
     settingsVisible = false;
     overlay.setVisible(true);
+    frame?.setVisible?.(true);
     title.setVisible(true);
     showMainButtons(true);
     showSettingsPanel(false);
@@ -507,6 +522,7 @@ export function createPauseMenu(
     visible = false;
     settingsVisible = false;
     overlay.setVisible(false);
+    frame?.setVisible?.(false);
     title.setVisible(false);
     showMainButtons(false);
     showSettingsPanel(false);
@@ -546,6 +562,7 @@ export function createPauseMenu(
       comp.destroy();
     }
     // 4. Destroy main menu elements.
+    frame?.destroy?.();
     overlay.destroy();
     title.destroy();
     for (const btn of mainButtons) {

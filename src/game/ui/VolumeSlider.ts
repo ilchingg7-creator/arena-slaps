@@ -17,6 +17,7 @@
 
 export type SliderSceneLike = {
   add: {
+    graphics?: () => SliderGraphics;
     rectangle: (
       x: number,
       y: number,
@@ -66,6 +67,28 @@ type SliderZone = {
   removeAllListeners?: () => SliderZone;
 };
 
+type SliderGraphics = {
+  clear: () => SliderGraphics;
+  fillStyle: (color: number, alpha?: number) => SliderGraphics;
+  fillRoundedRect: (
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    radius?: number,
+  ) => SliderGraphics;
+  lineStyle: (width: number, color: number, alpha?: number) => SliderGraphics;
+  strokeRoundedRect: (
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    radius?: number,
+  ) => SliderGraphics;
+  setDepth: (depth: number) => SliderGraphics;
+  setVisible: (visible: boolean) => SliderGraphics;
+};
+
 type SliderPointer = {
   x: number;
   y: number;
@@ -89,6 +112,7 @@ const LABEL_COLOR = "#f4f1de";
 const SNAP_STEP = 0.05; // 5% increments
 const TRACK_HEIGHT = 12;
 const HANDLE_SIZE = 22;
+const TRACK_RADIUS = 10;
 
 function clamp01(v: number): number {
   if (Number.isNaN(v)) {
@@ -155,6 +179,58 @@ export function createVolumeSlider(
     .zone(centerX, centerY, trackWidth + HANDLE_SIZE, HANDLE_SIZE + 20)
     .setInteractive({ useHandCursor: true });
 
+  const trackChrome = scene.add.graphics?.()?.setDepth(1);
+  const fillChrome = scene.add.graphics?.()?.setDepth(2);
+  const handleChrome = scene.add.graphics?.()?.setDepth(3);
+
+  function renderChrome(): void {
+    trackChrome?.clear();
+    trackChrome?.fillStyle(0x151b2b, 1);
+    trackChrome?.fillRoundedRect(
+      trackLeft,
+      centerY - TRACK_HEIGHT / 2,
+      trackWidth,
+      TRACK_HEIGHT,
+      TRACK_RADIUS,
+    );
+    trackChrome?.lineStyle(2, 0x20f6ff, 0.9);
+    trackChrome?.strokeRoundedRect(
+      trackLeft,
+      centerY - TRACK_HEIGHT / 2,
+      trackWidth,
+      TRACK_HEIGHT,
+      TRACK_RADIUS,
+    );
+
+    fillChrome?.clear();
+    fillChrome?.fillStyle(0xb7ff3c, 1);
+    fillChrome?.fillRoundedRect(
+      trackLeft,
+      centerY - TRACK_HEIGHT / 2,
+      fill.width,
+      TRACK_HEIGHT,
+      TRACK_RADIUS,
+    );
+
+    handleChrome?.clear();
+    handleChrome?.fillStyle(0xf6fbff, 1);
+    handleChrome?.fillRoundedRect(
+      handle.x - HANDLE_SIZE / 2,
+      centerY - HANDLE_SIZE / 2,
+      HANDLE_SIZE,
+      HANDLE_SIZE,
+      10,
+    );
+    handleChrome?.lineStyle(2, 0x20f6ff, 1);
+    handleChrome?.strokeRoundedRect(
+      handle.x - HANDLE_SIZE / 2,
+      centerY - HANDLE_SIZE / 2,
+      HANDLE_SIZE,
+      HANDLE_SIZE,
+      10,
+    );
+  }
+
   function applyValue(next: number): void {
     value = clamp01(snapToStep(next, SNAP_STEP));
     // Constrain the handle's centre to the inner range
@@ -175,6 +251,7 @@ export function createVolumeSlider(
     fill.width = fillWidth;
     fill.x = trackLeft + fillWidth / 2;
     label.setText(formatPercent(value));
+    renderChrome();
   }
 
   applyValue(value);
