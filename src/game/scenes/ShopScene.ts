@@ -393,7 +393,6 @@ export class ShopScene extends Phaser.Scene {
         const buyBtn = this.add
           .text(x + cellW / 2, y + 112, buyText, {
             color: "#ffffff", fontFamily: "Arial", fontSize: "13px", fontStyle: "bold",
-            stroke: "#05070d", strokeThickness: 4,
             shadow: { offsetX: 0, offsetY: 0, color: "#20f6ff", blur: 8, fill: false },
           })
           .setOrigin(0.5)

@@ -270,7 +270,12 @@ export class ProgressScene extends Phaser.Scene {
     // --- Unlocks ladder (inside one big neon panel) ---
     const listTopY = height * 0.46;
     const rowStep = 22;
-    const listH = (LEVELS.length + 1) * rowStep + 16;
+    // contentOffset: padding between the panel's top edge and the first
+    // text row. Was effectively 8px which let the 18px header (with 3px
+    // stroke) clip above the panel border. Bumped to 24px so the header
+    // sits cleanly inside the panel.
+    const contentOffset = 24;
+    const listH = (LEVELS.length + 1) * rowStep + 16 + contentOffset;
     const listW = width * 0.64;
     const listX = (width - listW) / 2;
     const listPanel = drawNeonPanel(
@@ -290,7 +295,7 @@ export class ProgressScene extends Phaser.Scene {
     const rowWrapW = listW - 32;
 
     const header = this.add
-      .text(labelX, listTopY, i18n.t("progression.unlocks"), {
+      .text(labelX, listTopY + contentOffset, i18n.t("progression.unlocks"), {
         color: "#b7ff3c", fontFamily: "Arial", fontStyle: "bold", fontSize: "18px",
         stroke: "#05070d", strokeThickness: 3,
       })
@@ -299,7 +304,7 @@ export class ProgressScene extends Phaser.Scene {
     this.contentObjects.push(header);
 
     for (const def of LEVELS) {
-      const rowY = listTopY + def.level * rowStep;
+      const rowY = listTopY + contentOffset + def.level * rowStep;
       const reached = def.level <= currentLevel;
       const mark = reached ? "\u2713" : "\u2717";
       const markColor = reached ? "#b7ff3c" : "#ff5a36";
