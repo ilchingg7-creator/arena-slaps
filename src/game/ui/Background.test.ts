@@ -23,9 +23,11 @@ type ImageObj = {
   y: number;
   displaySize?: { w: number; h: number };
   depth: number;
+  alpha: number;
   destroyed: boolean;
   setDisplaySize(w: number, h: number): ImageObj;
   setDepth(d: number): ImageObj;
+  setAlpha(alpha: number): ImageObj;
   destroy(): void;
 };
 
@@ -37,8 +39,10 @@ type RectObj = {
   height: number;
   color: number;
   depth: number;
+  alpha: number;
   destroyed: boolean;
   setDepth(d: number): RectObj;
+  setAlpha(alpha: number): RectObj;
   destroy(): void;
 };
 
@@ -52,7 +56,7 @@ type StubScene = {
   };
   images: ImageObj[];
   rects: RectObj[];
-  graphicsObjects: Array<{ depth: number }>;
+  graphicsObjects: Array<{ depth: number; alpha: number; destroyed: boolean }>;
 };
 
 function makeImage(x: number, y: number, key: string): ImageObj {
@@ -62,6 +66,7 @@ function makeImage(x: number, y: number, key: string): ImageObj {
     x,
     y,
     depth: 0,
+    alpha: 1,
     destroyed: false,
     setDisplaySize(w, h) {
       this.displaySize = { w, h };
@@ -69,6 +74,10 @@ function makeImage(x: number, y: number, key: string): ImageObj {
     },
     setDepth(d) {
       this.depth = d;
+      return this;
+    },
+    setAlpha(alpha) {
+      this.alpha = alpha;
       return this;
     },
     destroy() {
@@ -93,9 +102,14 @@ function makeRect(
     height,
     color,
     depth: 0,
+    alpha: 1,
     destroyed: false,
     setDepth(d) {
       this.depth = d;
+      return this;
+    },
+    setAlpha(alpha) {
+      this.alpha = alpha;
       return this;
     },
     destroy() {
@@ -117,7 +131,11 @@ function makeStubScene(
   const height = opts.height ?? 720;
   const images: ImageObj[] = [];
   const rects: RectObj[] = [];
-  const graphicsObjects: Array<{ depth: number }> = [];
+  const graphicsObjects: Array<{
+    depth: number;
+    alpha: number;
+    destroyed: boolean;
+  }> = [];
 
   const image = vi.fn((x: number, y: number, key: string) => {
     const o = makeImage(x, y, key);
@@ -142,8 +160,14 @@ function makeStubScene(
   const graphics = vi.fn(() => {
     const g = {
       depth: 0,
+      alpha: 1,
+      destroyed: false,
       setDepth(d: number) {
         g.depth = d;
+        return g;
+      },
+      setAlpha(alpha: number) {
+        g.alpha = alpha;
         return g;
       },
       fillStyle() {
@@ -159,6 +183,7 @@ function makeStubScene(
         return g;
       },
       destroy() {
+        g.destroyed = true;
         return undefined;
       },
     };
@@ -202,6 +227,44 @@ describe("Background", () => {
     const bg = createBackground(asScene(scene), { key: "menu-bg" });
     expect(bg.gameObject).toBeDefined();
     expect(scene.add.graphics).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the overlay depth in sync when callers set depth on the returned object", () => {
+    const scene = makeStubScene({ loadedKeys: new Set(["menu-bg"]) });
+    const bg = createBackground(asScene(scene), { key: "menu-bg" });
+
+    (
+      bg.gameObject as unknown as {
+        setDepth: (depth: number) => unknown;
+      }
+    ).setDepth(-20);
+
+    expect(scene.images[0].depth).toBe(-20);
+    expect(scene.graphicsObjects[0].depth).toBe(-19);
+  });
+
+  it("keeps the overlay alpha in sync when callers set alpha on the returned object", () => {
+    const scene = makeStubScene({ loadedKeys: new Set(["menu-bg"]) });
+    const bg = createBackground(asScene(scene), { key: "menu-bg" });
+
+    (
+      bg.gameObject as unknown as {
+        setAlpha: (alpha: number) => unknown;
+      }
+    ).setAlpha(0.4);
+
+    expect(scene.images[0].alpha).toBe(0.4);
+    expect(scene.graphicsObjects[0].alpha).toBe(0.4);
+  });
+
+  it("destroys the overlay when callers destroy the returned texture-backed object directly", () => {
+    const scene = makeStubScene({ loadedKeys: new Set(["menu-bg"]) });
+    const bg = createBackground(asScene(scene), { key: "menu-bg" });
+
+    bg.gameObject.destroy();
+
+    expect(scene.images[0].destroyed).toBe(true);
+    expect(scene.graphicsObjects[0].destroyed).toBe(true);
   });
 
   it("falls back to a full-screen rectangle with manifest fallbackColor and depth -100 when the texture is missing", () => {

@@ -63,6 +63,7 @@ const DEFAULT_HEIGHT = 720;
 
 type BackgroundGraphics = {
   setDepth: (depth: number) => BackgroundGraphics;
+  setAlpha?: (alpha: number) => BackgroundGraphics;
   fillStyle: (color: number, alpha?: number) => BackgroundGraphics;
   fillRect: (
     x: number,
@@ -83,6 +84,13 @@ type BackgroundGraphics = {
 type RenderedBackground = {
   primary: Phaser.GameObjects.GameObject;
   overlay?: BackgroundGraphics;
+  destroy: () => void;
+};
+
+type SyncableGameObject = Phaser.GameObjects.GameObject & {
+  setDepth?: (depth: number) => SyncableGameObject;
+  setAlpha?: (alpha: number) => SyncableGameObject;
+  destroy: () => void;
 };
 
 /**
@@ -108,8 +116,51 @@ export function createBackground(
   const centerY = height / 2;
 
   function destroyRendered(rendered: RenderedBackground): void {
-    rendered.primary.destroy();
-    rendered.overlay?.destroy();
+    rendered.destroy();
+  }
+
+  function attachOverlaySync(
+    primary: Phaser.GameObjects.GameObject,
+    overlay: BackgroundGraphics,
+  ): RenderedBackground {
+    const syncable = primary as SyncableGameObject;
+    const originalSetDepth = syncable.setDepth?.bind(syncable);
+    const originalSetAlpha = syncable.setAlpha?.bind(syncable);
+    const originalDestroy = syncable.destroy.bind(syncable);
+    let destroyed = false;
+
+    if (originalSetDepth) {
+      syncable.setDepth = (depth: number) => {
+        originalSetDepth(depth);
+        overlay.setDepth(depth + 1);
+        return syncable;
+      };
+    }
+
+    if (originalSetAlpha && overlay.setAlpha) {
+      syncable.setAlpha = (alpha: number) => {
+        originalSetAlpha(alpha);
+        overlay.setAlpha!(alpha);
+        return syncable;
+      };
+    }
+
+    syncable.destroy = () => {
+      if (destroyed) {
+        return;
+      }
+      destroyed = true;
+      overlay.destroy();
+      originalDestroy();
+    };
+
+    return {
+      primary,
+      overlay,
+      destroy() {
+        syncable.destroy();
+      },
+    };
   }
 
   function make(key: string): RenderedBackground {
@@ -126,10 +177,10 @@ export function createBackground(
       overlay.fillRect(0, 0, width, height);
       overlay.lineStyle(2, NEON_COLORS.cyan, 0.1);
       overlay.strokeRect(24, 24, width - 48, height - 48);
-      return {
-        primary: img as unknown as Phaser.GameObjects.GameObject,
+      return attachOverlaySync(
+        img as unknown as Phaser.GameObjects.GameObject,
         overlay,
-      };
+      );
     }
 
     // Fallback: solid-color rectangle covering the whole screen. Caller
@@ -139,6 +190,9 @@ export function createBackground(
     rect.setDepth(BG_DEPTH);
     return {
       primary: rect as unknown as Phaser.GameObjects.GameObject,
+      destroy() {
+        rect.destroy();
+      },
     };
   }
 
