@@ -24,10 +24,12 @@ type ImageObj = {
   displaySize?: { w: number; h: number };
   depth: number;
   alpha: number;
+  scrollFactor: { x: number; y: number };
   destroyed: boolean;
   setDisplaySize(w: number, h: number): ImageObj;
   setDepth(d: number): ImageObj;
   setAlpha(alpha: number): ImageObj;
+  setScrollFactor(x: number, y?: number): ImageObj;
   destroy(): void;
 };
 
@@ -40,9 +42,11 @@ type RectObj = {
   color: number;
   depth: number;
   alpha: number;
+  scrollFactor: { x: number; y: number };
   destroyed: boolean;
   setDepth(d: number): RectObj;
   setAlpha(alpha: number): RectObj;
+  setScrollFactor(x: number, y?: number): RectObj;
   destroy(): void;
 };
 
@@ -56,7 +60,12 @@ type StubScene = {
   };
   images: ImageObj[];
   rects: RectObj[];
-  graphicsObjects: Array<{ depth: number; alpha: number; destroyed: boolean }>;
+  graphicsObjects: Array<{
+    depth: number;
+    alpha: number;
+    scrollFactor: { x: number; y: number };
+    destroyed: boolean;
+  }>;
 };
 
 function makeImage(x: number, y: number, key: string): ImageObj {
@@ -67,6 +76,7 @@ function makeImage(x: number, y: number, key: string): ImageObj {
     y,
     depth: 0,
     alpha: 1,
+    scrollFactor: { x: 1, y: 1 },
     destroyed: false,
     setDisplaySize(w, h) {
       this.displaySize = { w, h };
@@ -78,6 +88,10 @@ function makeImage(x: number, y: number, key: string): ImageObj {
     },
     setAlpha(alpha) {
       this.alpha = alpha;
+      return this;
+    },
+    setScrollFactor(x, y = x) {
+      this.scrollFactor = { x, y };
       return this;
     },
     destroy() {
@@ -103,6 +117,7 @@ function makeRect(
     color,
     depth: 0,
     alpha: 1,
+    scrollFactor: { x: 1, y: 1 },
     destroyed: false,
     setDepth(d) {
       this.depth = d;
@@ -110,6 +125,10 @@ function makeRect(
     },
     setAlpha(alpha) {
       this.alpha = alpha;
+      return this;
+    },
+    setScrollFactor(x, y = x) {
+      this.scrollFactor = { x, y };
       return this;
     },
     destroy() {
@@ -134,6 +153,7 @@ function makeStubScene(
   const graphicsObjects: Array<{
     depth: number;
     alpha: number;
+    scrollFactor: { x: number; y: number };
     destroyed: boolean;
   }> = [];
 
@@ -161,6 +181,7 @@ function makeStubScene(
     const g = {
       depth: 0,
       alpha: 1,
+      scrollFactor: { x: 1, y: 1 },
       destroyed: false,
       setDepth(d: number) {
         g.depth = d;
@@ -168,6 +189,10 @@ function makeStubScene(
       },
       setAlpha(alpha: number) {
         g.alpha = alpha;
+        return g;
+      },
+      setScrollFactor(x: number, y = x) {
+        g.scrollFactor = { x, y };
         return g;
       },
       fillStyle() {
@@ -265,6 +290,20 @@ describe("Background", () => {
 
     expect(scene.images[0].destroyed).toBe(true);
     expect(scene.graphicsObjects[0].destroyed).toBe(true);
+  });
+
+  it("keeps the overlay scroll factor in sync when callers set scroll factor on the returned object", () => {
+    const scene = makeStubScene({ loadedKeys: new Set(["menu-bg"]) });
+    const bg = createBackground(asScene(scene), { key: "menu-bg" });
+
+    (
+      bg.gameObject as unknown as {
+        setScrollFactor: (x: number, y?: number) => unknown;
+      }
+    ).setScrollFactor(0.25, 0.75);
+
+    expect(scene.images[0].scrollFactor).toEqual({ x: 0.25, y: 0.75 });
+    expect(scene.graphicsObjects[0].scrollFactor).toEqual({ x: 0.25, y: 0.75 });
   });
 
   it("falls back to a full-screen rectangle with manifest fallbackColor and depth -100 when the texture is missing", () => {

@@ -13,6 +13,8 @@
  * Falls back to a text label if the sprite textures are not loaded.
  */
 
+import { NEON_COLORS, NEON_PANEL, getHudTextStyle } from "./neonTheme";
+
 export type MuteButtonSceneLike = {
   add: {
     graphics?: () => MuteButtonGraphics;
@@ -102,6 +104,14 @@ const DEFAULT_MUTED_LABEL = "🔇 Muted";
 
 const SPRITE_SOUND = "mute-sound";
 const SPRITE_MUTED = "mute-muted";
+const BUTTON_WIDTH = 148;
+const BUTTON_HEIGHT = 42;
+const BUTTON_PADDING = 4;
+const textStyle = getHudTextStyle("score");
+
+function colorToHex(color: number): string {
+  return `#${color.toString(16).padStart(6, "0")}`;
+}
 
 function createButtonChrome(
   scene: MuteButtonSceneLike,
@@ -113,12 +123,30 @@ function createButtonChrome(
   }
 
   const chrome = scene.add.graphics().setDepth(0);
-  chrome.fillStyle(0x101522, 0.92);
-  chrome.fillRoundedRect(x - 154, y - 8, 148, 42, 12);
-  chrome.lineStyle(6, 0x20f6ff, 0.14);
-  chrome.strokeRoundedRect(x - 154, y - 8, 148, 42, 12);
-  chrome.lineStyle(2, 0x20f6ff, 1);
-  chrome.strokeRoundedRect(x - 150, y - 4, 140, 34, 10);
+  chrome.fillStyle(NEON_COLORS.bgPanel, 0.92);
+  chrome.fillRoundedRect(
+    x - (BUTTON_WIDTH + 6),
+    y - 8,
+    BUTTON_WIDTH,
+    BUTTON_HEIGHT,
+    NEON_PANEL.radius,
+  );
+  chrome.lineStyle(6, NEON_COLORS.cyan, 0.14);
+  chrome.strokeRoundedRect(
+    x - (BUTTON_WIDTH + 6),
+    y - 8,
+    BUTTON_WIDTH,
+    BUTTON_HEIGHT,
+    NEON_PANEL.radius,
+  );
+  chrome.lineStyle(NEON_PANEL.borderWidth, NEON_COLORS.cyan, 1);
+  chrome.strokeRoundedRect(
+    x - (BUTTON_WIDTH + 2),
+    y - 4,
+    BUTTON_WIDTH - BUTTON_PADDING * 2,
+    BUTTON_HEIGHT - BUTTON_PADDING * 2,
+    NEON_PANEL.radius - 2,
+  );
   return chrome;
 }
 
@@ -188,10 +216,9 @@ export function createTopRightMuteButton(
   // --- Text fallback (tests / missing sprites) ---
   const button = scene.add
     .text(width - margin, margin, isMasterMuted(state) ? mutedLabel : soundLabel, {
+      ...textStyle,
       align: "center",
-      backgroundColor: isMasterMuted(state) ? "#e07a5f" : "#3d405b",
-      color: "#f4f1de",
-      fontFamily: "Arial",
+      color: colorToHex(NEON_COLORS.text),
       fontSize: "18px",
       padding: { x: 14, y: 8 },
     })

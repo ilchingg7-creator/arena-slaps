@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { NEON_COLORS } from "./neonTheme";
 
 // --- Mocks for StyledButton + VolumeSlider ------------------------------
 // PauseMenu composes both components. We mock them so the tests can drive
@@ -377,7 +378,7 @@ describe("PauseMenu - construction", () => {
 
     // 1 full-screen overlay rectangle (dark, alpha 0.7).
     expect(scene.rects).toHaveLength(1);
-    expect(scene.rects[0].color).toBe(0x000000);
+    expect(scene.rects[0].color).toBe(NEON_COLORS.bgInk);
     expect(scene.rects[0].alpha).toBeCloseTo(0.7, 5);
 
     // Title "Paused" text exists.

@@ -44,6 +44,7 @@ import {
   type VolumeSlider,
 } from "./VolumeSlider";
 import { drawNeonPanel } from "./neonPrimitives";
+import { NEON_COLORS, getHudTextStyle } from "./neonTheme";
 import type { I18nService } from "../i18n/I18nService";
 import type { TranslationKey } from "../config/translations";
 import type { AudioSettings } from "../audio/AudioService";
@@ -186,25 +187,20 @@ const DEFAULT_HEIGHT = 720;
 const OVERLAY_DEPTH = 100;
 const CONTENT_DEPTH = 101;
 const OVERLAY_ALPHA = 0.7;
-const OVERLAY_COLOR = 0x000000;
+const OVERLAY_COLOR = NEON_COLORS.bgInk;
 
 const TITLE_STYLE = {
-  color: "#f4f1de",
-  fontFamily: "Arial",
+  ...getHudTextStyle("title"),
   fontSize: "48px",
-  fontStyle: "bold",
 } as const;
 
 const SETTINGS_TITLE_STYLE = {
-  color: "#f4f1de",
-  fontFamily: "Arial",
+  ...getHudTextStyle("title"),
   fontSize: "42px",
-  fontStyle: "bold",
 } as const;
 
 const LABEL_STYLE = {
-  color: "#f4f1de",
-  fontFamily: "Arial",
+  ...getHudTextStyle("score"),
   fontSize: "22px",
 } as const;
 

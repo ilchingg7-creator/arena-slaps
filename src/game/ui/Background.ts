@@ -64,6 +64,7 @@ const DEFAULT_HEIGHT = 720;
 type BackgroundGraphics = {
   setDepth: (depth: number) => BackgroundGraphics;
   setAlpha?: (alpha: number) => BackgroundGraphics;
+  setScrollFactor?: (x: number, y?: number) => BackgroundGraphics;
   fillStyle: (color: number, alpha?: number) => BackgroundGraphics;
   fillRect: (
     x: number,
@@ -90,6 +91,7 @@ type RenderedBackground = {
 type SyncableGameObject = Phaser.GameObjects.GameObject & {
   setDepth?: (depth: number) => SyncableGameObject;
   setAlpha?: (alpha: number) => SyncableGameObject;
+  setScrollFactor?: (x: number, y?: number) => SyncableGameObject;
   destroy: () => void;
 };
 
@@ -126,6 +128,7 @@ export function createBackground(
     const syncable = primary as SyncableGameObject;
     const originalSetDepth = syncable.setDepth?.bind(syncable);
     const originalSetAlpha = syncable.setAlpha?.bind(syncable);
+    const originalSetScrollFactor = syncable.setScrollFactor?.bind(syncable);
     const originalDestroy = syncable.destroy.bind(syncable);
     let destroyed = false;
 
@@ -141,6 +144,14 @@ export function createBackground(
       syncable.setAlpha = (alpha: number) => {
         originalSetAlpha(alpha);
         overlay.setAlpha!(alpha);
+        return syncable;
+      };
+    }
+
+    if (originalSetScrollFactor && overlay.setScrollFactor) {
+      syncable.setScrollFactor = (x: number, y?: number) => {
+        originalSetScrollFactor(x, y);
+        overlay.setScrollFactor!(x, y);
         return syncable;
       };
     }

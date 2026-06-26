@@ -15,6 +15,8 @@
  * type) so it can be exercised in unit tests with a stub scene.
  */
 
+import { NEON_COLORS, NEON_PANEL, getHudTextStyle } from "./neonTheme";
+
 export type SliderSceneLike = {
   add: {
     graphics?: () => SliderGraphics;
@@ -105,14 +107,14 @@ export type VolumeSlider = {
   destroy: () => void;
 };
 
-const TRACK_COLOR = 0x3d405b;
-const FILL_COLOR = 0x81b29a;
-const HANDLE_COLOR = 0xf4f1de;
-const LABEL_COLOR = "#f4f1de";
+const TRACK_COLOR = NEON_COLORS.bgPanelAlt;
+const FILL_COLOR = NEON_COLORS.lime;
+const HANDLE_COLOR = NEON_COLORS.text;
+const labelStyle = getHudTextStyle("score");
 const SNAP_STEP = 0.05; // 5% increments
 const TRACK_HEIGHT = 12;
 const HANDLE_SIZE = 22;
-const TRACK_RADIUS = 10;
+const TRACK_RADIUS = NEON_PANEL.radius - 2;
 
 function clamp01(v: number): number {
   if (Number.isNaN(v)) {
@@ -167,8 +169,7 @@ export function createVolumeSlider(
   // Percentage label
   const label = scene.add
     .text(centerX, centerY - 30, formatPercent(value), {
-      color: LABEL_COLOR,
-      fontFamily: "Arial",
+      ...labelStyle,
       fontSize: "16px",
     })
     .setOrigin(0.5, 0.5);
@@ -185,7 +186,7 @@ export function createVolumeSlider(
 
   function renderChrome(): void {
     trackChrome?.clear();
-    trackChrome?.fillStyle(0x151b2b, 1);
+    trackChrome?.fillStyle(NEON_COLORS.bgPanelAlt, 1);
     trackChrome?.fillRoundedRect(
       trackLeft,
       centerY - TRACK_HEIGHT / 2,
@@ -193,7 +194,7 @@ export function createVolumeSlider(
       TRACK_HEIGHT,
       TRACK_RADIUS,
     );
-    trackChrome?.lineStyle(2, 0x20f6ff, 0.9);
+    trackChrome?.lineStyle(NEON_PANEL.borderWidth, NEON_COLORS.cyan, 0.9);
     trackChrome?.strokeRoundedRect(
       trackLeft,
       centerY - TRACK_HEIGHT / 2,
@@ -203,7 +204,7 @@ export function createVolumeSlider(
     );
 
     fillChrome?.clear();
-    fillChrome?.fillStyle(0xb7ff3c, 1);
+    fillChrome?.fillStyle(NEON_COLORS.lime, 1);
     fillChrome?.fillRoundedRect(
       trackLeft,
       centerY - TRACK_HEIGHT / 2,
@@ -213,21 +214,21 @@ export function createVolumeSlider(
     );
 
     handleChrome?.clear();
-    handleChrome?.fillStyle(0xf6fbff, 1);
+    handleChrome?.fillStyle(NEON_COLORS.text, 1);
     handleChrome?.fillRoundedRect(
       handle.x - HANDLE_SIZE / 2,
       centerY - HANDLE_SIZE / 2,
       HANDLE_SIZE,
       HANDLE_SIZE,
-      10,
+      TRACK_RADIUS,
     );
-    handleChrome?.lineStyle(2, 0x20f6ff, 1);
+    handleChrome?.lineStyle(NEON_PANEL.borderWidth, NEON_COLORS.cyan, 1);
     handleChrome?.strokeRoundedRect(
       handle.x - HANDLE_SIZE / 2,
       centerY - HANDLE_SIZE / 2,
       HANDLE_SIZE,
       HANDLE_SIZE,
-      10,
+      TRACK_RADIUS,
     );
   }
 
