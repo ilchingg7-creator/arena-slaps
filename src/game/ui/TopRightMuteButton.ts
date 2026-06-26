@@ -13,11 +13,11 @@
  * Falls back to a text label if the sprite textures are not loaded.
  */
 
-import { NEON_COLORS, NEON_PANEL, getHudTextStyle } from "./neonTheme";
+import { drawNeonPanel } from "./neonPrimitives";
+import { NEON_COLORS, getHudTextStyle } from "./neonTheme";
 
 export type MuteButtonSceneLike = {
   add: {
-    graphics?: () => MuteButtonGraphics;
     text: (
       x: number,
       y: number,
@@ -58,27 +58,6 @@ type MuteButtonImage = {
   setTexture: (key: string) => MuteButtonImage;
 };
 
-type MuteButtonGraphics = {
-  fillStyle: (color: number, alpha?: number) => MuteButtonGraphics;
-  fillRoundedRect: (
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    radius?: number,
-  ) => MuteButtonGraphics;
-  lineStyle: (width: number, color: number, alpha?: number) => MuteButtonGraphics;
-  strokeRoundedRect: (
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    radius?: number,
-  ) => MuteButtonGraphics;
-  setDepth: (depth: number) => MuteButtonGraphics;
-  setVisible: (visible: boolean) => MuteButtonGraphics;
-};
-
 export type MuteButtonState = {
   sfxMuted: boolean;
   musicMuted: boolean;
@@ -106,48 +85,10 @@ const SPRITE_SOUND = "mute-sound";
 const SPRITE_MUTED = "mute-muted";
 const BUTTON_WIDTH = 148;
 const BUTTON_HEIGHT = 42;
-const BUTTON_PADDING = 4;
 const textStyle = getHudTextStyle("score");
 
 function colorToHex(color: number): string {
   return `#${color.toString(16).padStart(6, "0")}`;
-}
-
-function createButtonChrome(
-  scene: MuteButtonSceneLike,
-  x: number,
-  y: number,
-): MuteButtonGraphics | null {
-  if (typeof scene.add.graphics !== "function") {
-    return null;
-  }
-
-  const chrome = scene.add.graphics().setDepth(0);
-  chrome.fillStyle(NEON_COLORS.bgPanel, 0.92);
-  chrome.fillRoundedRect(
-    x - (BUTTON_WIDTH + 6),
-    y - 8,
-    BUTTON_WIDTH,
-    BUTTON_HEIGHT,
-    NEON_PANEL.radius,
-  );
-  chrome.lineStyle(6, NEON_COLORS.cyan, 0.14);
-  chrome.strokeRoundedRect(
-    x - (BUTTON_WIDTH + 6),
-    y - 8,
-    BUTTON_WIDTH,
-    BUTTON_HEIGHT,
-    NEON_PANEL.radius,
-  );
-  chrome.lineStyle(NEON_PANEL.borderWidth, NEON_COLORS.cyan, 1);
-  chrome.strokeRoundedRect(
-    x - (BUTTON_WIDTH + 2),
-    y - 4,
-    BUTTON_WIDTH - BUTTON_PADDING * 2,
-    BUTTON_HEIGHT - BUTTON_PADDING * 2,
-    NEON_PANEL.radius - 2,
-  );
-  return chrome;
 }
 
 function isMasterMuted(state: MuteButtonState): boolean {
@@ -166,7 +107,13 @@ export function createTopRightMuteButton(
   const mutedLabel = options?.mutedLabel ?? DEFAULT_MUTED_LABEL;
 
   let state: MuteButtonState = { ...initialState };
-  createButtonChrome(scene, width - margin, margin);
+  drawNeonPanel(
+    scene as unknown as Parameters<typeof drawNeonPanel>[0],
+    width - margin - (BUTTON_WIDTH + 6),
+    margin - 8,
+    BUTTON_WIDTH,
+    BUTTON_HEIGHT,
+  );
 
   const spritesAvailable =
     scene.textures?.exists?.(SPRITE_SOUND) === true &&

@@ -1,4 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+const { drawNeonPanelMock } = vi.hoisted(() => ({
+  drawNeonPanelMock: vi.fn(() => ({
+    setDepth: vi.fn().mockReturnThis(),
+    setVisible: vi.fn().mockReturnThis(),
+  })),
+}));
+
+vi.mock("./neonPrimitives", () => ({
+  drawNeonPanel: drawNeonPanelMock,
+}));
+
 import {
   createTopRightMuteButton,
   type MuteButtonSceneLike,
@@ -162,7 +174,8 @@ describe("TopRightMuteButton", () => {
     const scene = makeScene(1280);
     createTopRightMuteButton(scene, { sfxMuted: false, musicMuted: false }, () => {});
     expect(scene.texts).toHaveLength(1);
-    expect(scene.graphics).toHaveLength(1);
+    expect(drawNeonPanelMock).toHaveBeenCalledTimes(1);
+    expect(drawNeonPanelMock).toHaveBeenCalledWith(scene, 1106, 12, 148, 42);
     expect(scene.texts[0].x).toBe(1260); // width - margin(20)
     expect(scene.texts[0].y).toBe(20);
     expect(scene.texts[0].origin).toEqual({ x: 1, y: 0 });
