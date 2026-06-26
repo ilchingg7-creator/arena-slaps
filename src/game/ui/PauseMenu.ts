@@ -40,6 +40,7 @@ import {
 } from "./StyledButton";
 import {
   createVolumeSlider,
+  VOLUME_SLIDER_OWNED_KEY,
   type SliderSceneLike,
   type VolumeSlider,
 } from "./VolumeSlider";
@@ -141,6 +142,7 @@ export type PauseMenu = {
 type VisibleDestroyable = {
   setVisible: (v: boolean) => unknown;
   destroy: () => unknown;
+  [VOLUME_SLIDER_OWNED_KEY]?: boolean;
 };
 
 type PauseRectangle = VisibleDestroyable & {
@@ -551,6 +553,9 @@ export function createPauseMenu(
     // 2. Destroy tracked primitives (rectangles + texts + zones created
     //    by VolumeSlider + our own text labels).
     for (const obj of settingsPrimitives) {
+      if (obj[VOLUME_SLIDER_OWNED_KEY]) {
+        continue;
+      }
       obj.destroy();
     }
     // 3. Destroy composites (Back button — destroys its graphics + text).

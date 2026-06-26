@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NEON_COLORS } from "./neonTheme";
 
+const SLIDER_OWNED_KEY = "__volumeSliderOwned";
+
 // --- Mocks for StyledButton + VolumeSlider ------------------------------
 // PauseMenu composes both components. We mock them so the tests can drive
 // button clicks directly and don't need to stand up the full Phaser add.*
@@ -24,6 +26,7 @@ const { buttonStubs, sliderStubs } = vi.hoisted(() => ({
   sliderStubs: [] as Array<{
     destroyed: boolean;
     initialValue: number;
+    ownedGraphics: Array<{ destroyCalls: number; destroyed: boolean }>;
     onChange: (nextVolume: number) => void;
     setValue: ReturnType<typeof vi.fn>;
     getValue: ReturnType<typeof vi.fn>;
@@ -66,12 +69,29 @@ vi.mock("./StyledButton", () => ({
 }));
 
 vi.mock("./VolumeSlider", () => ({
+  VOLUME_SLIDER_OWNED_KEY: "__volumeSliderOwned",
   createVolumeSlider: vi.fn(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (_scene: unknown, _x: number, _y: number, _w: number, initialValue: number, onChange: any) => {
+    (scene: any, _x: number, _y: number, _w: number, initialValue: number, onChange: any) => {
+      const beforeCount = Array.isArray(scene?.graphicsObjects)
+        ? scene.graphicsObjects.length
+        : 0;
+      if (typeof scene?.add?.graphics === "function") {
+        scene.add.graphics();
+        scene.add.graphics();
+        scene.add.graphics();
+      }
+      const ownedGraphics =
+        Array.isArray(scene?.graphicsObjects)
+          ? scene.graphicsObjects.slice(beforeCount)
+          : [];
+      for (const g of ownedGraphics) {
+        g.__volumeSliderOwned = true;
+      }
       const stub = {
         destroyed: false,
         initialValue,
+        ownedGraphics,
         onChange: onChange as (nextVolume: number) => void,
         setValue: vi.fn(),
         getValue: vi.fn(() => initialValue),
@@ -79,6 +99,9 @@ vi.mock("./VolumeSlider", () => ({
         endDrag: vi.fn(),
         destroy: vi.fn(() => {
           stub.destroyed = true;
+          for (const g of ownedGraphics) {
+            g.destroy();
+          }
         }),
       };
       sliderStubs.push(stub);
@@ -126,6 +149,27 @@ type FakeGraphics = {
   depth: number;
   visible: boolean;
   destroyed: boolean;
+  destroyCalls: number;
+  [SLIDER_OWNED_KEY]?: boolean;
+  setDepth: (d: number) => FakeGraphics;
+  setVisible: (v: boolean) => FakeGraphics;
+  fillStyle: (color: number, alpha?: number) => FakeGraphics;
+  fillRoundedRect: (
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    radius?: number,
+  ) => FakeGraphics;
+  lineStyle: (width: number, color: number, alpha?: number) => FakeGraphics;
+  strokeRoundedRect: (
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    radius?: number,
+  ) => FakeGraphics;
+  destroy: () => void;
 };
 
 type FakeScene = {
@@ -269,34 +313,37 @@ function makeScene(): FakeScene {
           depth: 0,
           visible: true,
           destroyed: false,
-        };
-        graphicsObjects.push(g);
-        const proxy = {
+          destroyCalls: 0,
           setDepth(d: number) {
             g.depth = d;
-            return proxy;
+            return g;
           },
           setVisible(v: boolean) {
             g.visible = v;
-            return proxy;
+            return g;
           },
           fillStyle() {
-            return proxy;
+            return g;
           },
           fillRoundedRect() {
-            return proxy;
+            return g;
           },
           lineStyle() {
-            return proxy;
+            return g;
           },
           strokeRoundedRect() {
-            return proxy;
+            return g;
           },
           destroy() {
+            g.destroyCalls += 1;
+            if (g.destroyed) {
+              throw new Error("graphics destroyed twice");
+            }
             g.destroyed = true;
           },
         };
-        return proxy;
+        graphicsObjects.push(g);
+        return g;
       },
     },
   };
@@ -748,6 +795,22 @@ describe("PauseMenu - destroy", () => {
     expect(sliderStubs).toHaveLength(2);
     for (const s of sliderStubs) {
       expect(s.destroyed).toBe(true);
+    }
+  });
+
+  it("destroy() does not double-destroy slider-owned chrome after slider.destroy()", () => {
+    const scene = makeScene();
+    const menu = createPauseMenu(
+      scene as unknown as Parameters<typeof createPauseMenu>[0],
+      makeConfig({}),
+    );
+
+    expect(() => menu.destroy()).not.toThrow();
+    for (const slider of sliderStubs) {
+      expect(slider.ownedGraphics).toHaveLength(3);
+      for (const g of slider.ownedGraphics) {
+        expect(g.destroyCalls).toBe(1);
+      }
     }
   });
 });

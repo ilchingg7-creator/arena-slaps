@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { createVolumeSlider, type SliderSceneLike } from "./VolumeSlider";
+import {
+  VOLUME_SLIDER_OWNED_KEY,
+  createVolumeSlider,
+  type SliderSceneLike,
+} from "./VolumeSlider";
 
 type Rect = {
   kind: "rect";
@@ -59,42 +63,42 @@ function makeScene(): FakeScene {
     graphics,
     add: {
       graphics() {
-        const g: Graphics = {
+        const g = {
           kind: "graphics",
           visible: true,
           depth: 0,
           destroyed: false,
-        };
-        graphics.push(g);
-        return {
+          [VOLUME_SLIDER_OWNED_KEY]: false,
           clear() {
-            return this;
+            return g;
           },
           fillStyle() {
-            return this;
+            return g;
           },
           fillRoundedRect() {
-            return this;
+            return g;
           },
           lineStyle() {
-            return this;
+            return g;
           },
           strokeRoundedRect() {
-            return this;
+            return g;
           },
           setDepth(d: number) {
             g.depth = d;
-            return this;
+            return g;
           },
           setVisible(v: boolean) {
             g.visible = v;
-            return this;
+            return g;
           },
           destroy() {
             g.destroyed = true;
-            return this;
+            return g;
           },
-        } as never;
+        } as Graphics & { [VOLUME_SLIDER_OWNED_KEY]: boolean } & Record<string, unknown>;
+        graphics.push(g);
+        return g as never;
       },
       rectangle(x, y, width, height, color) {
         const r: Rect = {
@@ -204,6 +208,13 @@ describe("VolumeSlider", () => {
     const scene = makeScene();
     createVolumeSlider(scene, 100, 50, 200, 0.5, () => void 0);
     expect(scene.graphics).toHaveLength(3);
+    expect(
+      scene.graphics.every(
+        (g) =>
+          (g as unknown as Record<string, unknown>)[VOLUME_SLIDER_OWNED_KEY] ===
+          true,
+      ),
+    ).toBe(true);
     expect(scene.rects).toHaveLength(3); // track + fill + handle
     expect(scene.texts).toHaveLength(1); // label
     expect(scene.zones).toHaveLength(1);

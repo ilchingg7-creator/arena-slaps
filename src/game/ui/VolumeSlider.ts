@@ -17,6 +17,8 @@
 
 import { NEON_COLORS, NEON_PANEL, getHudTextStyle } from "./neonTheme";
 
+export const VOLUME_SLIDER_OWNED_KEY = "__volumeSliderOwned";
+
 export type SliderSceneLike = {
   add: {
     graphics?: () => SliderGraphics;
@@ -90,6 +92,7 @@ type SliderGraphics = {
   setDepth: (depth: number) => SliderGraphics;
   setVisible: (visible: boolean) => SliderGraphics;
   destroy?: () => void;
+  [VOLUME_SLIDER_OWNED_KEY]?: boolean;
 };
 
 type SliderPointer = {
@@ -130,6 +133,13 @@ function snapToStep(v: number, step: number): number {
 
 function formatPercent(v: number): string {
   return `${Math.round(v * 100)}%`;
+}
+
+function markSliderOwned<T extends SliderGraphics | undefined>(graphics: T): T {
+  if (graphics) {
+    graphics[VOLUME_SLIDER_OWNED_KEY] = true;
+  }
+  return graphics;
 }
 
 export function createVolumeSlider(
@@ -181,9 +191,9 @@ export function createVolumeSlider(
     .zone(centerX, centerY, trackWidth + HANDLE_SIZE, HANDLE_SIZE + 20)
     .setInteractive({ useHandCursor: true });
 
-  const trackChrome = scene.add.graphics?.()?.setDepth(1);
-  const fillChrome = scene.add.graphics?.()?.setDepth(2);
-  const handleChrome = scene.add.graphics?.()?.setDepth(3);
+  const trackChrome = markSliderOwned(scene.add.graphics?.()?.setDepth(1));
+  const fillChrome = markSliderOwned(scene.add.graphics?.()?.setDepth(2));
+  const handleChrome = markSliderOwned(scene.add.graphics?.()?.setDepth(3));
 
   function renderChrome(): void {
     trackChrome?.clear();
