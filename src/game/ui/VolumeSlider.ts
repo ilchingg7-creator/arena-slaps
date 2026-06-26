@@ -159,11 +159,9 @@ export function createVolumeSlider(
     .setOrigin(0.5, 0.5)
     .setDepth(1);
 
-  // Fill (left-anchored) — removed entirely. The green fill was visually
-  // distracting during drag; the handle position + percentage label are
-  // sufficient indicators. We create a zero-width invisible rectangle
-  // so the applyValue() code still works (it sets fill.width / fill.x),
-  // but the rectangle is never rendered.
+  // Fill bookkeeping rectangle. The visible lime fill is rendered by the
+  // slider-owned neon chrome graphics; this hidden rectangle only keeps
+  // width/x state that applyValue() updates and renderChrome() reads.
   const trackLeft = centerX - trackWidth / 2;
   const fill = scene.add
     .rectangle(centerX, centerY, 0, 0, FILL_COLOR)

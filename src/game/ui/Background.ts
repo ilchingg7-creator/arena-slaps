@@ -65,6 +65,7 @@ type BackgroundGraphics = {
   setDepth: (depth: number) => BackgroundGraphics;
   setAlpha?: (alpha: number) => BackgroundGraphics;
   setScrollFactor?: (x: number, y?: number) => BackgroundGraphics;
+  setVisible?: (visible: boolean) => BackgroundGraphics;
   fillStyle: (color: number, alpha?: number) => BackgroundGraphics;
   fillRect: (
     x: number,
@@ -92,6 +93,7 @@ type SyncableGameObject = Phaser.GameObjects.GameObject & {
   setDepth?: (depth: number) => SyncableGameObject;
   setAlpha?: (alpha: number) => SyncableGameObject;
   setScrollFactor?: (x: number, y?: number) => SyncableGameObject;
+  setVisible?: (visible: boolean) => SyncableGameObject;
   destroy: () => void;
 };
 
@@ -129,6 +131,7 @@ export function createBackground(
     const originalSetDepth = syncable.setDepth?.bind(syncable);
     const originalSetAlpha = syncable.setAlpha?.bind(syncable);
     const originalSetScrollFactor = syncable.setScrollFactor?.bind(syncable);
+    const originalSetVisible = syncable.setVisible?.bind(syncable);
     const originalDestroy = syncable.destroy.bind(syncable);
     let destroyed = false;
 
@@ -152,6 +155,14 @@ export function createBackground(
       syncable.setScrollFactor = (x: number, y?: number) => {
         originalSetScrollFactor(x, y);
         overlay.setScrollFactor!(x, y);
+        return syncable;
+      };
+    }
+
+    if (originalSetVisible && overlay.setVisible) {
+      syncable.setVisible = (visible: boolean) => {
+        originalSetVisible(visible);
+        overlay.setVisible!(visible);
         return syncable;
       };
     }
