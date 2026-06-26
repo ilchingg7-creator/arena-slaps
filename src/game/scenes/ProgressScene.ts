@@ -270,7 +270,6 @@ export class ProgressScene extends Phaser.Scene {
     // --- Unlocks ladder (inside one big neon panel) ---
     const listTopY = height * 0.46;
     const rowStep = 22;
-    const labelX = width * 0.18;
     const listH = (LEVELS.length + 1) * rowStep + 16;
     const listW = width * 0.64;
     const listX = (width - listW) / 2;
@@ -283,6 +282,12 @@ export class ProgressScene extends Phaser.Scene {
     ) as unknown as Phaser.GameObjects.Graphics;
     listPanel.setDepth(0);
     this.contentObjects.push(listPanel);
+
+    // labelX sits 16px inside the panel's left edge so text doesn't
+    // touch the neon border.
+    const labelX = listX + 16;
+    // wordWrap width = panel width minus 16px padding on each side.
+    const rowWrapW = listW - 32;
 
     const header = this.add
       .text(labelX, listTopY, i18n.t("progression.unlocks"), {
@@ -313,8 +318,10 @@ export class ProgressScene extends Phaser.Scene {
       const row = this.add
         .text(labelX, rowY, rowStr, {
           color: reached ? "#f6fbff" : "#92a0bb",
-          fontFamily: "Arial", fontSize: "15px",
+          fontFamily: "Arial", fontSize: "14px",
           stroke: "#05070d", strokeThickness: 2,
+          align: "left",
+          wordWrap: { width: rowWrapW },
         })
         .setOrigin(0, 0.5)
         .setDepth(1);

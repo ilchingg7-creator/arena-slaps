@@ -93,20 +93,26 @@ export class ShopScene extends Phaser.Scene {
     const tabY = height * 0.12;
     this.tabTexts.items = this.add
       .text(width / 2 - 100, tabY, this.i18n.t("shop.individual"), {
-        color: this.currentTab === "items" ? "#20f6ff" : "#92a0bb",
+        color: this.currentTab === "items" ? "#20f6ff" : "#c4cfdd",
         fontFamily: "Arial", fontSize: "18px",
         fontStyle: this.currentTab === "items" ? "bold" : "normal",
         stroke: "#05070d", strokeThickness: 3,
+        shadow: this.currentTab === "items"
+          ? { offsetX: 0, offsetY: 0, color: "#20f6ff", blur: 10, fill: false }
+          : undefined,
       })
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true });
 
     this.tabTexts.packs = this.add
       .text(width / 2 + 100, tabY, this.i18n.t("shop.packs"), {
-        color: this.currentTab === "packs" ? "#20f6ff" : "#92a0bb",
+        color: this.currentTab === "packs" ? "#20f6ff" : "#c4cfdd",
         fontFamily: "Arial", fontSize: "18px",
         fontStyle: this.currentTab === "packs" ? "bold" : "normal",
         stroke: "#05070d", strokeThickness: 3,
+        shadow: this.currentTab === "packs"
+          ? { offsetX: 0, offsetY: 0, color: "#20f6ff", blur: 10, fill: false }
+          : undefined,
       })
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true });
@@ -147,12 +153,26 @@ export class ShopScene extends Phaser.Scene {
 
   private updateTabColors(): void {
     if (this.tabTexts.items) {
-      this.tabTexts.items.setColor(this.currentTab === "items" ? "#20f6ff" : "#92a0bb");
+      this.tabTexts.items.setColor(this.currentTab === "items" ? "#20f6ff" : "#c4cfdd");
       this.tabTexts.items.setFontStyle(this.currentTab === "items" ? "bold" : "normal");
+      this.tabTexts.items.setShadow(
+        this.currentTab === "items" ? 0 : 0,
+        this.currentTab === "items" ? 0 : 0,
+        "#20f6ff",
+        this.currentTab === "items" ? 10 : 0,
+        this.currentTab === "items" ? false : false,
+      );
     }
     if (this.tabTexts.packs) {
-      this.tabTexts.packs.setColor(this.currentTab === "packs" ? "#20f6ff" : "#92a0bb");
+      this.tabTexts.packs.setColor(this.currentTab === "packs" ? "#20f6ff" : "#c4cfdd");
       this.tabTexts.packs.setFontStyle(this.currentTab === "packs" ? "bold" : "normal");
+      this.tabTexts.packs.setShadow(
+        this.currentTab === "packs" ? 0 : 0,
+        this.currentTab === "packs" ? 0 : 0,
+        "#20f6ff",
+        this.currentTab === "packs" ? 10 : 0,
+        this.currentTab === "packs" ? false : false,
+      );
     }
   }
 
@@ -319,8 +339,9 @@ export class ShopScene extends Phaser.Scene {
           chip.setDepth(1);
           this.gridObjects.push(chip);
           const countText = this.add.text(x + cellW / 2, previewY, `${product.cosmetics.length} предметов`, {
-            color: "#f4d35e", fontFamily: "Arial", fontSize: "12px", fontStyle: "bold",
-            stroke: "#05070d", strokeThickness: 2,
+            color: "#ffffff", fontFamily: "Arial", fontSize: "13px", fontStyle: "bold",
+            stroke: "#05070d", strokeThickness: 4,
+            shadow: { offsetX: 0, offsetY: 0, color: "#ff4fd8", blur: 8, fill: false },
           }).setOrigin(0.5).setDepth(2);
           this.gridObjects.push(countText);
         }
@@ -371,8 +392,9 @@ export class ShopScene extends Phaser.Scene {
 
         const buyBtn = this.add
           .text(x + cellW / 2, y + 112, buyText, {
-            color: "#f4d35e", fontFamily: "Arial", fontSize: "12px", fontStyle: "bold",
-            stroke: "#05070d", strokeThickness: 2,
+            color: "#ffffff", fontFamily: "Arial", fontSize: "13px", fontStyle: "bold",
+            stroke: "#05070d", strokeThickness: 4,
+            shadow: { offsetX: 0, offsetY: 0, color: "#20f6ff", blur: 8, fill: false },
           })
           .setOrigin(0.5)
           .setDepth(2);
