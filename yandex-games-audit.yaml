@@ -1,0 +1,31 @@
+version: 1
+project:
+  name: Arena Slaps
+commands:
+  build: npm run build
+  serve: npm run preview -- --host 127.0.0.1
+runtime:
+  url: http://127.0.0.1:4173
+paths:
+  build: dist
+  texts: ""
+  promo: public
+targets:
+  desktop: true
+  mobile: true
+  tv: false
+orientation: any
+locales:
+  - ru
+  - en
+sdk:
+  ads: true
+  purchases: true
+  cloudSaves: true
+scenarios:
+  ads: Trigger interstitial after battle and rewarded ×2 XP from results screen
+  purchases: Buy headwear/trail/slapfx/outline/title from Shop, restore purchases
+  saves: Profile + settings + cosmetics persist via Yandex playerGetData/playerSetData
+  resize: Resize during menu, battle, and shop
+  orientation: Rotate mobile through landscape and portrait
+  return: Background tab and restore mid-battle

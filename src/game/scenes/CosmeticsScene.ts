@@ -45,14 +45,22 @@ export class CosmeticsScene extends Phaser.Scene {
   private i18n: I18nService | null = null;
   private audio: ReturnType<typeof getAudioService> | null = null;
   private storage: Storage | null = null;
-  /**
-   * Issue 3 fix: re-entrancy guard for refreshGrid(). When the player
+  /** Issue 3 fix: re-entrancy guard for refreshGrid(). When the player
    * clicks rapidly, multiple pointerup events can fire before the
    * previous refreshGrid() finishes destroying + re-creating objects.
    * This causes Phaser to leak objects and stutter. The guard skips
    * re-entry while a refresh is in progress.
+   *
+   * Issue 2 fix (2026-06-26): in addition to the in-progress guard, we
+   * also queue ONE pending refresh. When the player clicks 5 times in
+   * 100ms, we run the first refresh immediately, coalesce the
+   * remaining 4 into a single pending refresh, and run it once after
+   * the first finishes. This eliminates the visible stutter from
+   * rapid tab/category/target switches — the scene no longer destroys
+   * + recreates 30+ objects per click.
    */
   private refreshInProgress = false;
+  private refreshPending = false;
 
   constructor() {
     super("CosmeticsScene");
@@ -233,25 +241,43 @@ export class CosmeticsScene extends Phaser.Scene {
     }
   }
 
-  /** Destroy old grid cells + render new ones. Does NOT restart the scene. */
+  /** Destroy old grid cells + render new ones. Does NOT restart the scene.
+   *
+   * Coalesces rapid calls: if a refresh is already in progress, we set
+   * refreshPending=true and return. When the in-progress refresh
+   * finishes, it checks the flag and runs one more refresh with the
+   * latest state. This bounds the total work to at most 2 refreshes
+   * per burst of clicks, no matter how many clicks landed in the
+   * burst. */
   private refreshGrid(): void {
-    // Issue 3 fix: re-entrancy guard. If a refresh is already in
-    // progress, skip this call — the in-progress refresh will pick up
-    // the latest state when it finishes.
-    if (this.refreshInProgress) return;
+    if (this.refreshInProgress) {
+      this.refreshPending = true;
+      return;
+    }
     this.refreshInProgress = true;
     try {
-      // Destroy old grid cells.
-      for (const obj of this.gridObjects) {
-        obj.destroy();
-      }
-      this.gridObjects = [];
-      this.renderGrid();
-      // Also refresh the preview to reflect any equip changes.
-      this.renderPreview();
+      this.doRefreshGrid();
     } finally {
       this.refreshInProgress = false;
+      // If another refresh was requested while we were running, run
+      // ONE more pass with the latest state. Loop bounded by the
+      // finally clause — refreshPending is cleared before re-entry.
+      if (this.refreshPending) {
+        this.refreshPending = false;
+        this.refreshGrid();
+      }
     }
+  }
+
+  private doRefreshGrid(): void {
+    // Destroy old grid cells.
+    for (const obj of this.gridObjects) {
+      obj.destroy();
+    }
+    this.gridObjects = [];
+    this.renderGrid();
+    // Also refresh the preview to reflect any equip changes.
+    this.renderPreview();
   }
 
   /** Render the grid of cosmetic cells for the selected category. */
@@ -261,8 +287,14 @@ export class CosmeticsScene extends Phaser.Scene {
     const height = this.scale.height;
     const cells = getCosmeticsByCategory(this.selectedCategory);
 
-    const cellSize = 56;
-    const cellGap = 12;
+    // Issue 1 fix (2026-06-26): bumped cellSize from 56 to 72 and
+    // cellGap from 12 to 20. The old layout crammed name labels (10px)
+    // directly under 56px cells with only 16px of breathing room —
+    // multi-word names like «Король камбэков» overflowed into the next
+    // cell's preview. With 72px cells + 20px gap, names have ~26px of
+    // clear space and rarely wrap into the neighbour.
+    const cellSize = 72;
+    const cellGap = 20;
     const cellsPerRow = 6;
     const gridStartY = height * 0.34;
 
