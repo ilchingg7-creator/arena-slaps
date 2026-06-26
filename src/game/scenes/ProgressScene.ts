@@ -1,13 +1,14 @@
 import Phaser from "phaser";
-import { loadProfile, type Profile } from "../config/profile";
+import { loadProfile } from "../config/profile";
 import {
   LEVELS,
   MAX_LEVEL,
-  getAllUnlocksUpTo,
-  type Unlock,
 } from "../config/progression";
 import { ProgressionService } from "../services/ProgressionService";
-import { ACHIEVEMENTS } from "../config/achievements";
+import {
+  ACHIEVEMENTS,
+  type AchievementCategory,
+} from "../config/achievements";
 import { getAudioService } from "../audio/getAudioService";
 import type { AudioService } from "../audio/AudioService";
 import {
@@ -18,8 +19,29 @@ import {
 import { createStyledButton } from "../ui/StyledButton";
 import { createBackground } from "../ui/Background";
 import { createTopRightMuteButton } from "../ui/TopRightMuteButton";
+import { drawNeonPanel } from "../ui/neonPrimitives";
+import { NEON_COLORS } from "../ui/neonTheme";
 import { I18nService } from "../i18n/I18nService";
 import type { TranslationKey } from "../config/translations";
+
+/**
+ * Per-category accent colors for achievement card frames. Same mapping
+ * as the (now-legacy) standalone AchievementsScene.
+ */
+const CATEGORY_COLORS: Record<AchievementCategory, number> = {
+  combat: NEON_COLORS.cyan,
+  collection: NEON_COLORS.lime,
+  milestone: NEON_COLORS.magenta,
+  progression: NEON_COLORS.cyan,
+  fun: NEON_COLORS.impact,
+};
+
+/** Card grid layout — tuned for 1280×720. */
+const ACH_COLS = 6;
+const ACH_CARD_W = 168;
+const ACH_CARD_H = 168;
+const ACH_GAP_X = 12;
+const ACH_GAP_Y = 16;
 
 type Tab = "levels" | "achievements";
 
@@ -249,40 +271,141 @@ export class ProgressScene extends Phaser.Scene {
     const i18n = this.i18n!;
     const unlockedSet = new Set(profile.achievements ?? []);
 
-    const cols = 6;
-    const cellW = width / (cols + 1);
-    const cellH = height * 0.18;
-    const gridStartX = cellW / 2 + cellW * 0.5;
-    const gridStartY = height * 0.24;
+    // --- Ink overlay over the noisy menu-bg PNG so card text reads ---
+    // Without this, achievement names were unreadable against the arena
+    // crowd / neon lights. The overlay is added to contentObjects so it
+    // is destroyed on tab switch, restoring the menu-bg for the levels
+    // tab.
+    const inkOverlay = this.add
+      .rectangle(width / 2, height / 2, width, height, NEON_COLORS.bgInk, 0.94)
+      .setDepth(-50)
+      .setOrigin(0.5);
+    this.contentObjects.push(inkOverlay);
+
+    // Subtle outer decorative frame (same as standalone AchievementsScene).
+    const frame = this.add.graphics().setDepth(-49);
+    frame.lineStyle(2, NEON_COLORS.cyan, 0.18);
+    frame.strokeRect(24, 24, width - 48, height - 48);
+    this.contentObjects.push(frame);
+
+    // --- Achievement card grid (6 cols × 3 rows = 18) ---
+    const gridW = ACH_COLS * ACH_CARD_W + (ACH_COLS - 1) * ACH_GAP_X;
+    const gridStartX = (width - gridW) / 2;
+    const gridStartY = height * 0.22;
 
     ACHIEVEMENTS.forEach((ach, idx) => {
-      const col = idx % cols;
-      const row = Math.floor(idx / cols);
-      const x = gridStartX + col * cellW;
-      const y = gridStartY + row * cellH;
+      const col = idx % ACH_COLS;
+      const row = Math.floor(idx / ACH_COLS);
+      const cardX = gridStartX + col * (ACH_CARD_W + ACH_GAP_X);
+      const cardY = gridStartY + row * (ACH_CARD_H + ACH_GAP_Y);
       const isUnlocked = unlockedSet.has(ach.id);
-      const color = isUnlocked ? "#81b29a" : "#555555";
-      const alpha = isUnlocked ? 1.0 : 0.5;
+      const accent = CATEGORY_COLORS[ach.category];
 
-      const icon = this.add.text(x, y, ach.icon, { fontSize: "28px" }).setOrigin(0.5).setAlpha(alpha);
+      // Neon card panel.
+      const panel = drawNeonPanel(
+        this as unknown as Phaser.Scene,
+        cardX,
+        cardY,
+        ACH_CARD_W,
+        ACH_CARD_H,
+      ) as unknown as Phaser.GameObjects.Graphics;
+      panel.setDepth(0);
+      this.contentObjects.push(panel);
+
+      // Accent stroke tinted by category.
+      const accentStroke = this.add.graphics().setDepth(0);
+      accentStroke.lineStyle(2, accent, isUnlocked ? 0.9 : 0.25);
+      accentStroke.strokeRoundedRect(
+        cardX + 4,
+        cardY + 4,
+        ACH_CARD_W - 8,
+        ACH_CARD_H - 8,
+        10,
+      );
+      this.contentObjects.push(accentStroke);
+
+      if (!isUnlocked) {
+        panel.setAlpha(0.55);
+        accentStroke.setAlpha(0.55);
+      }
+
+      // Icon — 48px (was 28px in the old renderAchievements).
+      const icon = this.add
+        .text(cardX + ACH_CARD_W / 2, cardY + 46, ach.icon, {
+          fontSize: "48px",
+        })
+        .setOrigin(0.5)
+        .setDepth(1)
+        .setAlpha(isUnlocked ? 1 : 0.6);
       this.contentObjects.push(icon);
 
+      // Name — 14px bold (was 11px regular).
+      const nameColor = isUnlocked ? "#f6fbff" : "#92a0bb";
       const name = this.add
-        .text(x, y + 26, i18n.t(ach.nameKey as never), {
-          color, fontFamily: "Arial", fontSize: "11px",
-          stroke: "#000000", strokeThickness: 2, align: "center",
+        .text(cardX + ACH_CARD_W / 2, cardY + 96, i18n.t(ach.nameKey as never), {
+          color: nameColor,
+          fontFamily: "Arial",
+          fontSize: "14px",
+          fontStyle: "bold",
+          stroke: "#05070d",
+          strokeThickness: 3,
+          align: "center",
+          wordWrap: { width: ACH_CARD_W - 16 },
         })
-        .setOrigin(0.5).setAlpha(alpha);
+        .setOrigin(0.5)
+        .setDepth(1)
+        .setAlpha(isUnlocked ? 1 : 0.7);
       this.contentObjects.push(name);
+
+      // Description — NEW (was not shown before).
+      const desc = this.add
+        .text(
+          cardX + ACH_CARD_W / 2,
+          cardY + 132,
+          i18n.t(ach.descKey as never),
+          {
+            color: "#92a0bb",
+            fontFamily: "Arial",
+            fontSize: "11px",
+            stroke: "#05070d",
+            strokeThickness: 2,
+            align: "center",
+            wordWrap: { width: ACH_CARD_W - 14 },
+          },
+        )
+        .setOrigin(0.5)
+        .setDepth(1)
+        .setAlpha(isUnlocked ? 0.95 : 0.55);
+      this.contentObjects.push(desc);
     });
 
-    // Unlocked count
+    // --- Unlocked count on a small neon panel ---
+    const unlockedCount = unlockedSet.size;
+    const footerText = `${i18n.t("achievements.unlocked")}: ${unlockedCount} / ${ACHIEVEMENTS.length}`;
+    const footerY = height * 0.88;
+    const footerPanelW = 320;
+    const footerPanelH = 44;
+    const footerPanel = drawNeonPanel(
+      this as unknown as Phaser.Scene,
+      width / 2 - footerPanelW / 2,
+      footerY - footerPanelH / 2,
+      footerPanelW,
+      footerPanelH,
+    ) as unknown as Phaser.GameObjects.Graphics;
+    footerPanel.setDepth(0);
+    this.contentObjects.push(footerPanel);
+
     const countText = this.add
-      .text(width / 2, height * 0.86, `${i18n.t("achievements.unlocked")}: ${unlockedSet.size} / ${ACHIEVEMENTS.length}`, {
-        color: "#f4f1de", fontFamily: "Arial", fontSize: "16px",
-        stroke: "#000000", strokeThickness: 3,
+      .text(width / 2, footerY, footerText, {
+        color: "#f6fbff",
+        fontFamily: "Arial",
+        fontSize: "18px",
+        fontStyle: "bold",
+        stroke: "#05070d",
+        strokeThickness: 3,
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setDepth(1);
     this.contentObjects.push(countText);
   }
 }
