@@ -1,7 +1,8 @@
 import Phaser from "phaser";
 import { loadProfile, saveProfile } from "../config/profile";
-import { createBackground } from "../ui/Background";
 import { createStyledButton } from "../ui/StyledButton";
+import { drawNeonPanel } from "../ui/neonPrimitives";
+import { NEON_COLORS, getHudTextStyle } from "../ui/neonTheme";
 import { I18nService } from "../i18n/I18nService";
 import { getAudioService } from "../audio/getAudioService";
 import { loadSettings } from "../config/gameSettings";
@@ -9,6 +10,17 @@ import { IAPService } from "../services/IAPService";
 import { IAP_PRODUCTS, type IAPProduct } from "../config/IAPManifest";
 import { YandexSDK, type YandexProduct } from "../yandex/SDK";
 import { getCosmeticById } from "../config/CosmeticsManifest";
+
+/** Per-category accent colors for shop item cards. Mirrors the
+ * ProgressScene achievements-tab mapping for visual consistency. */
+const SHOP_CATEGORY_COLORS: Record<string, number> = {
+  headwear: NEON_COLORS.cyan,
+  trail: NEON_COLORS.lime,
+  slapFx: NEON_COLORS.magenta,
+  outline: NEON_COLORS.cyan,
+  title: NEON_COLORS.impact,
+  pack: NEON_COLORS.magenta,
+};
 
 type Tab = "items" | "packs";
 
@@ -39,44 +51,62 @@ export class ShopScene extends Phaser.Scene {
       if (this.storage) saveProfile(this.storage, p);
     });
 
-    createBackground(this as unknown as Phaser.Scene, { key: "menu-bg" });
-
-    // --- Title ---
+    // --- Background: solid ink color (replaces noisy menu-bg PNG so
+    // item names and prices read). Persistent across tab switches. ---
     this.add
-      .text(width / 2, height * 0.05, this.i18n.t("shop.title"), {
-        color: "#f4f1de", fontFamily: "Arial", fontSize: "32px",
-        stroke: "#000000", strokeThickness: 5,
-      })
-      .setOrigin(0.5);
+      .rectangle(width / 2, height / 2, width, height, NEON_COLORS.bgInk)
+      .setDepth(-100);
+    const outerFrame = this.add.graphics().setDepth(-99);
+    outerFrame.lineStyle(2, NEON_COLORS.cyan, 0.18);
+    outerFrame.strokeRect(24, 24, width - 48, height - 48);
+
+    // --- Title (neon HUD style on a panel) ---
+    const titleText = this.i18n.t("shop.title");
+    const titleY = height * 0.05;
+    const titlePanelW = 280;
+    const titlePanelH = 52;
+    const titlePanel = drawNeonPanel(
+      this as unknown as Phaser.Scene,
+      width / 2 - titlePanelW / 2,
+      titleY - titlePanelH / 2,
+      titlePanelW,
+      titlePanelH,
+    ) as unknown as Phaser.GameObjects.Graphics;
+    titlePanel.setDepth(0);
+    void titlePanel;
+    this.add
+      .text(width / 2, titleY, titleText, getHudTextStyle("title"))
+      .setOrigin(0.5)
+      .setDepth(1);
 
     // --- Dev mode notice ---
     if (!YandexSDK.isAvailable()) {
       this.add
         .text(width / 2, height * 0.10, this.i18n.t("shop.devMode"), {
-          color: "#e07a5f", fontFamily: "Arial", fontSize: "13px",
-          stroke: "#000000", strokeThickness: 2,
+          color: "#ff5a36", fontFamily: "Arial", fontSize: "13px",
+          stroke: "#05070d", strokeThickness: 2,
         })
         .setOrigin(0.5);
     }
 
-    // --- Bug 1 fix: tabs higher, more gap before grid ---
+    // --- Bug 1 fix: tabs higher, more gap before grid (neon-styled) ---
     const tabY = height * 0.12;
     this.tabTexts.items = this.add
       .text(width / 2 - 100, tabY, this.i18n.t("shop.individual"), {
-        color: this.currentTab === "items" ? "#f4d35e" : "#f4f1de",
+        color: this.currentTab === "items" ? "#20f6ff" : "#92a0bb",
         fontFamily: "Arial", fontSize: "18px",
         fontStyle: this.currentTab === "items" ? "bold" : "normal",
-        stroke: "#000000", strokeThickness: 3,
+        stroke: "#05070d", strokeThickness: 3,
       })
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true });
 
     this.tabTexts.packs = this.add
       .text(width / 2 + 100, tabY, this.i18n.t("shop.packs"), {
-        color: this.currentTab === "packs" ? "#f4d35e" : "#f4f1de",
+        color: this.currentTab === "packs" ? "#20f6ff" : "#92a0bb",
         fontFamily: "Arial", fontSize: "18px",
         fontStyle: this.currentTab === "packs" ? "bold" : "normal",
-        stroke: "#000000", strokeThickness: 3,
+        stroke: "#05070d", strokeThickness: 3,
       })
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true });
@@ -117,11 +147,11 @@ export class ShopScene extends Phaser.Scene {
 
   private updateTabColors(): void {
     if (this.tabTexts.items) {
-      this.tabTexts.items.setColor(this.currentTab === "items" ? "#f4d35e" : "#f4f1de");
+      this.tabTexts.items.setColor(this.currentTab === "items" ? "#20f6ff" : "#92a0bb");
       this.tabTexts.items.setFontStyle(this.currentTab === "items" ? "bold" : "normal");
     }
     if (this.tabTexts.packs) {
-      this.tabTexts.packs.setColor(this.currentTab === "packs" ? "#f4d35e" : "#f4f1de");
+      this.tabTexts.packs.setColor(this.currentTab === "packs" ? "#20f6ff" : "#92a0bb");
       this.tabTexts.packs.setFontStyle(this.currentTab === "packs" ? "bold" : "normal");
     }
   }
@@ -143,8 +173,8 @@ export class ShopScene extends Phaser.Scene {
     const width = this.scale.width;
     const height = this.scale.height;
 
-    const cellW = 130;
-    const cellH = 110;
+    const cellW = 140;
+    const cellH = 140;
     const gap = 14;
     const cols = 5;
     const gridStartY = height * 0.20;
@@ -160,33 +190,61 @@ export class ShopScene extends Phaser.Scene {
       const isPurchased = IAPService.isPurchased(product.productId);
       const price = this.yandexPrices.get(product.productId) ?? product.defaultPrice;
 
-      // Cell background
-      const bg = this.add
-        .rectangle(x, y, cellW, cellH, isPurchased ? 0x1a3a1a : 0x2a2d44, 1)
-        .setOrigin(0)
-        .setStrokeStyle(1, isPurchased ? 0x81b29a : 0x444444);
-      this.gridObjects.push(bg);
+      // --- Neon card panel (replaces flat rectangle) ---
+      const panel = drawNeonPanel(
+        this as unknown as Phaser.Scene,
+        x,
+        y,
+        cellW,
+        cellH,
+      ) as unknown as Phaser.GameObjects.Graphics;
+      panel.setDepth(0);
+      this.gridObjects.push(panel);
 
-      // Hover tooltip for packs — shows full contents on pointerover
+      // --- Category-tinted accent stroke ---
+      const firstCosmeticForAccent = product.cosmetics[0];
+      const cosmeticDefForAccent = getCosmeticById(firstCosmeticForAccent);
+      const accentKey = product.isPack
+        ? "pack"
+        : (cosmeticDefForAccent?.category ?? "title");
+      const accent = SHOP_CATEGORY_COLORS[accentKey] ?? NEON_COLORS.cyan;
+      const accentStroke = this.add.graphics().setDepth(0);
+      accentStroke.lineStyle(2, accent, isPurchased ? 0.9 : 0.55);
+      accentStroke.strokeRoundedRect(x + 4, y + 4, cellW - 8, cellH - 8, 10);
+      this.gridObjects.push(accentStroke);
+
+      if (isPurchased) {
+        panel.setAlpha(0.92);
+      }
+
+      // Hover tooltip for packs — shows full contents on pointerover.
+      // Attach the interactive hit area to an invisible rectangle over
+      // the card (drawNeonPanel returns a Graphics which doesn't accept
+      // pointer events in our stub setup).
+      const hitArea = this.add.rectangle(x + cellW / 2, y + cellH / 2, cellW, cellH, 0x000000, 0)
+        .setOrigin(0.5)
+        .setDepth(1);
+      this.gridObjects.push(hitArea);
+
       if (product.isPack) {
-        bg.setInteractive({ useHandCursor: true });
+        hitArea.setInteractive({ useHandCursor: true });
         const tooltipLines = product.cosmetics.map((cid) => {
           const def = getCosmeticById(cid);
           return def ? (this.i18n?.t(def.nameKey as never) ?? cid) : cid;
         });
         let tooltip: Phaser.GameObjects.Container | null = null;
 
-        bg.on("pointerover", () => {
+        hitArea.on("pointerover", () => {
           if (tooltip) return;
           tooltip = this.add.container(x + cellW / 2, y - 10);
           tooltip.setDepth(100);
 
           const lineSpacing = 16;
           const tooltipH = tooltipLines.length * lineSpacing + 16;
-          const tooltipW = 200;
+          const tooltipW = 220;
 
-          const tooltipBg = this.add.rectangle(0, -tooltipH / 2, tooltipW, tooltipH, 0x101820, 0.95)
-            .setStrokeStyle(2, 0xf4d35e, 1)
+          const tooltipBg = this.add.rectangle(0, -tooltipH / 2, tooltipW, tooltipH, NEON_COLORS.bgPanel, 0.96)
+            .setStrokeStyle(2, NEON_COLORS.cyan, 1)
             .setOrigin(0.5);
           tooltip.add(tooltipBg);
 
@@ -195,7 +253,8 @@ export class ShopScene extends Phaser.Scene {
               -tooltipW / 2 + 10,
               -tooltipH + 8 + i * lineSpacing,
               `• ${line}`,
-              { color: "#f4f1de", fontFamily: "Arial", fontSize: "12px" },
+              { color: "#f6fbff", fontFamily: "Arial", fontSize: "12px",
+                stroke: "#05070d", strokeThickness: 2 },
             );
             tooltip!.add(txt);
           });
@@ -203,7 +262,7 @@ export class ShopScene extends Phaser.Scene {
           this.gridObjects.push(tooltip);
         });
 
-        bg.on("pointerout", () => {
+        hitArea.on("pointerout", () => {
           if (tooltip) {
             const tip = tooltip;
             tooltip = null;
@@ -214,78 +273,109 @@ export class ShopScene extends Phaser.Scene {
         });
       }
 
-      // Bug 2: visual preview based on cosmetic type
+      // --- Visual preview based on cosmetic type ---
       const firstCosmetic = product.cosmetics[0];
       const cosmeticDef = getCosmeticById(firstCosmetic);
-      const previewY = y + 32;
+      const previewY = y + 40;
 
       if (cosmeticDef) {
         if (cosmeticDef.category === "headwear" && !product.isPack) {
           const spriteKey = (cosmeticDef.effect as { spriteKey: string }).spriteKey;
           if (spriteKey && this.textures.exists(spriteKey)) {
             const img = this.add.image(x + cellW / 2, previewY, spriteKey)
-              .setDisplaySize(40, 40).setOrigin(0.5);
+              .setDisplaySize(44, 44).setOrigin(0.5).setDepth(1);
             this.gridObjects.push(img);
           }
         } else if (cosmeticDef.category === "outline" && !product.isPack) {
           const colorVal = (cosmeticDef.effect as { value: number }).value;
-          const rect = this.add.rectangle(x + cellW / 2, previewY, 36, 36, 0x222222)
-            .setStrokeStyle(4, colorVal).setOrigin(0.5);
+          const rect = this.add.rectangle(x + cellW / 2, previewY, 40, 40, NEON_COLORS.bgPanelAlt)
+            .setStrokeStyle(4, colorVal).setOrigin(0.5).setDepth(1);
           this.gridObjects.push(rect);
         } else if (cosmeticDef.category === "trail" && !product.isPack) {
           const trailEff = cosmeticDef.effect as { textureKey: string; color: number };
           if (trailEff.textureKey && this.textures.exists(trailEff.textureKey)) {
             const img = this.add.image(x + cellW / 2, previewY, trailEff.textureKey)
-              .setDisplaySize(32, 32).setTint(trailEff.color).setOrigin(0.5);
+              .setDisplaySize(36, 36).setTint(trailEff.color).setOrigin(0.5).setDepth(1);
             this.gridObjects.push(img);
           }
         } else if (cosmeticDef.category === "slapFx" && !product.isPack) {
           const fxKey = (cosmeticDef.effect as { textureKey: string }).textureKey;
           if (fxKey && this.textures.exists(fxKey)) {
             const img = this.add.image(x + cellW / 2, previewY, fxKey)
-              .setDisplaySize(40, 40).setOrigin(0.5);
+              .setDisplaySize(44, 44).setOrigin(0.5).setDepth(1);
             this.gridObjects.push(img);
           }
         } else if (product.isPack) {
-          // Pack: show count badge
+          // Pack: show count badge on a small neon chip.
+          const chipW = 100;
+          const chipH = 28;
+          const chip = drawNeonPanel(
+            this as unknown as Phaser.Scene,
+            x + cellW / 2 - chipW / 2,
+            previewY - chipH / 2,
+            chipW,
+            chipH,
+          ) as unknown as Phaser.GameObjects.Graphics;
+          chip.setDepth(1);
+          this.gridObjects.push(chip);
           const countText = this.add.text(x + cellW / 2, previewY, `${product.cosmetics.length} предметов`, {
-            color: "#f4d35e", fontFamily: "Arial", fontSize: "12px",
-          }).setOrigin(0.5);
+            color: "#f4d35e", fontFamily: "Arial", fontSize: "12px", fontStyle: "bold",
+            stroke: "#05070d", strokeThickness: 2,
+          }).setOrigin(0.5).setDepth(2);
           this.gridObjects.push(countText);
         }
       }
 
-      // Item name — for packs use the product's own titleKey,
-      // for individual items use the cosmetic's nameKey.
+      // --- Item name ---
       const itemName = product.isPack
         ? (this.i18n?.t(product.titleKey as never) ?? product.productId)
         : (cosmeticDef
           ? (this.i18n?.t(cosmeticDef.nameKey as never) ?? product.productId)
           : product.productId);
       const nameText = this.add
-        .text(x + cellW / 2, y + 64, itemName, {
-          color: "#f4f1de", fontFamily: "Arial", fontSize: "11px",
-          align: "center", wordWrap: { width: cellW - 8 },
+        .text(x + cellW / 2, y + 78, itemName, {
+          color: "#f6fbff", fontFamily: "Arial", fontSize: "12px", fontStyle: "bold",
+          stroke: "#05070d", strokeThickness: 3,
+          align: "center", wordWrap: { width: cellW - 12 },
         })
-        .setOrigin(0.5);
+        .setOrigin(0.5)
+        .setDepth(1);
       this.gridObjects.push(nameText);
 
-      // Price or Purchased
+      // --- Price or Purchased badge ---
       if (isPurchased) {
         const pText = this.add
-          .text(x + cellW / 2, y + 92, (this.i18n?.t("shop.purchased") ?? "✓"), {
-            color: "#81b29a", fontFamily: "Arial", fontSize: "13px", fontStyle: "bold",
+          .text(x + cellW / 2, y + 112, (this.i18n?.t("shop.purchased") ?? "✓"), {
+            color: "#b7ff3c", fontFamily: "Arial", fontSize: "13px", fontStyle: "bold",
+            stroke: "#05070d", strokeThickness: 3,
           })
-          .setOrigin(0.5);
+          .setOrigin(0.5)
+          .setDepth(1);
         this.gridObjects.push(pText);
       } else {
         const buyText = `${this.i18n?.t("shop.buy") ?? "Buy"} ${price}`;
+        // Price button on a small neon chip.
+        const btnW = 110;
+        const btnH = 26;
+        const btnX = x + cellW / 2 - btnW / 2;
+        const btnY = y + 112 - btnH / 2;
+        const btnPanel = drawNeonPanel(
+          this as unknown as Phaser.Scene,
+          btnX,
+          btnY,
+          btnW,
+          btnH,
+        ) as unknown as Phaser.GameObjects.Graphics;
+        btnPanel.setDepth(1);
+        this.gridObjects.push(btnPanel);
+
         const buyBtn = this.add
-          .text(x + cellW / 2, y + 92, buyText, {
+          .text(x + cellW / 2, y + 112, buyText, {
             color: "#f4d35e", fontFamily: "Arial", fontSize: "12px", fontStyle: "bold",
-            backgroundColor: "#2a2d44", padding: { x: 6, y: 3 },
+            stroke: "#05070d", strokeThickness: 2,
           })
-          .setOrigin(0.5);
+          .setOrigin(0.5)
+          .setDepth(2);
 
         if (YandexSDK.isAvailable()) {
           buyBtn.setInteractive({ useHandCursor: true });

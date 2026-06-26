@@ -17,10 +17,9 @@ import {
   type GameSettings,
 } from "../config/gameSettings";
 import { createStyledButton } from "../ui/StyledButton";
-import { createBackground } from "../ui/Background";
 import { createTopRightMuteButton } from "../ui/TopRightMuteButton";
 import { drawNeonPanel } from "../ui/neonPrimitives";
-import { NEON_COLORS } from "../ui/neonTheme";
+import { NEON_COLORS, getHudTextStyle } from "../ui/neonTheme";
 import { I18nService } from "../i18n/I18nService";
 import type { TranslationKey } from "../config/translations";
 
@@ -36,10 +35,11 @@ const CATEGORY_COLORS: Record<AchievementCategory, number> = {
   fun: NEON_COLORS.impact,
 };
 
-/** Card grid layout — tuned for 1280×720. */
+/** Card grid layout — tuned for 1280×720. Card size reduced 5% from
+ * 168×168 to 160×160 per user feedback (cards were slightly too large). */
 const ACH_COLS = 6;
-const ACH_CARD_W = 168;
-const ACH_CARD_H = 168;
+const ACH_CARD_W = 160;
+const ACH_CARD_H = 160;
 const ACH_GAP_X = 12;
 const ACH_GAP_Y = 16;
 
@@ -97,28 +97,44 @@ export class ProgressScene extends Phaser.Scene {
       { soundLabel: this.i18n.t("mute.sound"), mutedLabel: this.i18n.t("mute.muted") },
     );
 
-    createBackground(this as unknown as Phaser.Scene, { key: "menu-bg" });
-
-    // --- Title ---
+    // --- Background: solid ink color (replaces noisy menu-bg PNG so
+    // text reads on both Levels and Achievements tabs). Persistent
+    // across tab switches — not in contentObjects. ---
     this.add
-      .text(width / 2, height * 0.06, this.i18n.t("progress.title"), {
-        color: "#f4f1de",
-        fontFamily: "Arial",
-        fontSize: "36px",
-        stroke: "#000000",
-        strokeThickness: 5,
-      })
-      .setOrigin(0.5);
+      .rectangle(width / 2, height / 2, width, height, NEON_COLORS.bgInk)
+      .setDepth(-100);
+    const outerFrame = this.add.graphics().setDepth(-99);
+    outerFrame.lineStyle(2, NEON_COLORS.cyan, 0.18);
+    outerFrame.strokeRect(24, 24, width - 48, height - 48);
 
-    // --- Tab buttons ---
+    // --- Title (neon HUD style on a panel) ---
+    const titleText = this.i18n.t("progress.title");
+    const titleY = height * 0.06;
+    const titlePanelW = 360;
+    const titlePanelH = 56;
+    const titlePanel = drawNeonPanel(
+      this as unknown as Phaser.Scene,
+      width / 2 - titlePanelW / 2,
+      titleY - titlePanelH / 2,
+      titlePanelW,
+      titlePanelH,
+    ) as unknown as Phaser.GameObjects.Graphics;
+    titlePanel.setDepth(0);
+    void titlePanel; // persisted via graphics object
+    this.add
+      .text(width / 2, titleY, titleText, getHudTextStyle("title"))
+      .setOrigin(0.5)
+      .setDepth(1);
+
+    // --- Tab buttons (neon-styled) ---
     const tabY = height * 0.13;
     this.tabTexts.levels = this.add
       .text(width / 2 - 90, tabY, this.i18n.t("progress.tab.levels"), {
-        color: this.currentTab === "levels" ? "#f4d35e" : "#f4f1de",
+        color: this.currentTab === "levels" ? "#20f6ff" : "#92a0bb",
         fontFamily: "Arial",
         fontSize: "20px",
         fontStyle: this.currentTab === "levels" ? "bold" : "normal",
-        stroke: "#000000",
+        stroke: "#05070d",
         strokeThickness: 3,
       })
       .setOrigin(0.5)
@@ -126,11 +142,11 @@ export class ProgressScene extends Phaser.Scene {
 
     this.tabTexts.achievements = this.add
       .text(width / 2 + 90, tabY, this.i18n.t("progress.tab.achievements"), {
-        color: this.currentTab === "achievements" ? "#f4d35e" : "#f4f1de",
+        color: this.currentTab === "achievements" ? "#20f6ff" : "#92a0bb",
         fontFamily: "Arial",
         fontSize: "20px",
         fontStyle: this.currentTab === "achievements" ? "bold" : "normal",
-        stroke: "#000000",
+        stroke: "#05070d",
         strokeThickness: 3,
       })
       .setOrigin(0.5)
@@ -163,11 +179,11 @@ export class ProgressScene extends Phaser.Scene {
 
   private updateTabColors(): void {
     if (this.tabTexts.levels) {
-      this.tabTexts.levels.setColor(this.currentTab === "levels" ? "#f4d35e" : "#f4f1de");
+      this.tabTexts.levels.setColor(this.currentTab === "levels" ? "#20f6ff" : "#92a0bb");
       this.tabTexts.levels.setFontStyle(this.currentTab === "levels" ? "bold" : "normal");
     }
     if (this.tabTexts.achievements) {
-      this.tabTexts.achievements.setColor(this.currentTab === "achievements" ? "#f4d35e" : "#f4f1de");
+      this.tabTexts.achievements.setColor(this.currentTab === "achievements" ? "#20f6ff" : "#92a0bb");
       this.tabTexts.achievements.setFontStyle(this.currentTab === "achievements" ? "bold" : "normal");
     }
   }
@@ -188,27 +204,53 @@ export class ProgressScene extends Phaser.Scene {
 
     const currentLevel = profile.level ?? 1;
 
-    // Level number
-    const levelText = this.add
-      .text(width / 2, height * 0.22, `${i18n.t("progression.level")}: ${currentLevel}`, {
-        color: "#f4d35e", fontFamily: "Arial", fontStyle: "bold", fontSize: "48px",
-        stroke: "#000000", strokeThickness: 6,
+    // --- Level number on a neon panel ---
+    const levelText = `${i18n.t("progression.level")}: ${currentLevel}`;
+    const levelY = height * 0.22;
+    const levelPanelW = 360;
+    const levelPanelH = 72;
+    const levelPanel = drawNeonPanel(
+      this as unknown as Phaser.Scene,
+      width / 2 - levelPanelW / 2,
+      levelY - levelPanelH / 2,
+      levelPanelW,
+      levelPanelH,
+    ) as unknown as Phaser.GameObjects.Graphics;
+    levelPanel.setDepth(0);
+    this.contentObjects.push(levelPanel);
+    const levelLabel = this.add
+      .text(width / 2, levelY, levelText, {
+        color: "#20f6ff",
+        fontFamily: "Arial",
+        fontStyle: "bold",
+        fontSize: "40px",
+        stroke: "#05070d",
+        strokeThickness: 5,
       })
-      .setOrigin(0.5);
-    this.contentObjects.push(levelText);
+      .setOrigin(0.5)
+      .setDepth(1);
+    this.contentObjects.push(levelLabel);
 
-    // XP bar
+    // --- XP bar (neon-styled) ---
     const progress = ProgressionService.getProgressToNextLevel(profile);
     const barW = width * 0.55;
-    const barH = 22;
+    const barH = 24;
     const barX = (width - barW) / 2;
-    const barY = height * 0.31;
-    const barBg = this.add.rectangle(barX + barW / 2, barY + barH / 2, barW, barH, 0x3d405b)
-      .setStrokeStyle(2, 0xb8b8ff).setOrigin(0.5);
+    const barY = height * 0.33;
+    // Track background (bgPanel fill + cyan stroke).
+    const barBg = this.add
+      .rectangle(barX + barW / 2, barY + barH / 2, barW, barH, NEON_COLORS.bgPanelAlt)
+      .setStrokeStyle(2, NEON_COLORS.cyan)
+      .setOrigin(0.5)
+      .setDepth(0);
     this.contentObjects.push(barBg);
+    // Fill (lime).
     const fillW = Math.max(0, Math.min(1, progress.progress)) * barW;
     if (fillW > 0) {
-      const fill = this.add.rectangle(barX + fillW / 2, barY + barH / 2, fillW, barH, 0x81b29a, 1);
+      const fill = this.add
+        .rectangle(barX + fillW / 2, barY + barH / 2, fillW, barH, NEON_COLORS.lime, 1)
+        .setOrigin(0.5)
+        .setDepth(1);
       this.contentObjects.push(fill);
     }
 
@@ -217,30 +259,45 @@ export class ProgressScene extends Phaser.Scene {
       ? i18n.t("progression.maxLevel")
       : `${i18n.t("progression.xp")}: ${progress.xpIntoLevel} / ${progress.nextLevelXp - progress.currentLevelXp}`;
     const xpLabel = this.add
-      .text(width / 2, height * 0.38, xpText, {
-        color: "#f4f1de", fontFamily: "Arial", fontSize: "18px",
-        stroke: "#000000", strokeThickness: 3,
+      .text(width / 2, height * 0.40, xpText, {
+        color: "#f6fbff", fontFamily: "Arial", fontSize: "16px",
+        stroke: "#05070d", strokeThickness: 3,
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setDepth(1);
     this.contentObjects.push(xpLabel);
 
-    // Unlocks ladder
-    const listTopY = height * 0.44;
+    // --- Unlocks ladder (inside one big neon panel) ---
+    const listTopY = height * 0.46;
     const rowStep = 22;
     const labelX = width * 0.18;
+    const listH = (LEVELS.length + 1) * rowStep + 16;
+    const listW = width * 0.64;
+    const listX = (width - listW) / 2;
+    const listPanel = drawNeonPanel(
+      this as unknown as Phaser.Scene,
+      listX,
+      listTopY - 8,
+      listW,
+      listH,
+    ) as unknown as Phaser.GameObjects.Graphics;
+    listPanel.setDepth(0);
+    this.contentObjects.push(listPanel);
+
     const header = this.add
       .text(labelX, listTopY, i18n.t("progression.unlocks"), {
-        color: "#81b29a", fontFamily: "Arial", fontStyle: "bold", fontSize: "18px",
-        stroke: "#000000", strokeThickness: 3,
+        color: "#b7ff3c", fontFamily: "Arial", fontStyle: "bold", fontSize: "18px",
+        stroke: "#05070d", strokeThickness: 3,
       })
-      .setOrigin(0, 0.5);
+      .setOrigin(0, 0.5)
+      .setDepth(1);
     this.contentObjects.push(header);
 
     for (const def of LEVELS) {
       const rowY = listTopY + def.level * rowStep;
       const reached = def.level <= currentLevel;
       const mark = reached ? "\u2713" : "\u2717";
-      const markColor = reached ? "#81b29a" : "#e07a5f";
+      const markColor = reached ? "#b7ff3c" : "#ff5a36";
       // For levels with only a title reward (no unlocks), show just the
       // title name without the "—" placeholder or " + " prefix.
       const unlockText = def.unlocks.length > 0
@@ -255,11 +312,14 @@ export class ProgressScene extends Phaser.Scene {
       const rowStr = `${mark}  ${i18n.t("progression.level")} ${def.level}: ${combined}`;
       const row = this.add
         .text(labelX, rowY, rowStr, {
-          color: markColor, fontFamily: "Arial", fontSize: "16px",
-          stroke: "#000000", strokeThickness: 3,
+          color: reached ? "#f6fbff" : "#92a0bb",
+          fontFamily: "Arial", fontSize: "15px",
+          stroke: "#05070d", strokeThickness: 2,
         })
-        .setOrigin(0, 0.5);
+        .setOrigin(0, 0.5)
+        .setDepth(1);
       this.contentObjects.push(row);
+      void markColor; // (mark already colored via the leading glyph)
     }
   }
 
@@ -270,23 +330,6 @@ export class ProgressScene extends Phaser.Scene {
     const profile = loadProfile(storage);
     const i18n = this.i18n!;
     const unlockedSet = new Set(profile.achievements ?? []);
-
-    // --- Ink overlay over the noisy menu-bg PNG so card text reads ---
-    // Without this, achievement names were unreadable against the arena
-    // crowd / neon lights. The overlay is added to contentObjects so it
-    // is destroyed on tab switch, restoring the menu-bg for the levels
-    // tab.
-    const inkOverlay = this.add
-      .rectangle(width / 2, height / 2, width, height, NEON_COLORS.bgInk, 0.94)
-      .setDepth(-50)
-      .setOrigin(0.5);
-    this.contentObjects.push(inkOverlay);
-
-    // Subtle outer decorative frame (same as standalone AchievementsScene).
-    const frame = this.add.graphics().setDepth(-49);
-    frame.lineStyle(2, NEON_COLORS.cyan, 0.18);
-    frame.strokeRect(24, 24, width - 48, height - 48);
-    this.contentObjects.push(frame);
 
     // --- Achievement card grid (6 cols × 3 rows = 18) ---
     const gridW = ACH_COLS * ACH_CARD_W + (ACH_COLS - 1) * ACH_GAP_X;
@@ -331,7 +374,7 @@ export class ProgressScene extends Phaser.Scene {
 
       // Icon — 48px (was 28px in the old renderAchievements).
       const icon = this.add
-        .text(cardX + ACH_CARD_W / 2, cardY + 46, ach.icon, {
+        .text(cardX + ACH_CARD_W / 2, cardY + 44, ach.icon, {
           fontSize: "48px",
         })
         .setOrigin(0.5)
@@ -342,7 +385,7 @@ export class ProgressScene extends Phaser.Scene {
       // Name — 14px bold (was 11px regular).
       const nameColor = isUnlocked ? "#f6fbff" : "#92a0bb";
       const name = this.add
-        .text(cardX + ACH_CARD_W / 2, cardY + 96, i18n.t(ach.nameKey as never), {
+        .text(cardX + ACH_CARD_W / 2, cardY + 92, i18n.t(ach.nameKey as never), {
           color: nameColor,
           fontFamily: "Arial",
           fontSize: "14px",
@@ -361,7 +404,7 @@ export class ProgressScene extends Phaser.Scene {
       const desc = this.add
         .text(
           cardX + ACH_CARD_W / 2,
-          cardY + 132,
+          cardY + 126,
           i18n.t(ach.descKey as never),
           {
             color: "#92a0bb",
