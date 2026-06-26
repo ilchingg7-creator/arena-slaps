@@ -42,6 +42,12 @@ export function drawNeonPanel(
   g.lineStyle(6, NEON_COLORS.cyan, 0.14);
   g.strokeRoundedRect(x, y, width, height, NEON_PANEL.radius);
   g.lineStyle(NEON_PANEL.borderWidth, NEON_COLORS.cyan, 1);
-  g.strokeRoundedRect(x + 4, y + 4, width - 8, height - 8, NEON_PANEL.radius - 2);
+  g.strokeRoundedRect(
+    x + 4,
+    y + 4,
+    width - 8,
+    height - 8,
+    Math.max(NEON_PANEL.radius - 2, 0),
+  );
   return g;
 }
