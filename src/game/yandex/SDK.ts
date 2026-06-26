@@ -81,9 +81,30 @@ class YandexSDKImpl {
   async init(): Promise<void> {
     if (this.initialized) return;
 
-    // Check if YaGames is available (loaded via /sdk.js in index.html)
-    if (typeof window === "undefined" || typeof (window as unknown as { YaGames?: unknown }).YaGames === "undefined") {
-      console.log("[YandexSDK] SDK not available (local dev mode)");
+    // Check if YaGames is available (loaded via the <script> tag in
+    // index.html pointing at https://yandex.ru/games/sdk/v2).
+    //
+    // The script loads asynchronously — even though our <script> tag
+    // is in <head>, the YaGames global may not be defined yet when
+    // init() is first called. Per the official Yandex Games JS SDK
+    // docs, we should poll for `window.YaGames && window.YaGames.init`
+    // before calling init(). Wait up to 5 seconds in production; in
+    // tests we override the timeout via window.__yaSdkWaitMs (kept
+    // short so the test suite doesn't slow down by 5s per SDK test).
+    if (typeof window !== "undefined") {
+      const waitMs =
+        (window as unknown as { __yaSdkWaitMs?: number }).__yaSdkWaitMs ?? 5000;
+      const hasYaGames = await this.waitForYaGames(waitMs);
+      if (!hasYaGames) {
+        console.warn(
+          `[YandexSDK] window.YaGames not available after ${waitMs}ms — falling back to dev mode`,
+        );
+        this.initialized = true;
+        return;
+      }
+    } else {
+      // SSR / non-window env (tests) — local dev mode.
+      console.log("[YandexSDK] SDK not available (no window)");
       this.initialized = true;
       return;
     }
@@ -112,6 +133,39 @@ class YandexSDKImpl {
       console.warn("[YandexSDK] Failed to initialize:", err);
     }
     this.initialized = true;
+  }
+
+  /**
+   * Poll for window.YaGames every 50ms up to `timeoutMs`. Resolves true
+   * once `window.YaGames && window.YaGames.init` is defined, false if
+   * the timeout elapses without the SDK appearing.
+   *
+   * The Yandex SDK <script> tag loads asynchronously; even though it's
+   * in <head>, the global may not be defined yet when init() is first
+   * called. Per the official docs we should wait for it before calling
+   * `YaGames.init()`.
+   */
+  private waitForYaGames(timeoutMs: number): Promise<boolean> {
+    return new Promise((resolve) => {
+      if (typeof window === "undefined") {
+        resolve(false);
+        return;
+      }
+      const start = Date.now();
+      const check = () => {
+        const yaGames = (window as unknown as { YaGames?: { init?: unknown } }).YaGames;
+        if (yaGames && typeof yaGames.init === "function") {
+          resolve(true);
+          return;
+        }
+        if (Date.now() - start >= timeoutMs) {
+          resolve(false);
+          return;
+        }
+        setTimeout(check, 50);
+      };
+      check();
+    });
   }
 
   /** Call LoadingAPI.ready() to signal the game is playable. */

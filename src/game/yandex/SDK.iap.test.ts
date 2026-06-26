@@ -1,8 +1,13 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 describe("YandexSDK — IAP methods", () => {
+  // SDK.init() polls window.YaGames for up to __yaSdkWaitMs (default
+  // 5000ms) before falling back to dev mode. Override to 50ms in tests.
   beforeEach(() => {
     vi.resetModules();
+    if (typeof window !== "undefined") {
+      (window as unknown as { __yaSdkWaitMs?: number }).__yaSdkWaitMs = 50;
+    }
   });
 
   it("getPayments returns payments object when SDK is available", async () => {
@@ -104,7 +109,7 @@ describe("YandexSDK — IAP methods", () => {
   });
 
   it("getPayments returns null in dev mode (no SDK)", async () => {
-    vi.stubGlobal("window", {});
+    vi.stubGlobal("window", { __yaSdkWaitMs: 50 });
     const { YandexSDK } = await import("./SDK");
     await YandexSDK.init();
     const payments = await YandexSDK.getPayments();
@@ -112,7 +117,7 @@ describe("YandexSDK — IAP methods", () => {
   });
 
   it("iapGetCatalog returns [] in dev mode", async () => {
-    vi.stubGlobal("window", {});
+    vi.stubGlobal("window", { __yaSdkWaitMs: 50 });
     const { YandexSDK } = await import("./SDK");
     await YandexSDK.init();
     const catalog = await YandexSDK.iapGetCatalog();
@@ -120,14 +125,14 @@ describe("YandexSDK — IAP methods", () => {
   });
 
   it("iapPurchase throws in dev mode", async () => {
-    vi.stubGlobal("window", {});
+    vi.stubGlobal("window", { __yaSdkWaitMs: 50 });
     const { YandexSDK } = await import("./SDK");
     await YandexSDK.init();
     await expect(YandexSDK.iapPurchase("hw_wizard")).rejects.toThrow();
   });
 
   it("iapGetPurchases returns [] in dev mode", async () => {
-    vi.stubGlobal("window", {});
+    vi.stubGlobal("window", { __yaSdkWaitMs: 50 });
     const { YandexSDK } = await import("./SDK");
     await YandexSDK.init();
     const purchases = await YandexSDK.iapGetPurchases();

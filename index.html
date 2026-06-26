@@ -4,8 +4,30 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Arena Slaps</title>
-    <!-- Yandex Games SDK -->
-    <script src="/sdk.js"></script>
+    <!--
+      Yandex Games SDK.
+
+      On the Yandex Games platform (production), the host injects the
+      SDK at /sdk/v2 — the URL is the same as below but served from
+      yandex.ru/games. Locally, this URL returns 404; we instead detect
+      its absence at runtime in main.ts → YandexSDK.init() and fall
+      back to dev mode.
+
+      Per the official Yandex Games JS SDK documentation
+      (https://yandex.ru/dev/games/doc/ru/sdk/init), the SDK is loaded
+      via this <script> tag and exposes `window.YaGames.init()` which
+      returns a promise resolving to the `ysdk` instance. The script
+      MUST be in <head> so it loads before the game module boots.
+
+      The previous version used `src="/sdk.js"` which is a relative
+      path — that only worked when a local dev proxy placed a sdk.js
+      file at the project root. On the Yandex platform this path
+      returned 404, so `window.YaGames` was never defined,
+      `YandexSDK.init()` short-circuited to "local dev mode", and
+      `LoadingAPI.ready()` was never called → infinite white screen
+      with the error "sdk is not initialized, wait for init call".
+    -->
+    <script src="https://yandex.ru/games/sdk/v2"></script>
   </head>
   <body>
     <div id="app"></div>

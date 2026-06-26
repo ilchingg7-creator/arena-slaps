@@ -1,10 +1,14 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 describe("YandexSDK — cloud save methods", () => {
+  // SDK.init() polls window.YaGames for up to __yaSdkWaitMs (default
+  // 5000ms) before falling back to dev mode. Override to 50ms in
+  // tests so the dev-mode tests don't each burn 5 seconds.
   beforeEach(() => {
     vi.resetModules();
     if (typeof window !== "undefined") {
       delete (window as unknown as { __yaSdkLang?: string }).__yaSdkLang;
+      (window as unknown as { __yaSdkWaitMs?: number }).__yaSdkWaitMs = 50;
     }
   });
 
@@ -74,7 +78,7 @@ describe("YandexSDK — cloud save methods", () => {
   });
 
   it("returns null from getPlayer in dev mode (no SDK)", async () => {
-    vi.stubGlobal("window", {});
+    vi.stubGlobal("window", { __yaSdkWaitMs: 50 });
     const { YandexSDK } = await import("./SDK");
     await YandexSDK.init();
     const player = await YandexSDK.getPlayer();
@@ -82,7 +86,7 @@ describe("YandexSDK — cloud save methods", () => {
   });
 
   it("playerGetData returns {} in dev mode (no SDK)", async () => {
-    vi.stubGlobal("window", {});
+    vi.stubGlobal("window", { __yaSdkWaitMs: 50 });
     const { YandexSDK } = await import("./SDK");
     await YandexSDK.init();
     const data = await YandexSDK.playerGetData();
@@ -90,7 +94,7 @@ describe("YandexSDK — cloud save methods", () => {
   });
 
   it("playerSetData is a no-op in dev mode (no SDK)", async () => {
-    vi.stubGlobal("window", {});
+    vi.stubGlobal("window", { __yaSdkWaitMs: 50 });
     const { YandexSDK } = await import("./SDK");
     await YandexSDK.init();
     // Should not throw

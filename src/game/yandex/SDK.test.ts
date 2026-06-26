@@ -7,6 +7,10 @@ describe("YandexSDK — Bug 5: language wiring", () => {
     // Clean up any window.__yaSdkLang left by previous tests.
     if (typeof window !== "undefined") {
       delete (window as unknown as { __yaSdkLang?: string }).__yaSdkLang;
+      // Speed up the waitForYaGames poll in tests (default is 5000ms;
+      // in tests where the SDK is intentionally absent we don't want
+      // to burn 5s waiting for it).
+      (window as unknown as { __yaSdkWaitMs?: number }).__yaSdkWaitMs = 50;
     }
   });
 
@@ -92,7 +96,10 @@ describe("YandexSDK — Bug 5: language wiring", () => {
     // In local dev, there's no /sdk.js → window.YaGames is undefined.
     // YandexSDK.init() should skip the language write so I18nService
     // falls back to navigator.language.
-    vi.stubGlobal("window", {});
+    //
+    // beforeEach() sets window.__yaSdkWaitMs=50 so the SDK only polls
+    // for 50ms before falling back to dev mode — keeps the test fast.
+    vi.stubGlobal("window", { __yaSdkWaitMs: 50 });
     Object.defineProperty(window, "__yaSdkLang", {
       value: undefined,
       writable: true,
