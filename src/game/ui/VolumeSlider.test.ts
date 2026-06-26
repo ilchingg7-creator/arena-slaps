@@ -35,6 +35,7 @@ type Graphics = {
   kind: "graphics";
   visible: boolean;
   depth: number;
+  destroyed: boolean;
 };
 
 type FakeScene = SliderSceneLike & {
@@ -62,6 +63,7 @@ function makeScene(): FakeScene {
           kind: "graphics",
           visible: true,
           depth: 0,
+          destroyed: false,
         };
         graphics.push(g);
         return {
@@ -86,6 +88,10 @@ function makeScene(): FakeScene {
           },
           setVisible(v: boolean) {
             g.visible = v;
+            return this;
+          },
+          destroy() {
+            g.destroyed = true;
             return this;
           },
         } as never;
@@ -260,6 +266,16 @@ describe("VolumeSlider", () => {
     expect(zone.handlers.size).toBeGreaterThan(0);
     slider.destroy();
     expect(zone.handlers.size).toBe(0);
+  });
+
+  it("destroy tears down the task-added chrome graphics objects", () => {
+    const scene = makeScene();
+    const slider = createVolumeSlider(scene, 100, 50, 200, 0.5, () => void 0);
+    expect(scene.graphics).toHaveLength(3);
+
+    slider.destroy();
+
+    expect(scene.graphics.every((g) => g.destroyed)).toBe(true);
   });
 
   it("does not fire onChange on pointermove when not dragging", () => {

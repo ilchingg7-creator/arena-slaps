@@ -89,6 +89,7 @@ type SliderGraphics = {
   ) => SliderGraphics;
   setDepth: (depth: number) => SliderGraphics;
   setVisible: (visible: boolean) => SliderGraphics;
+  destroy?: () => void;
 };
 
 type SliderPointer = {
@@ -324,6 +325,9 @@ export function createVolumeSlider(
     },
     destroy() {
       hitZone.removeAllListeners?.();
+      trackChrome?.destroy?.();
+      fillChrome?.destroy?.();
+      handleChrome?.destroy?.();
     },
   };
 }
