@@ -24,7 +24,7 @@ describe("soundManifest", () => {
 
   it("every manifest path is a .ogg file under /sounds/", () => {
     for (const def of SOUND_MANIFEST) {
-      expect(def.path).toMatch(/^\/sounds\/.+\.ogg$/);
+      expect(def.path).toMatch(/^\.\/sounds\/.+\.ogg$/);
     }
   });
 
@@ -51,18 +51,18 @@ describe("soundManifest", () => {
   it("getSoundDefinition returns the entry for a known key", () => {
     const def = getSoundDefinition("slap-hit");
     expect(def.key).toBe("slap-hit");
-    expect(def.path).toBe("/sounds/slap-hit.ogg");
+    expect(def.path).toBe("./sounds/slap-hit.ogg");
     expect(def.category).toBe("sfx");
   });
 
   it("getSoundDefinition returns music entries with their category", () => {
     const menu = getSoundDefinition("menu-theme");
     expect(menu.key).toBe("menu-theme");
-    expect(menu.path).toBe("/sounds/menu-theme.ogg");
+    expect(menu.path).toBe("./sounds/menu-theme.ogg");
     expect(menu.category).toBe("music");
     const battle = getSoundDefinition("battle-theme");
     expect(battle.key).toBe("battle-theme");
-    expect(battle.path).toBe("/sounds/battle-theme.ogg");
+    expect(battle.path).toBe("./sounds/battle-theme.ogg");
     expect(battle.category).toBe("music");
   });
 

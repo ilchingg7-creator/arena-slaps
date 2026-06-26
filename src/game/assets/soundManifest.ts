@@ -50,7 +50,9 @@ export type SoundDefinition = {
 };
 
 function ogg(name: string): string {
-  return `/sounds/${name}.ogg`;
+  // Relative path — resolves against the current document URL, so it
+  // works when the build is hosted in a subdirectory (Yandex Games).
+  return `./sounds/${name}.ogg`;
 }
 
 export const SOUND_MANIFEST: readonly SoundDefinition[] = [

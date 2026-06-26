@@ -408,7 +408,7 @@ describe("PhaserAudioBackend", () => {
     };
     const b = new PhaserAudioBackend(scene);
     b.load("slap-hit");
-    expect(loads).toEqual([{ key: "slap-hit", urls: "/sounds/slap-hit.ogg" }]);
+    expect(loads).toEqual([{ key: "slap-hit", urls: "./sounds/slap-hit.ogg" }]);
   });
 
   it("does not re-load the same key twice", () => {

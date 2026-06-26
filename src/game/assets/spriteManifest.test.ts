@@ -21,9 +21,9 @@ describe("spriteManifest", () => {
     }
   });
 
-  it("every definition path starts with /sprites/ and ends with .png", () => {
+  it("every definition path starts with ./sprites/ and ends with .png", () => {
     for (const def of SPRITE_DEFINITIONS) {
-      expect(def.path).toMatch(/^\/sprites\/.+\.png$/);
+      expect(def.path).toMatch(/^\.\/sprites\/.+\.png$/);
     }
   });
 
@@ -54,8 +54,8 @@ describe("spriteManifest", () => {
 
   it("atlas paths end with .png / .json respectively", () => {
     for (const a of SPRITE_ATLASES) {
-      expect(a.imagePath).toMatch(/^\/sprites\/.+\.png$/);
-      expect(a.atlasPath).toMatch(/^\/sprites\/.+\.json$/);
+      expect(a.imagePath).toMatch(/^\.\/sprites\/.+\.png$/);
+      expect(a.atlasPath).toMatch(/^\.\/sprites\/.+\.json$/);
     }
   });
 
@@ -143,7 +143,7 @@ describe("spriteManifest", () => {
       if (!def) continue;
       expect(def.category).toBe("character");
       expect(def.fallback).toBe("rectangle");
-      expect(def.path).toBe(`/sprites/${key}.png`);
+      expect(def.path).toBe(`./sprites/${key}.png`);
     }
   });
 
@@ -159,7 +159,7 @@ describe("spriteManifest", () => {
       if (!def) continue;
       expect(def.category).toBe("effect");
       expect(def.fallback).toBe("circle");
-      expect(def.path).toBe(`/sprites/${key}.png`);
+      expect(def.path).toBe(`./sprites/${key}.png`);
     }
   });
 
@@ -197,7 +197,7 @@ describe("spriteManifest", () => {
       expect(def.height).toBeDefined();
       expect(typeof def.width).toBe("number");
       expect(typeof def.height).toBe("number");
-      expect(def.path).toBe(`/sprites/${key}.png`);
+      expect(def.path).toBe(`./sprites/${key}.png`);
     }
   });
 

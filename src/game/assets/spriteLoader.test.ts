@@ -33,14 +33,14 @@ function makeStubScene(): StubScene {
 const sampleSprites: SpriteDefinition[] = [
   {
     key: "player-idle",
-    path: "/sprites/player-idle.png",
+    path: "./sprites/player-idle.png",
     category: "character",
     fallback: "rectangle",
     fallbackColor: 0x3d405b,
   },
   {
     key: "powerup-speed",
-    path: "/sprites/powerup-speed.png",
+    path: "./sprites/powerup-speed.png",
     category: "effect",
     fallback: "circle",
     fallbackColor: 0x81b29a,
@@ -50,8 +50,8 @@ const sampleSprites: SpriteDefinition[] = [
 const sampleAtlases: AtlasDefinition[] = [
   {
     key: "player-atlas",
-    imagePath: "/sprites/player-atlas.png",
-    atlasPath: "/sprites/player-atlas.json",
+    imagePath: "./sprites/player-atlas.png",
+    atlasPath: "./sprites/player-atlas.json",
     category: "character",
   },
 ];
@@ -62,8 +62,8 @@ describe("spriteLoader", () => {
     loadSprites(scene, sampleSprites);
     expect(scene.image).toHaveBeenCalledTimes(sampleSprites.length);
     expect(scene.imageCalls).toEqual([
-      { key: "player-idle", url: "/sprites/player-idle.png" },
-      { key: "powerup-speed", url: "/sprites/powerup-speed.png" },
+      { key: "player-idle", url: "./sprites/player-idle.png" },
+      { key: "powerup-speed", url: "./sprites/powerup-speed.png" },
     ]);
   });
 
@@ -80,8 +80,8 @@ describe("spriteLoader", () => {
     expect(scene.atlasCalls).toEqual([
       {
         key: "player-atlas",
-        textureURL: "/sprites/player-atlas.png",
-        atlasURL: "/sprites/player-atlas.json",
+        textureURL: "./sprites/player-atlas.png",
+        atlasURL: "./sprites/player-atlas.json",
       },
     ]);
   });
@@ -101,7 +101,7 @@ describe("spriteLoader", () => {
     expect(scene.imageCalls.length).toBeGreaterThan(0);
     // Every image call should have a key + url that pair up.
     for (const call of scene.imageCalls) {
-      expect(call.url).toMatch(/^\/sprites\/.+\.png$/);
+      expect(call.url).toMatch(/^\.\/sprites\/.+\.png$/);
       expect(call.key).toBeTruthy();
     }
     // atlas may be zero calls today (no atlases registered yet) but the

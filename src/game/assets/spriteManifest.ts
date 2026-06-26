@@ -62,7 +62,11 @@ export type AtlasDefinition = {
 };
 
 function png(name: string): string {
-  return `/sprites/${name}.png`;
+  // Relative path — resolves against the current document URL, so it
+  // works when the build is hosted in a subdirectory (Yandex Games
+  // hosts at /<appid>/<version-hash>/index.html). Absolute "/sprites/"
+  // would resolve against the bucket root and 404 on Yandex.
+  return `./sprites/${name}.png`;
 }
 
 export const SPRITE_DEFINITIONS: readonly SpriteDefinition[] = [
