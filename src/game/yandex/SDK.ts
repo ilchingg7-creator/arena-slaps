@@ -94,8 +94,9 @@ class YandexSDKImpl {
           init: () => Promise<YandexSDKLike>;
         };
       }).YaGames;
+      console.log("[YandexSDK] Calling YaGames.init()...");
       this.sdk = await YaGames.init();
-      console.log("[YandexSDK] Initialized successfully");
+      console.log("[YandexSDK] Initialized successfully — sdk is", this.sdk ? "set" : "null");
 
       // Bug 5 fix: write the detected language to window.__yaSdkLang so
       // I18nService.detectLanguage() can pick it up. Without this, the
@@ -115,7 +116,17 @@ class YandexSDKImpl {
 
   /** Call LoadingAPI.ready() to signal the game is playable. */
   ready(): void {
-    this.sdk?.features?.LoadingAPI?.ready?.();
+    if (!this.sdk) {
+      console.warn("[YandexSDK] ready() called but sdk is null — LoadingAPI.ready() NOT fired");
+      return;
+    }
+    if (!this.sdk.features?.LoadingAPI?.ready) {
+      console.warn("[YandexSDK] ready() called but LoadingAPI.ready is missing on sdk");
+      return;
+    }
+    console.log("[YandexSDK] Calling LoadingAPI.ready()...");
+    this.sdk.features.LoadingAPI.ready();
+    console.log("[YandexSDK] LoadingAPI.ready() called successfully");
   }
 
   /** Get the player's language from the SDK, or null if unavailable. */

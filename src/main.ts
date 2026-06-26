@@ -14,41 +14,31 @@ if (!app) {
 /**
  * Entry point.
  *
- * 1. Initialize the Yandex Games SDK (graceful fallback for local dev).
- * 2. Initialize CloudSaveService (load + merge cloud data with local).
- * 3. Start the Phaser game.
- * 4. Wire up visibility-change handler to pause/resume audio + flush saves.
- * 5. Call LoadingAPI.ready() when the preload is done (Rule 1.19.2).
+ * Yandex Games white-screen fix (2026-06-26): previously we did
+ * `await YandexSDK.init()` BEFORE creating the Phaser game. On the
+ * Yandex platform, if `YaGames.init()` is slow, fails, or hangs, the
+ * Phaser game never starts → LoadingAPI.ready() never fires → the
+ * Yandex loader never hides → infinite white screen.
+ *
+ * New flow:
+ *   1. Start Yandex SDK init in the BACKGROUND (non-blocking).
+ *   2. Create the Phaser game immediately so the player sees the
+ *      loading screen right away.
+ *   3. Once BOTH the game AND the SDK are ready, fire LoadingAPI.ready()
+ *      to dismiss the Yandex loader. Promise.all gates this — if SDK
+ *      init fails, we still attempt ready() with sdk=null (no-op) but
+ *      at least the Phaser game is running and visible.
+ *   4. After SDK init succeeds, set up CloudSaveService + IAPService.
+ *   5. Visibility handler pauses audio + flushes saves on hide.
  */
 async function main(): Promise<void> {
-  // 1. Initialize Yandex SDK
-  await YandexSDK.init();
+  // 1. Start Yandex SDK init in the BACKGROUND (non-blocking).
+  const sdkPromise = YandexSDK.init();
 
-  // 2. Initialize CloudSaveService + IAPService (if SDK is available)
-  const storage = typeof window !== "undefined" ? window.localStorage : null;
-  if (storage && YandexSDK.isAvailable()) {
-    await CloudSaveService.init(
-      storage,
-      (keys) => YandexSDK.playerGetData(keys),
-      (data, flush) => YandexSDK.playerSetData(data, flush),
-    );
-
-    // Restore IAP purchases — must happen AFTER CloudSaveService.init
-    // so the profile is already merged from cloud. Purchased cosmetics
-    // are added to profile.cosmetics.owned.
-    const profile = (await import("./game/config/profile")).loadProfile(storage);
-    const { saveProfile } = await import("./game/config/profile");
-    await IAPService.init(
-      profile,
-      (p) => saveProfile(storage, p),
-      () => YandexSDK.iapGetPurchases(),
-    );
-  }
-
-  // 3. Start the game
+  // 2. Create the game immediately — don't wait for the SDK.
   const game = createGame(app as HTMLElement);
 
-  // 4. Visibility change handler — stop all sound when the page is
+  // 3. Visibility change handler — stop all sound when the page is
   //    minimized/hidden, resume when it comes back (Rule 1.3).
   //    Also flush cloud saves on hide.
   if (typeof document !== "undefined") {
@@ -70,6 +60,7 @@ async function main(): Promise<void> {
         if (previousMusicKey && audio) {
           const keyToRestore = previousMusicKey;
           previousMusicKey = null;
+          const storage = typeof window !== "undefined" ? window.localStorage : null;
           const settings = loadSettings(storage);
           if (!settings.musicMuted) {
             if (keyToRestore === "menu-theme") {
@@ -90,10 +81,68 @@ async function main(): Promise<void> {
     }
   }
 
-  // 5. Call LoadingAPI.ready() after a short delay to let Phaser boot.
-  game.events.once("ready", () => {
-    YandexSDK.ready();
-  });
+  // 4. Fire LoadingAPI.ready() when BOTH the game AND the SDK are ready.
+  //    The Yandex platform requires this signal to hide its loader.
+  //    Without it, the player sees an infinite white screen.
+  //    We use Promise.race between the SDK init and a 5s timeout — if
+  //    YaGames.init() hangs, we still fire ready() (this.sdk will be
+  //    null → ready() is a no-op, but the Phaser game is already
+  //    visible and playable). The player gets SDK features when/if the
+  //    init eventually resolves later.
+  const sdkReadyWithTimeout = Promise.race([
+    sdkPromise.then(() => undefined),
+    new Promise<void>((resolve) => setTimeout(resolve, 5000)),
+  ]);
+  Promise.all([
+    new Promise<void>((resolve) => {
+      game.events.once("ready", () => resolve());
+    }),
+    sdkReadyWithTimeout,
+  ])
+    .then(() => {
+      YandexSDK.ready();
+    })
+    .catch((err) => {
+      console.warn("[main] SDK init failed; calling LoadingAPI.ready() anyway:", err);
+      // Even on failure, attempt the ready() call. this.sdk may be null
+      // (init threw before setting it), so ready() is a no-op — but at
+      // least we don't leave the player stuck on white forever. If the
+      // game itself booted, the player can still play without SDK
+      // features (no ads, no cloud saves, no IAP).
+      YandexSDK.ready();
+    });
+
+  // 5. After SDK init succeeds, set up CloudSaveService + IAPService
+  //    (non-blocking — the game is already running at this point).
+  sdkPromise
+    .then(async () => {
+      if (!YandexSDK.isAvailable()) return;
+      const storage =
+        typeof window !== "undefined" ? window.localStorage : null;
+      if (!storage) return;
+
+      await CloudSaveService.init(
+        storage,
+        (keys) => YandexSDK.playerGetData(keys),
+        (data, flush) => YandexSDK.playerSetData(data, flush),
+      );
+
+      // Restore IAP purchases — must happen AFTER CloudSaveService.init
+      // so the profile is already merged from cloud. Purchased cosmetics
+      // are added to profile.cosmetics.owned.
+      const profile = (await import("./game/config/profile")).loadProfile(
+        storage,
+      );
+      const { saveProfile } = await import("./game/config/profile");
+      await IAPService.init(
+        profile,
+        (p) => saveProfile(storage, p),
+        () => YandexSDK.iapGetPurchases(),
+      );
+    })
+    .catch((err) => {
+      console.warn("[main] Yandex SDK post-init failed:", err);
+    });
 }
 
 void main();
