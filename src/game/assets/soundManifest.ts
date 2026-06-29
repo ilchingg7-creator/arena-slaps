@@ -17,9 +17,21 @@
  */
 
 export const SOUND_KEYS = [
-  // SFX (10)
+  // SFX (10 base + 6 slap-hit variants + 3 slap-miss variants = 19)
+  // NOTE: slap-hit / slap-miss keys are kept for backward compat —
+  // AudioService.playSlapHit()/playSlapMiss() now pick a random
+  // variant from slap-hit-1..6 / slap-miss-1..3.
   "slap-hit",
   "slap-miss",
+  "slap-hit-1",
+  "slap-hit-2",
+  "slap-hit-3",
+  "slap-hit-4",
+  "slap-hit-5",
+  "slap-hit-6",
+  "slap-miss-1",
+  "slap-miss-2",
+  "slap-miss-3",
   "powerup-collect",
   "ring-out",
   "round-win",
@@ -57,8 +69,25 @@ function ogg(name: string): string {
 
 export const SOUND_MANIFEST: readonly SoundDefinition[] = [
   // SFX
+  // slap-hit / slap-miss are kept as canonical keys for fallback /
+  // tests / external callers. The runtime playSlapHit/playSlapMiss
+  // methods now pick a random variant from slap-hit-1..6 / slap-miss-1..3
+  // — see AudioService.playSlapHit() / playSlapMiss().
   { key: "slap-hit", path: ogg("slap-hit"), category: "sfx", volume: 0.9 },
   { key: "slap-miss", path: ogg("slap-miss"), category: "sfx", volume: 0.5 },
+  // 6 slap-hit variants — Phaser picks one at random per call. Slightly
+  // different pitches / durations so the player doesn't hear the exact
+  // same sound on every hit (prevents fatigue in long battles).
+  { key: "slap-hit-1", path: ogg("slap-hit-1"), category: "sfx", volume: 0.9 },
+  { key: "slap-hit-2", path: ogg("slap-hit-2"), category: "sfx", volume: 0.9 },
+  { key: "slap-hit-3", path: ogg("slap-hit-3"), category: "sfx", volume: 0.9 },
+  { key: "slap-hit-4", path: ogg("slap-hit-4"), category: "sfx", volume: 0.9 },
+  { key: "slap-hit-5", path: ogg("slap-hit-5"), category: "sfx", volume: 0.9 },
+  { key: "slap-hit-6", path: ogg("slap-hit-6"), category: "sfx", volume: 0.9 },
+  // 3 slap-miss variants — random pick per call.
+  { key: "slap-miss-1", path: ogg("slap-miss-1"), category: "sfx", volume: 0.5 },
+  { key: "slap-miss-2", path: ogg("slap-miss-2"), category: "sfx", volume: 0.5 },
+  { key: "slap-miss-3", path: ogg("slap-miss-3"), category: "sfx", volume: 0.5 },
   { key: "powerup-collect", path: ogg("powerup-collect"), category: "sfx", volume: 0.7 },
   { key: "ring-out", path: ogg("ring-out"), category: "sfx", volume: 0.8 },
   { key: "round-win", path: ogg("round-win"), category: "sfx", volume: 0.9 },
@@ -71,6 +100,25 @@ export const SOUND_MANIFEST: readonly SoundDefinition[] = [
   { key: "menu-theme", path: ogg("menu-theme"), category: "music", volume: 0.6 },
   { key: "battle-theme", path: ogg("battle-theme"), category: "music", volume: 0.5 },
 ];
+
+/** All slap-hit variant keys, in playback order. AudioService picks a
+ * random one per call. Kept as a tuple (not derived from SOUND_MANIFEST)
+ * so the order is stable and the count is fixed at 6. */
+export const SLAP_HIT_VARIANTS = [
+  "slap-hit-1",
+  "slap-hit-2",
+  "slap-hit-3",
+  "slap-hit-4",
+  "slap-hit-5",
+  "slap-hit-6",
+] as const;
+
+/** All slap-miss variant keys. */
+export const SLAP_MISS_VARIANTS = [
+  "slap-miss-1",
+  "slap-miss-2",
+  "slap-miss-3",
+] as const;
 
 export function getSoundDefinition(key: SoundKey): SoundDefinition {
   const def = SOUND_MANIFEST.find((entry) => entry.key === key);

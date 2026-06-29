@@ -13,7 +13,9 @@ describe("AudioService", () => {
     });
     svc.preloadAll();
     const loads = backend.calls.filter((c) => c.op === "load");
-    expect(loads).toHaveLength(12);
+    // 21 entries = 19 SFX (2 canonical slap-hit/slap-miss + 6 slap-hit
+    // variants + 3 slap-miss variants + 8 other SFX) + 2 music.
+    expect(loads).toHaveLength(21);
   });
 
   it("preload delegates to the backend", () => {
@@ -157,12 +159,23 @@ describe("AudioService", () => {
       musicVolume: 0.5,
     });
     const stopCalls = backend.calls.filter((c) => c.op === "stop");
-    // every stop key should be an sfx key
+    // every stop key should be an sfx key. Allow any of the 19 SFX
+    // keys (canonical + slap-hit variants + slap-miss variants +
+    // other SFX).
     for (const c of stopCalls) {
       expect(c.key).toBeDefined();
       expect([
         "slap-hit",
         "slap-miss",
+        "slap-hit-1",
+        "slap-hit-2",
+        "slap-hit-3",
+        "slap-hit-4",
+        "slap-hit-5",
+        "slap-hit-6",
+        "slap-miss-1",
+        "slap-miss-2",
+        "slap-miss-3",
         "powerup-collect",
         "ring-out",
         "round-win",
@@ -173,7 +186,8 @@ describe("AudioService", () => {
         "menu-start",
       ]).toContain(c.key);
     }
-    expect(stopCalls).toHaveLength(10);
+    // 19 SFX keys (was 10 before slap-hit/slap-miss variants).
+    expect(stopCalls).toHaveLength(19);
     expect(backend.calls.some((c) => c.op === "stopAll")).toBe(false);
     expect(svc.isSfxMuted()).toBe(true);
     expect(svc.isMusicMuted()).toBe(false);
@@ -217,7 +231,9 @@ describe("AudioService", () => {
       musicVolume: 0.5,
     });
     const stopCalls = backend.calls.filter((c) => c.op === "stop");
-    expect(stopCalls).toHaveLength(12);
+    // 21 keys total = 19 SFX + 2 music (was 12 before slap-hit/slap-miss
+    // variants were added).
+    expect(stopCalls).toHaveLength(21);
     expect(backend.calls.some((c) => c.op === "stopAll")).toBe(false);
   });
 
@@ -316,7 +332,9 @@ describe("AudioService", () => {
     });
     svc.stopSfx();
     const stopCalls = backend.calls.filter((c) => c.op === "stop");
-    expect(stopCalls).toHaveLength(10);
+    // 19 SFX keys (was 10 before slap-hit/slap-miss variants were
+    // added).
+    expect(stopCalls).toHaveLength(19);
     for (const c of stopCalls) {
       expect(c.key).not.toBe("menu-theme");
       expect(c.key).not.toBe("battle-theme");

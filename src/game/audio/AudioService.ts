@@ -1,6 +1,8 @@
 import {
   getSoundDefinition,
   getSoundsByCategory,
+  SLAP_HIT_VARIANTS,
+  SLAP_MISS_VARIANTS,
   SOUND_MANIFEST,
   type SoundKey,
 } from "../assets/soundManifest";
@@ -178,11 +180,37 @@ export class AudioService {
 
   // ---------- High-level SFX API ----------
 
+  /**
+   * Play a random slap-hit variant. Picks one of 6 variants
+   * (slap-hit-1..6) per call so the player hears subtle variation
+   * instead of the exact same sound on every successful slap.
+   *
+   * Falls back to the canonical `slap-hit` key if no variants are
+   * loaded (e.g. older test stubs) — guarantees the call never throws
+   * even when the texture cache is partial.
+   */
   playSlapHit(): boolean {
+    const variants = SLAP_HIT_VARIANTS as readonly string[];
+    const pick = variants[Math.floor(Math.random() * variants.length)];
+    // Defensive: if the picked variant's texture isn't loaded, fall
+    // back to the canonical slap-hit key. Both branches go through
+    // the same play() path so volume / mute settings still apply.
+    if (this.backend.isLoaded(pick as SoundKey)) {
+      return this.play(pick as SoundKey);
+    }
     return this.play("slap-hit");
   }
 
+  /**
+   * Play a random slap-miss variant (3 variants: slap-miss-1..3).
+   * Same fallback strategy as playSlapHit().
+   */
   playSlapMiss(): boolean {
+    const variants = SLAP_MISS_VARIANTS as readonly string[];
+    const pick = variants[Math.floor(Math.random() * variants.length)];
+    if (this.backend.isLoaded(pick as SoundKey)) {
+      return this.play(pick as SoundKey);
+    }
     return this.play("slap-miss");
   }
 

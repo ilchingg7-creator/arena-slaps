@@ -1,0 +1,25 @@
+id;price;title_en;description_en;title_ru;description_ru
+hw_halo;19;Halo;A glowing halo floating above your fighter's head.;Нимб;Светящийся нимб над головой бойца.
+hw_crown;19;Crown;Golden crown — for true arena kings.;Корона;Золотая корона — для истинных королей арены.
+hw_horns;19;Horns;Demonic horns for intimidating slappers.;Рога;Демонические рога для устрашающих бойцов.
+hw_pirate;19;Pirate Bandana;Pirate bandana with eye patch — yarrr!;Пиратская бандана;Пиратская бандана с повязкой — аррр!
+hw_space;19;Space Helmet;Astronaut helmet for cosmic battles.;Космический шлем;Шлем космонавта для космических битв.
+hw_tophat;19;Top Hat;Elegant top hat for stylish slappers.;Цилиндр;Элегантный цилиндр для стильных бойцов.
+trail_fire;19;Fire Trail;Blazing fire trail behind your fighter.;Огненный след;Огненный след за вашим бойцом.
+trail_rainbow;19;Rainbow Trail;Multi-color rainbow trail — all colors of the spectrum.;Радужный след;Разноцветный радужный след — все цвета спектра.
+trail_galaxy;19;Galaxy Trail;Cosmic galaxy trail with purple-blue sparkles.;Галактический след;Космический след с фиолетово-синими искрами.
+trail_poison;19;Poison Trail;Toxic green poison trail.;Ядовитый след;Токсичный зелёный ядовитый след.
+slapfx_explosion;19;Explosion;Explosion effect on every successful slap.;Взрыв;Эффект взрыва при каждом успешном ударе.
+slapfx_confetti;19;Confetti;Festive confetti burst on every slap.;Конфетти;Праздничное конфетти при каждом ударе.
+slapfx_skull;19;Skull;Spooky skull appears on every slap.;Череп;Жуткий череп появляется при каждом ударе.
+slapfx_heart;19;Hearts;Cute hearts burst on every slap.;Сердца;Милые сердца при каждом ударе.
+outline_gold;19;Gold Outline;Luxurious gold outline around your fighter.;Золотая обводка;Роскошная золотая обводка вокруг бойца.
+outline_rainbow;19;Rainbow Outline;Multi-color rainbow outline — all colors shift over time.;Радужная обводка;Разноцветная радужная обводка — цвета меняются со временем.
+outline_neon_pink;19;Neon Pink Outline;Bright neon-pink outline for flashy fighters.;Неоново-розовая;Яркая неоново-розовая обводка для заметных бойцов.
+outline_neon_green;19;Neon Green Outline;Acid green neon outline.;Неоново-зелёная;Кислотно-зелёная неоновая обводка.
+pack_headwear;49;Headwear Pack;All 6 headwear items: halo, crown, horns, pirate bandana, space helmet, top hat.;Набор головных уборов;Все 6 головных уборов: нимб, корона, рога, пиратская бандана, космический шлем, цилиндр.
+pack_trails;39;Trails Pack;All 4 trails: fire, rainbow, galaxy, poison.;Набор следов;Все 4 следа: огненный, радужный, галактический, ядовитый.
+pack_slapfx;39;Slap FX Pack;All 4 slap effects: explosion, confetti, skull, hearts.;Набор эффектов удара;Все 4 эффекта удара: взрыв, конфетти, череп, сердца.
+pack_outlines;39;Outline Pack;All 4 outlines: gold, rainbow, neon pink, neon green.;Набор обводок;Все 4 обводки: золотая, радужная, неоново-розовая, неоново-зелёная.
+pack_titles;29;Titles Pack;All 3 premium titles: titan, legend+, patrician.;Набор титулов;Все 3 премиум-титула: титан, легенда+, патриций.
+bundle_all;149;Everything Bundle;All 21 cosmetics: 6 headwear + 4 trails + 4 slap FX + 4 outlines + 3 titles. Best value!;Всё включено;Все 21 косметических предмета: 6 головных уборов + 4 следа + 4 эффекта удара + 4 обводки + 3 титула. Лучшая цена!

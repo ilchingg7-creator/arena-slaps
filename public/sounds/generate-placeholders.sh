@@ -31,6 +31,22 @@ gen_music() {
 
 gen slap-hit         220 0.18 0.06
 gen slap-miss        140 0.10 0.04
+
+# 6 slap-hit variants — distinct frequencies (180..260 Hz) and slight
+# duration variation so each call to AudioService.playSlapHit() picks
+# a random one and the player hears subtle variation.
+gen slap-hit-1       200 0.18 0.06
+gen slap-hit-2       240 0.18 0.06
+gen slap-hit-3       180 0.20 0.06
+gen slap-hit-4       260 0.16 0.06
+gen slap-hit-5       220 0.22 0.06
+gen slap-hit-6       160 0.24 0.06
+
+# 3 slap-miss variants — lower frequencies (110..150 Hz).
+gen slap-miss-1      130 0.10 0.04
+gen slap-miss-2      110 0.12 0.04
+gen slap-miss-3      150 0.08 0.04
+
 gen powerup-collect  660 0.22 0.08
 gen ring-out         110 0.30 0.15
 gen round-win        880 0.45 0.20

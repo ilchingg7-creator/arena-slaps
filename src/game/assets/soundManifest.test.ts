@@ -8,9 +8,17 @@ import {
 } from "./soundManifest";
 
 describe("soundManifest", () => {
-  it("exposes 12 sound keys (10 SFX + 2 music)", () => {
-    expect(SOUND_KEYS).toHaveLength(12);
+  it("exposes 21 sound keys (19 SFX + 2 music)", () => {
+    // 19 SFX = 2 canonical (slap-hit / slap-miss) + 6 slap-hit
+    // variants + 3 slap-miss variants + 8 other SFX
+    // (powerup-collect / ring-out / round-win / round-lose /
+    // round-draw / countdown-tick / menu-click / menu-start).
+    expect(SOUND_KEYS).toHaveLength(21);
     expect(SOUND_KEYS).toContain("slap-hit");
+    expect(SOUND_KEYS).toContain("slap-hit-1");
+    expect(SOUND_KEYS).toContain("slap-hit-6");
+    expect(SOUND_KEYS).toContain("slap-miss-1");
+    expect(SOUND_KEYS).toContain("slap-miss-3");
     expect(SOUND_KEYS).toContain("menu-start");
     expect(SOUND_KEYS).toContain("menu-theme");
     expect(SOUND_KEYS).toContain("battle-theme");
@@ -72,9 +80,9 @@ describe("soundManifest", () => {
     ).toThrowError(/No sound definition/);
   });
 
-  it("getSoundsByCategory('sfx') returns the 10 SFX entries", () => {
+  it("getSoundsByCategory('sfx') returns the 19 SFX entries", () => {
     const sfx = getSoundsByCategory("sfx");
-    expect(sfx).toHaveLength(10);
+    expect(sfx).toHaveLength(19);
     for (const def of sfx) {
       expect(def.category).toBe("sfx");
     }
