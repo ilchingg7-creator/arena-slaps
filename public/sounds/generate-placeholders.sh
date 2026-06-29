@@ -52,6 +52,39 @@ gen ring-out         110 0.30 0.15
 gen round-win        880 0.45 0.20
 gen round-lose        90 0.45 0.20
 gen round-draw       330 0.30 0.12
+
+# Multi-note stings for round outcomes. These REPLACE the single-tone
+# versions above with short melodies so the player clearly hears a
+# "victory" / "defeat" / "neutral" cadence. Generated via ffmpeg
+# filtergraph concat (see code below).
+gen_round_win() {
+  ffmpeg -y \
+    -f lavfi -i "sine=frequency=523:duration=0.15" \
+    -f lavfi -i "sine=frequency=659:duration=0.15" \
+    -f lavfi -i "sine=frequency=784:duration=0.15" \
+    -f lavfi -i "sine=frequency=1047:duration=0.6" \
+    -filter_complex "[0:a][1:a][2:a][3:a]concat=n=4:v=0:a=1,afade=t=out:st=0.55:d=0.2[a]" \
+    -map "[a]" -c:a libvorbis -q:a 3 round-win.ogg 2>/dev/null
+}
+gen_round_lose() {
+  ffmpeg -y \
+    -f lavfi -i "sine=frequency=392:duration=0.15" \
+    -f lavfi -i "sine=frequency=330:duration=0.15" \
+    -f lavfi -i "sine=frequency=262:duration=0.15" \
+    -f lavfi -i "sine=frequency=196:duration=0.7" \
+    -filter_complex "[0:a][1:a][2:a][3:a]concat=n=4:v=0:a=1,afade=t=out:st=0.65:d=0.2[a]" \
+    -map "[a]" -c:a libvorbis -q:a 3 round-lose.ogg 2>/dev/null
+}
+gen_round_draw() {
+  ffmpeg -y \
+    -f lavfi -i "sine=frequency=440:duration=0.3" \
+    -f lavfi -i "sine=frequency=440:duration=0.3" \
+    -filter_complex "[0:a][1:a]concat=n=2:v=0:a=1,afade=t=out:st=0.4:d=0.2[a]" \
+    -map "[a]" -c:a libvorbis -q:a 3 round-draw.ogg 2>/dev/null
+}
+gen_round_win
+gen_round_lose
+gen_round_draw
 gen countdown-tick   740 0.08 0.03
 gen menu-click       520 0.06 0.02
 gen menu-start       990 0.20 0.08
