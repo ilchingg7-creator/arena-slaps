@@ -344,7 +344,7 @@ export class ShopScene extends Phaser.Scene {
           chip.setDepth(1);
           this.gridObjects.push(chip);
           const countText = this.add.text(x + cellW / 2, previewY, `${product.cosmetics.length} предметов`, {
-            color: "#ffffff", fontFamily: "Arial", fontSize: "13px", fontStyle: "bold",
+            color: "#ffffff", fontFamily: "Arial", fontSize: "11px", fontStyle: "bold",
             stroke: "#05070d", strokeThickness: 4,
             shadow: { offsetX: 0, offsetY: 0, color: "#ff4fd8", blur: 8, fill: false },
           }).setOrigin(0.5).setDepth(2);
@@ -372,7 +372,7 @@ export class ShopScene extends Phaser.Scene {
       if (isPurchased) {
         const pText = this.add
           .text(x + cellW / 2, y + 112, (this.i18n?.t("shop.purchased") ?? "✓"), {
-            color: "#b7ff3c", fontFamily: "Arial", fontSize: "13px", fontStyle: "bold",
+            color: "#b7ff3c", fontFamily: "Arial", fontSize: "11px", fontStyle: "bold",
             stroke: "#05070d", strokeThickness: 3,
           })
           .setOrigin(0.5)
@@ -397,7 +397,7 @@ export class ShopScene extends Phaser.Scene {
 
         const buyBtn = this.add
           .text(x + cellW / 2, y + 112, buyText, {
-            color: "#ffffff", fontFamily: "Arial", fontSize: "13px", fontStyle: "bold",
+            color: "#ffffff", fontFamily: "Arial", fontSize: "11px", fontStyle: "bold",
             shadow: { offsetX: 0, offsetY: 0, color: "#20f6ff", blur: 8, fill: false },
           })
           .setOrigin(0.5)
