@@ -172,6 +172,7 @@ export const TRANSLATIONS = {
 
   // --- Achievements ---
   "mainmenu.achievements": { ru: "Достижения", en: "Achievements" },
+  "mainmenu.musicCredit": { ru: "Музыка от t.me/M_Lux_Up", en: "Music by t.me/M_Lux_Up" },
   "achievements.title": { ru: "Достижения", en: "Achievements" },
   "achievements.back": { ru: "Назад", en: "Back" },
   "achievements.unlocked": { ru: "Открыто", en: "Unlocked" },

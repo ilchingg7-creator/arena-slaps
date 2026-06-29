@@ -172,9 +172,13 @@ export class MainMenuScene extends Phaser.Scene {
       onClick: goAudio,
     });
 
-    // --- Feedback email (Rule 6.1) ---
+    // --- Feedback email (Rule 6.1) + music credit ---
+    // Email on the left, music credit on the right — both at the same
+    // Y (height * 0.955). Both are clickable: email opens mailto:,
+    // music credit opens the Telegram channel in a new tab.
+    const footerY = height * 0.955;
     this.add
-      .text(width / 2, height * 0.955, FEEDBACK_EMAIL, {
+      .text(width * 0.30, footerY, FEEDBACK_EMAIL, {
         color: "#81b29a",
         fontFamily: "Arial",
         fontSize: "13px",
@@ -186,6 +190,22 @@ export class MainMenuScene extends Phaser.Scene {
       .on("pointerup", () => {
         if (typeof window !== "undefined") {
           window.open(`mailto:${FEEDBACK_EMAIL}`, "_blank");
+        }
+      });
+
+    this.add
+      .text(width * 0.70, footerY, i18n.t("mainmenu.musicCredit" as never), {
+        color: "#81b29a",
+        fontFamily: "Arial",
+        fontSize: "13px",
+        stroke: "#000000",
+        strokeThickness: 2,
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true })
+      .on("pointerup", () => {
+        if (typeof window !== "undefined") {
+          window.open("https://t.me/M_Lux_Up", "_blank");
         }
       });
 
