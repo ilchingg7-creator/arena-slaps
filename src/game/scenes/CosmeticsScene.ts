@@ -400,12 +400,18 @@ export class CosmeticsScene extends Phaser.Scene {
           .setOrigin(1, 0);
         this.gridObjects.push(lock);
       } else {
-        // Clickable — equip on click
+        // Clickable — equip on press (pointerdown, not pointerup).
+        // pointerup requires the pointer to be released on the exact
+        // same object; if the player moves the mouse even 1px between
+        // press and release, or if a preview icon rendered on top of
+        // the cell intercepts the release, the click is lost. This was
+        // the root cause of "items don't always equip on first click".
+        // pointerdown fires immediately on press — reliable.
         cell.setInteractive(
           new Phaser.Geom.Rectangle(-cellSize / 2, -cellSize / 2, cellSize, cellSize),
           Phaser.Geom.Rectangle.Contains,
         );
-        cell.on("pointerup", () => {
+        cell.on("pointerdown", () => {
           this.audio?.playMenuClick();
           this.equipCosmetic(def.id);
         });

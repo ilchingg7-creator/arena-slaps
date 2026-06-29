@@ -193,10 +193,15 @@ export class ShopScene extends Phaser.Scene {
     const width = this.scale.width;
     const height = this.scale.height;
 
-    const cellW = 140;
+    // 6 columns per row (was 5). Cell size shrunk from 140 to 115 so
+    // the grid width stays roughly the same (~760px) and the grid
+    // remains centered. Individual items (headwear/trail/slapFx/
+    // outline) fit 6-per-row; packs tab has only 6 entries total so
+    // they now all fit on a single row.
+    const cellW = 115;
     const cellH = 140;
     const gap = 14;
-    const cols = 5;
+    const cols = 6;
     const gridStartY = height * 0.20;
     const gridWidth = cols * (cellW + gap) - gap;
     const gridStartX = (width - gridWidth) / 2;
@@ -303,32 +308,32 @@ export class ShopScene extends Phaser.Scene {
           const spriteKey = (cosmeticDef.effect as { spriteKey: string }).spriteKey;
           if (spriteKey && this.textures.exists(spriteKey)) {
             const img = this.add.image(x + cellW / 2, previewY, spriteKey)
-              .setDisplaySize(44, 44).setOrigin(0.5).setDepth(1);
+              .setDisplaySize(36, 36).setOrigin(0.5).setDepth(1);
             this.gridObjects.push(img);
           }
         } else if (cosmeticDef.category === "outline" && !product.isPack) {
           const colorVal = (cosmeticDef.effect as { value: number }).value;
-          const rect = this.add.rectangle(x + cellW / 2, previewY, 40, 40, NEON_COLORS.bgPanelAlt)
+          const rect = this.add.rectangle(x + cellW / 2, previewY, 32, 32, NEON_COLORS.bgPanelAlt)
             .setStrokeStyle(4, colorVal).setOrigin(0.5).setDepth(1);
           this.gridObjects.push(rect);
         } else if (cosmeticDef.category === "trail" && !product.isPack) {
           const trailEff = cosmeticDef.effect as { textureKey: string; color: number };
           if (trailEff.textureKey && this.textures.exists(trailEff.textureKey)) {
             const img = this.add.image(x + cellW / 2, previewY, trailEff.textureKey)
-              .setDisplaySize(36, 36).setTint(trailEff.color).setOrigin(0.5).setDepth(1);
+              .setDisplaySize(30, 30).setTint(trailEff.color).setOrigin(0.5).setDepth(1);
             this.gridObjects.push(img);
           }
         } else if (cosmeticDef.category === "slapFx" && !product.isPack) {
           const fxKey = (cosmeticDef.effect as { textureKey: string }).textureKey;
           if (fxKey && this.textures.exists(fxKey)) {
             const img = this.add.image(x + cellW / 2, previewY, fxKey)
-              .setDisplaySize(44, 44).setOrigin(0.5).setDepth(1);
+              .setDisplaySize(36, 36).setOrigin(0.5).setDepth(1);
             this.gridObjects.push(img);
           }
         } else if (product.isPack) {
           // Pack: show count badge on a small neon chip.
-          const chipW = 100;
-          const chipH = 28;
+          const chipW = 86;
+          const chipH = 26;
           const chip = drawNeonPanel(
             this as unknown as Phaser.Scene,
             x + cellW / 2 - chipW / 2,
@@ -376,8 +381,8 @@ export class ShopScene extends Phaser.Scene {
       } else {
         const buyText = `${this.i18n?.t("shop.buy") ?? "Buy"} ${price}`;
         // Price button on a small neon chip.
-        const btnW = 110;
-        const btnH = 26;
+        const btnW = 96;
+        const btnH = 24;
         const btnX = x + cellW / 2 - btnW / 2;
         const btnY = y + 112 - btnH / 2;
         const btnPanel = drawNeonPanel(
