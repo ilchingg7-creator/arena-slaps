@@ -229,6 +229,15 @@ export const SPRITE_DEFINITIONS: readonly SpriteDefinition[] = [
     fallbackColor: 0x101820, // dark navy
   },
   {
+    key: "menu-bg-ru",
+    path: png("menu-bg-ru"),
+    category: "background",
+    width: 1280,
+    height: 720,
+    fallback: "rectangle",
+    fallbackColor: 0x101820,
+  },
+  {
     key: "arena-bg",
     path: png("arena-bg"),
     category: "background",
@@ -251,6 +260,13 @@ export const SPRITE_DEFINITIONS: readonly SpriteDefinition[] = [
   {
     key: "logo",
     path: png("logo"),
+    category: "ui",
+    fallback: "rectangle",
+    fallbackColor: 0x9b5de5,
+  },
+  {
+    key: "logo-ru",
+    path: png("logo-ru"),
     category: "ui",
     fallback: "rectangle",
     fallbackColor: 0x9b5de5,

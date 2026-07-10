@@ -11,6 +11,7 @@ import { createVolumeSlider } from "../ui/VolumeSlider";
 import { createStyledButton, type StyledButton } from "../ui/StyledButton";
 import { createBackground } from "../ui/Background";
 import { I18nService } from "../i18n/I18nService";
+import { localizedAssetKey } from "../i18n/localizedAssets";
 
 type TextStyle = {
   align?: string;
@@ -91,7 +92,9 @@ export class AudioSettingsScene extends Phaser.Scene {
     });
 
     // --- Background ---
-    createBackground(this as unknown as Phaser.Scene, { key: "menu-bg" });
+    createBackground(this as unknown as Phaser.Scene, {
+      key: localizedAssetKey("menu-bg", i18n.getLanguage()),
+    });
 
     // --- Title ---
     this.add

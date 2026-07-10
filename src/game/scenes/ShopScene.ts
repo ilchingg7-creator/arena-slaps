@@ -343,7 +343,7 @@ export class ShopScene extends Phaser.Scene {
           ) as unknown as Phaser.GameObjects.Graphics;
           chip.setDepth(1);
           this.gridObjects.push(chip);
-          const countText = this.add.text(x + cellW / 2, previewY, `${product.cosmetics.length} предметов`, {
+          const countText = this.add.text(x + cellW / 2, previewY, `${product.cosmetics.length} ${this.i18n.t("shop.items")}`, {
             color: "#ffffff", fontFamily: "Arial", fontSize: "11px", fontStyle: "bold",
             stroke: "#05070d", strokeThickness: 4,
             shadow: { offsetX: 0, offsetY: 0, color: "#ff4fd8", blur: 8, fill: false },

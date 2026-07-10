@@ -14,6 +14,7 @@
  */
 
 export type NicknamePair = { player: string; opponent: string };
+export type NicknameFallbacks = { bot: string; player2: string };
 
 /**
  * Resolve the (player, opponent) nickname pair for the HUD + floating
@@ -31,15 +32,16 @@ export function resolveNicknames(
   playerNickname: string,
   botNickname?: string,
   player2Nickname?: string,
+  fallbacks: NicknameFallbacks = { bot: "Bot", player2: "Player 2" },
 ): NicknamePair {
   if (mode === "2p-local") {
     return {
       player: playerNickname,
-      opponent: player2Nickname ?? "Player 2",
+      opponent: player2Nickname ?? fallbacks.player2,
     };
   }
   return {
     player: playerNickname,
-    opponent: botNickname ?? "Bot",
+    opponent: botNickname ?? fallbacks.bot,
   };
 }

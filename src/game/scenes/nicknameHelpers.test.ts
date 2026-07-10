@@ -3,6 +3,17 @@ import { describe, expect, it } from "vitest";
 import { resolveNicknames } from "./nicknameHelpers";
 
 describe("resolveNicknames", () => {
+  it("uses localized fallback labels when generated nicknames are missing", () => {
+    expect(resolveNicknames("1p-vs-bot", "Игрок", undefined, undefined, {
+      bot: "Бот",
+      player2: "Игрок 2",
+    })).toEqual({ player: "Игрок", opponent: "Бот" });
+
+    expect(resolveNicknames("2p-local", "Игрок", undefined, undefined, {
+      bot: "Бот",
+      player2: "Игрок 2",
+    })).toEqual({ player: "Игрок", opponent: "Игрок 2" });
+  });
   it("1P mode: returns { player, opponent: botNickname }", () => {
     const result = resolveNicknames(
       "1p-vs-bot",

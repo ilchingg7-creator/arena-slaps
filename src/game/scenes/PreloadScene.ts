@@ -64,7 +64,9 @@ export class PreloadScene extends Phaser.Scene {
         console.warn(
           `[PreloadScene] loader did not complete within ${LOADER_TIMEOUT_MS}ms — forcing transition to MainMenuScene`,
         );
-        loadingText.setText(`${i18n.t("preload.loading")} (timeout — continuing)`);
+        loadingText.setText(
+          `${i18n.t("preload.loading")} (${i18n.t("preload.timeoutContinuing")})`,
+        );
         // Bug 1 fix: even on timeout, signal the game is "ready" so
         // YandexSDK.ready() (= LoadingAPI.ready()) fires. Without this the
         // Yandex loader would hang indefinitely waiting for the ready

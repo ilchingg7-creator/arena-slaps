@@ -18,6 +18,7 @@ import {
 } from "../config/gameSettings";
 import { validateNickname } from "../config/nicknames";
 import { I18nService } from "../i18n/I18nService";
+import { localizedAssetKey } from "../i18n/localizedAssets";
 import type { TranslationKey } from "../config/translations";
 
 /**
@@ -108,7 +109,9 @@ export class ProfileScene extends Phaser.Scene {
     );
 
     // --- Background ---
-    createBackground(this as unknown as Phaser.Scene, { key: "menu-bg" });
+    createBackground(this as unknown as Phaser.Scene, {
+      key: localizedAssetKey("menu-bg", i18n.getLanguage()),
+    });
 
     // --- Title ---
     this.add
@@ -312,6 +315,13 @@ export class ProfileScene extends Phaser.Scene {
     input.style.boxSizing = "border-box";
     box.appendChild(input);
 
+    const errorText = document.createElement("div");
+    errorText.style.color = "#e07a5f";
+    errorText.style.fontSize = "14px";
+    errorText.style.minHeight = "18px";
+    errorText.style.maxWidth = "320px";
+    box.appendChild(errorText);
+
     // Button row
     const buttonRow = document.createElement("div");
     buttonRow.style.display = "flex";
@@ -319,7 +329,7 @@ export class ProfileScene extends Phaser.Scene {
     buttonRow.style.justifyContent = "center";
 
     const saveButton = document.createElement("button");
-    saveButton.textContent = "Save";
+    saveButton.textContent = i18n.t("common.save");
     saveButton.style.padding = "10px 24px";
     saveButton.style.fontSize = "16px";
     saveButton.style.borderRadius = "6px";
@@ -330,7 +340,7 @@ export class ProfileScene extends Phaser.Scene {
     saveButton.style.fontWeight = "bold";
 
     const cancelButton = document.createElement("button");
-    cancelButton.textContent = "Cancel";
+    cancelButton.textContent = i18n.t("common.cancel");
     cancelButton.style.padding = "10px 24px";
     cancelButton.style.fontSize = "16px";
     cancelButton.style.borderRadius = "6px";
@@ -358,11 +368,13 @@ export class ProfileScene extends Phaser.Scene {
     const save = () => {
       const newName = input.value.trim();
       if (newName.length === 0 || newName.length > 20) {
+        errorText.textContent = i18n.t("profile.nicknameInvalidLength");
         return;
       }
       if (!validateNickname(newName)) {
         input.style.borderColor = "#e07a5f";
         input.style.boxShadow = "0 0 8px rgba(224, 122, 95, 0.5)";
+        errorText.textContent = i18n.t("profile.nicknameBanned");
         return;
       }
       const updated = { ...profile, nickname: newName };
@@ -374,6 +386,11 @@ export class ProfileScene extends Phaser.Scene {
 
     saveButton.addEventListener("click", save);
     cancelButton.addEventListener("click", close);
+    input.addEventListener("input", () => {
+      errorText.textContent = "";
+      input.style.borderColor = "#3d405b";
+      input.style.boxShadow = "none";
+    });
 
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {

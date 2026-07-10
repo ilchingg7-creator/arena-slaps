@@ -10,6 +10,7 @@ import { createTopRightMuteButton } from "../ui/TopRightMuteButton";
 import { createStyledButton } from "../ui/StyledButton";
 import { createBackground } from "../ui/Background";
 import { I18nService } from "../i18n/I18nService";
+import { localizedAssetKey } from "../i18n/localizedAssets";
 import { createLanguageToggle } from "../ui/LanguageToggle";
 import { loadProfile, saveProfile } from "../config/profile";
 import { LEVELS } from "../config/progression";
@@ -78,11 +79,13 @@ export class MainMenuScene extends Phaser.Scene {
     );
 
     // --- Background (menu-bg.png with dark navy fallback) ---
-    createBackground(this as unknown as Phaser.Scene, { key: "menu-bg" });
+    const menuBackgroundKey = localizedAssetKey("menu-bg", i18n.getLanguage());
+    const logoKey = localizedAssetKey("logo", i18n.getLanguage());
+    createBackground(this as unknown as Phaser.Scene, { key: menuBackgroundKey });
 
     // --- Logo (image instead of text — can be used as a brand logo) ---
-    if (this.textures.exists("logo")) {
-      this.add.image(width / 2, height * 0.22, "logo").setOrigin(0.5).setScale(0.35);
+    if (this.textures.exists(logoKey)) {
+      this.add.image(width / 2, height * 0.22, logoKey).setOrigin(0.5).setScale(0.35);
     } else {
       // Fallback: text with glow shadow for readability
       this.add

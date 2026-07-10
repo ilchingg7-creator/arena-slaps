@@ -622,11 +622,11 @@ export const FALLBACK_NICKNAME = "Player";
  * @returns a random nickname not in the exclude list, or
  *          {@link FALLBACK_NICKNAME} if all names are excluded
  */
-export function getRandomNickname(exclude?: string[]): string {
+export function getRandomNickname(exclude?: string[], fallback = FALLBACK_NICKNAME): string {
   const excludeSet = new Set(exclude ?? []);
   const available = NICKNAMES.filter((n) => !excludeSet.has(n));
   if (available.length === 0) {
-    return FALLBACK_NICKNAME;
+    return fallback;
   }
   return available[Math.floor(Math.random() * available.length)];
 }

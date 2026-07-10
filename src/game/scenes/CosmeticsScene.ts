@@ -3,6 +3,7 @@ import { loadProfile, saveProfile, type Profile, type EquippedCosmetics } from "
 import { createBackground } from "../ui/Background";
 import { createStyledButton } from "../ui/StyledButton";
 import { I18nService } from "../i18n/I18nService";
+import { localizedAssetKey } from "../i18n/localizedAssets";
 import { getAudioService } from "../audio/getAudioService";
 import { loadSettings } from "../config/gameSettings";
 import {
@@ -105,7 +106,9 @@ export class CosmeticsScene extends Phaser.Scene {
     }
 
     // --- Background ---
-    createBackground(this as unknown as Phaser.Scene, { key: "menu-bg" });
+    createBackground(this as unknown as Phaser.Scene, {
+      key: localizedAssetKey("menu-bg", this.i18n.getLanguage()),
+    });
 
     // --- Title ---
     this.add

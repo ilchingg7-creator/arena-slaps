@@ -26,6 +26,7 @@ import { createBackground } from "../ui/Background";
 import { getRandomNickname } from "../config/nicknames";
 import { loadProfile } from "../config/profile";
 import { I18nService } from "../i18n/I18nService";
+import { localizedAssetKey } from "../i18n/localizedAssets";
 import type { TranslationKey } from "../config/translations";
 
 type TextStyle = {
@@ -128,7 +129,9 @@ export class BattleSetupScene extends Phaser.Scene {
     });
 
     // --- Background ---
-    createBackground(this as unknown as Phaser.Scene, { key: "menu-bg" });
+    createBackground(this as unknown as Phaser.Scene, {
+      key: localizedAssetKey("menu-bg", i18n.getLanguage()),
+    });
 
     // --- Title ---
     this.add
@@ -214,7 +217,7 @@ export class BattleSetupScene extends Phaser.Scene {
     const roundButton = createStyledButton(this as unknown as Parameters<typeof createStyledButton>[0], {
       x: valueX,
       y: rowStartY + rowStep * 2,
-      text: `${settings.roundLengthSeconds}s`,
+      text: `${settings.roundLengthSeconds}${i18n.t("common.secondsShort")}`,
       ...valueButtonConfig,
       onClick: () => {
         clickPlay();
@@ -223,7 +226,7 @@ export class BattleSetupScene extends Phaser.Scene {
           settings.roundLengthSeconds,
         );
         settings = { ...settings, roundLengthSeconds: next };
-        roundButton.setText(`${next}s`);
+        roundButton.setText(`${next}${i18n.t("common.secondsShort")}`);
         persist();
       },
     });
@@ -342,14 +345,14 @@ export class BattleSetupScene extends Phaser.Scene {
       const profile = loadProfile(storage);
       const playerNickname = profile.nickname;
       if (settings.mode === "1p-vs-bot") {
-        const botNickname = getRandomNickname([playerNickname]);
+        const botNickname = getRandomNickname([playerNickname], i18n.t("battle.bot"));
         this.scene.start("BattleScene", {
           settings,
           playerNickname,
           botNickname,
         });
       } else {
-        const player2Nickname = getRandomNickname([playerNickname]);
+        const player2Nickname = getRandomNickname([playerNickname], i18n.t("cosmetics.player2"));
         this.scene.start("BattleScene", {
           settings,
           playerNickname,
@@ -405,7 +408,7 @@ export class BattleSetupScene extends Phaser.Scene {
       if (queuedStart) startBattle();
     }).catch((err) => {
       console.error("[BattleSetupScene] Failed to load battle scenes:", err);
-      startButton.setText("Load failed — retry");
+      startButton.setText(i18n.t("battlesetup.loadFailed"));
       queuedStart = false;
     });
 

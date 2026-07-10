@@ -56,7 +56,10 @@ describe("nicknames", () => {
     });
   });
 
-  describe("getRandomNickname", () => {
+describe("getRandomNickname", () => {
+  it("uses a localized fallback when every nickname is excluded", () => {
+    expect(getRandomNickname([...NICKNAMES], "Игрок")).toBe("Игрок");
+  });
     it("returns a string from the list", () => {
       for (let i = 0; i < 50; i++) {
         const name = getRandomNickname();

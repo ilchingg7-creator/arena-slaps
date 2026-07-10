@@ -15,7 +15,7 @@ export const DEFAULT_LANGUAGE: Language = "ru";
  */
 export const TRANSLATIONS = {
   // --- MainMenu ---
-  "mainmenu.title": { ru: "Arena Slaps", en: "Arena Slaps" },
+  "mainmenu.title": { ru: "Арена шлепков", en: "Arena Slaps" },
   "mainmenu.tagline": { ru: "Заходи, шлёпай, повторяй.", en: "Load-in, slap in, repeat." },
   "mainmenu.start": { ru: "Начать", en: "Start" },
   "mainmenu.profile": { ru: "Профиль", en: "Profile" },
@@ -69,6 +69,12 @@ export const TRANSLATIONS = {
   "battlesetup.startBattle": { ru: "Начать бой", en: "Start Battle" },
   "battlesetup.back": { ru: "Назад", en: "Back" },
   "battlesetup.loading": { ru: "Загрузка...", en: "Loading..." },
+  "battlesetup.loadFailed": { ru: "Ошибка загрузки — повторить", en: "Load failed — retry" },
+
+  // --- Common UI ---
+  "common.save": { ru: "Сохранить", en: "Save" },
+  "common.cancel": { ru: "Отмена", en: "Cancel" },
+  "common.secondsShort": { ru: "с", en: "s" },
 
   // --- AudioSettings ---
   "audio.title": { ru: "Настройки звука", en: "Audio Settings" },
@@ -99,6 +105,7 @@ export const TRANSLATIONS = {
   "profile.changeNicknamePrompt": { ru: "Введите новый никнейм:", en: "Enter new nickname:" },
   "profile.resetConfirm": { ru: "Сбросить всю статистику? Это действие нельзя отменить.", en: "Reset all statistics? This cannot be undone." },
   "profile.nicknameBanned": { ru: "Этот никнейм содержит запрещённые слова. Выберите другой.", en: "This nickname contains banned words. Please choose another." },
+  "profile.nicknameInvalidLength": { ru: "Введите никнейм длиной от 1 до 20 символов.", en: "Enter a nickname between 1 and 20 characters." },
 
   // --- Power-up display labels (used by ProfileScene favorite power-up row) ---
   "powerup.speed": { ru: "Ускорение", en: "Boost" },
@@ -110,6 +117,7 @@ export const TRANSLATIONS = {
 
   // --- Battle HUD ---
   "battle.time": { ru: "Время", en: "Time" },
+  "battle.combo": { ru: "Комбо", en: "Combo" },
   "battle.controls.1p": { ru: "Движение: WASD / Стрелки   |   Шлёпок: Пробел или клик   |   Пауза: Esc", en: "Move: WASD / Arrows   |   Slap: Space or click   |   Pause: Esc" },
   "battle.controls.2p": { ru: "И1: WASD + Пробел   |   И2: Стрелки + Enter   |   Пауза: Esc", en: "P1: WASD + Space   |   P2: Arrows + Enter   |   Pause: Esc" },
   "battle.draw": { ru: "Ничья", en: "Draw" },
@@ -148,6 +156,7 @@ export const TRANSLATIONS = {
 
   // --- Preload ---
   "preload.loading": { ru: "Загрузка...", en: "Loading..." },
+  "preload.timeoutContinuing": { ru: "время ожидания истекло — продолжаем", en: "timeout — continuing" },
 
   // --- TopRightMuteButton ---
   "mute.sound": { ru: "🔊 Звук", en: "🔊 Sound" },
@@ -313,6 +322,7 @@ export const TRANSLATIONS = {
   "shop.individual": { ru: "Отдельные предметы", en: "Individual Items" },
   "shop.packs": { ru: "Наборы со скидкой", en: "Discount Packs" },
   "shop.devMode": { ru: "Товары недоступны (локальный режим)", en: "Items unavailable (local mode)" },
+  "shop.items": { ru: "предметов", en: "items" },
 
   // --- Pack titles ---
   "shop.pack_headwear.title": { ru: "Набор головных уборов", en: "Headwear Pack" },

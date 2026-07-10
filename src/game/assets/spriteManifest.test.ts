@@ -98,12 +98,12 @@ describe("spriteManifest", () => {
     expect(keys).toContain("powerup-shield");
   });
 
-  it("has 50 total sprite definitions (was 40 + 10 cosmetic sprites)", () => {
+  it("has 66 total sprite definitions including localized assets", () => {
     // Breakdown:
     //   - 40 existing + 10 cosmetic sprites: 6 headwear (cap, crown,
     //     horns, halo, helmet, party-hat) + 2 trail particles (dust,
     //     sparkle) + 2 slap FX (star, lightning)
-    expect(SPRITE_DEFINITIONS).toHaveLength(64);
+    expect(SPRITE_DEFINITIONS).toHaveLength(66);
   });
 
   it("ships the 12 new character state keys (player + bot × run-n/s/e/w + slap + fall)", () => {
@@ -179,11 +179,18 @@ describe("spriteManifest", () => {
     expect(effects).toHaveLength(18);
   });
 
-  it("ships the 3 background keys (menu-bg, arena-bg, arena-platform)", () => {
+  it("ships both localized menu backgrounds", () => {
     const keys = SPRITE_DEFINITIONS.map((d) => d.key);
     expect(keys).toContain("menu-bg");
+    expect(keys).toContain("menu-bg-ru");
     expect(keys).toContain("arena-bg");
     expect(keys).toContain("arena-platform");
+  });
+
+  it("ships both localized logos", () => {
+    const keys = SPRITE_DEFINITIONS.map((d) => d.key);
+    expect(keys).toContain("logo");
+    expect(keys).toContain("logo-ru");
   });
 
   it("every new background key has category 'background', defined width+height, and path /sprites/<key>.png", () => {

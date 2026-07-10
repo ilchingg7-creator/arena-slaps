@@ -379,7 +379,7 @@ function updateHud(runtime: BattleRuntime): void {
   // in applySlap) or when 3000ms pass without a successful slap (reset by
   // getComboMultiplier, which is called every frame in update()).
   if (runtime.player.comboStacks > 0) {
-    runtime.comboText.setText(`Combo: x${runtime.player.comboStacks}`);
+    runtime.comboText.setText(`${runtime.i18n.t("battle.combo")}: x${runtime.player.comboStacks}`);
     runtime.comboText.setVisible(true);
     // Track the peak for the `combo_5` achievement — taking the max each
     // frame preserves brief spikes (e.g. a 5-stack that times out before
@@ -603,6 +603,8 @@ export class BattleScene extends Phaser.Scene {
       ...DEFAULT_SETTINGS,
       ...(data?.settings ?? {}),
     };
+    const storage = typeof window !== "undefined" ? window.localStorage : null;
+    const i18n = I18nService.load(storage);
     this.registry.set("settings", settings);
     // --- Nicknames (Task 3b) ---
     // Resolve (player, opponent) pair via the pure helper so the rules can
@@ -611,9 +613,10 @@ export class BattleScene extends Phaser.Scene {
     // doesn't have to hit the registry every frame.
     const nicknames = resolveNicknames(
       settings.mode,
-      data?.playerNickname ?? "Player",
+      data?.playerNickname ?? i18n.t("battle.player"),
       data?.botNickname,
       data?.player2Nickname,
+      { bot: i18n.t("battle.bot"), player2: i18n.t("cosmetics.player2") },
     );
     this.registry.set("nicknames", nicknames);
   }
@@ -630,17 +633,23 @@ export class BattleScene extends Phaser.Scene {
 
     const settings: GameSettings =
       this.registry.get("settings") ?? DEFAULT_SETTINGS;
+    const storage = typeof window !== "undefined" ? window.localStorage : null;
+    const i18n = I18nService.load(storage);
     // Nicknames were resolved in `init` and stashed in the registry. The
     // runtime copies them so `updateHud` doesn't have to read the registry
     // every frame.
     const nicknames: NicknamePair =
       this.registry.get("nicknames") ??
-      resolveNicknames(settings.mode, "Player");
+      resolveNicknames(
+        settings.mode,
+        i18n.t("battle.player"),
+        undefined,
+        undefined,
+        { bot: i18n.t("battle.bot"), player2: i18n.t("cosmetics.player2") },
+      );
 
     const width = this.scale.width || 1280;
     const height = this.scale.height || 720;
-    const storage = typeof window !== "undefined" ? window.localStorage : null;
-    const i18n = I18nService.load(storage);
     const arenaDims = computeArenaDimensions({ width, height });
     const arena = new Phaser.Geom.Rectangle(
       arenaDims.offsetX,
