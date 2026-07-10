@@ -177,20 +177,20 @@ describe("TopRightMuteButton", () => {
     expect(drawNeonPanelMock).toHaveBeenCalledTimes(1);
     expect(drawNeonPanelMock).toHaveBeenCalledWith(scene, 1106, 12, 148, 42);
     expect(scene.texts[0].x).toBe(1260); // width - margin(20)
-    expect(scene.texts[0].y).toBe(20);
+    expect(scene.texts[0].y).toBe(16);
     expect(scene.texts[0].origin).toEqual({ x: 1, y: 0 });
   });
 
-  it("applies an optional vertical offset only to the text label", () => {
+  it("allows the default vertical offset to be overridden", () => {
     const scene = makeScene(1280);
     createTopRightMuteButton(
       scene,
       { sfxMuted: true, musicMuted: true },
       () => {},
-      { textOffsetY: -4 },
+      { textOffsetY: 0 },
     );
 
-    expect(scene.texts[0].y).toBe(16);
+    expect(scene.texts[0].y).toBe(20);
     expect(drawNeonPanelMock).toHaveBeenCalledWith(scene, 1106, 12, 148, 42);
   });
 

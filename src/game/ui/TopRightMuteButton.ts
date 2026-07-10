@@ -106,7 +106,7 @@ export function createTopRightMuteButton(
   const margin = 20;
   const soundLabel = options?.soundLabel ?? DEFAULT_SOUND_LABEL;
   const mutedLabel = options?.mutedLabel ?? DEFAULT_MUTED_LABEL;
-  const textOffsetY = options?.textOffsetY ?? 0;
+  const textOffsetY = options?.textOffsetY ?? -4;
 
   let state: MuteButtonState = { ...initialState };
   drawNeonPanel(

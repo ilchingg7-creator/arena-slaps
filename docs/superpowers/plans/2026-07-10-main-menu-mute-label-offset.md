@@ -2,17 +2,17 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Поднять текст кнопки звука в главном меню на 4 px без изменения рамки, зоны клика и других сцен.
+**Goal:** Поднять текст общей кнопки звука во всех меню на 4 px без изменения рамки и зоны клика.
 
-**Architecture:** Добавить необязательный параметр `textOffsetY` в настройки `createTopRightMuteButton`. Компонент применяет его только к координате текстовой подписи; `MainMenuScene` передаёт `-4`, остальные вызовы используют значение `0` по умолчанию.
+**Architecture:** `createTopRightMuteButton` использует `textOffsetY = -4` по умолчанию и применяет его только к координате текстовой подписи. Все сцены получают одинаковое смещение через общий компонент; явный параметр остаётся доступен для переопределения.
 
 **Tech Stack:** TypeScript, Phaser 3, Vitest.
 
 ## Global Constraints
 
-- Смещение текста в `MainMenuScene`: ровно `-4` px.
+- Смещение текста во всех сценах: ровно `-4` px.
 - Рамка и область клика остаются на прежнем месте.
-- Другие сцены сохраняют прежнюю координату текста.
+- Все сцены используют общую координату текста `y = 16` при стандартном отступе `20`.
 - Смещение одинаково для RU/EN и состояний «Звук»/«Заглушено».
 
 ---
@@ -35,17 +35,14 @@
 ```ts
 it("applies an optional vertical offset only to the text label", () => {
   const scene = makeScene(1280);
-  createTopRightMuteButton(
-    scene,
-    { sfxMuted: true, musicMuted: true },
-    () => {},
-    { textOffsetY: -4 },
-  );
+  createTopRightMuteButton(scene, { sfxMuted: true, musicMuted: true }, () => {});
 
   expect(scene.texts[0].y).toBe(16);
   expect(drawNeonPanelMock).toHaveBeenCalledWith(scene, 1106, 12, 148, 42);
 });
 ```
+
+В существующем тесте положения заменить ожидание стандартной координаты с `20` на `16`. Добавить отдельную проверку `{ textOffsetY: 0 }`, которая ожидает `y = 20`, чтобы подтвердить возможность явного переопределения.
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -64,7 +61,7 @@ textOffsetY?: number;
 Получить значение по умолчанию и применить только к тексту:
 
 ```ts
-const textOffsetY = options?.textOffsetY ?? 0;
+const textOffsetY = options?.textOffsetY ?? -4;
 
 const button = scene.add.text(
   width - margin,
@@ -74,13 +71,12 @@ const button = scene.add.text(
 );
 ```
 
-В `MainMenuScene.ts` передать настройку вместе с локализованными подписями:
+В `MainMenuScene.ts` удалить частную настройку, оставив локализованные подписи:
 
 ```ts
 {
   soundLabel: i18n.t("mute.sound"),
   mutedLabel: i18n.t("mute.muted"),
-  textOffsetY: -4,
 }
 ```
 
