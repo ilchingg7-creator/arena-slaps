@@ -25,6 +25,7 @@ export const gameConfig = {
   width: 1280,
   height: 720,
   backgroundColor: "#101820",
+  disableContextMenu: true,
   scale: {
     mode: Phaser.Scale.RESIZE,
     autoCenter: Phaser.Scale.CENTER_BOTH,

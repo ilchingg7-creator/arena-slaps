@@ -57,6 +57,10 @@ describe("gameConfig", () => {
     expect(gameConfig.scale.autoCenter).toBe(Phaser.Scale.CENTER_BOTH);
   });
 
+  it("disables the browser context menu on the game canvas", () => {
+    expect(gameConfig.disableContextMenu).toBe(true);
+  });
+
   it("uses Canvas to avoid unstable WebGL framebuffers in Yandex Browser", () => {
     createGame({} as HTMLElement);
 
