@@ -208,7 +208,7 @@ class YandexSDKImpl {
    * Show a fullscreen interstitial ad. Frequency-capped to 1 per 2 min.
    * No-op if SDK unavailable (calls onClose immediately in dev mode).
    */
-  showFullscreenAd(onClose?: () => void): void {
+  showFullscreenAd(onClose?: () => void, onOpen?: () => void): void {
     if (!this.sdk?.adv?.showFullscreenAdv) {
       // Dev mode — no ad, transition immediately
       onClose?.();
@@ -226,6 +226,7 @@ class YandexSDKImpl {
     this.lastInterstitialAt = now;
     this.sdk.adv.showFullscreenAdv({
       callbacks: {
+        onOpen: () => onOpen?.(),
         onClose: () => onClose?.(),
         onError: () => onClose?.(),
       },
@@ -233,7 +234,7 @@ class YandexSDKImpl {
   }
 
   /** Show a rewarded video ad. No-op if SDK unavailable. */
-  showRewardedAd(onRewarded: () => void, onClose?: () => void): void {
+  showRewardedAd(onRewarded: () => void, onClose?: () => void, onOpen?: () => void): void {
     if (!this.sdk?.adv?.showRewardedVideo) {
       // In dev mode, grant the reward immediately for testing
       onRewarded();
@@ -243,6 +244,7 @@ class YandexSDKImpl {
     let rewarded = false;
     this.sdk.adv.showRewardedVideo({
       callbacks: {
+        onOpen: () => onOpen?.(),
         onRewarded: () => {
           rewarded = true;
           onRewarded();

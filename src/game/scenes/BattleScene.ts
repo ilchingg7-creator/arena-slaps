@@ -1341,20 +1341,14 @@ export class BattleScene extends Phaser.Scene {
         // Stop battle music before leaving the battle scene.
         runtime.audio.stopMusic();
 
-        // Show interstitial ad before ResultsScene (Rule 4.4: ads at
-        // logical pauses). Frequency-capped: no more than 1 ad per 2 min.
-        // In local dev (no SDK), transitions immediately.
-        //
-        // Delay the ad by 1.2s so the round-win / round-lose / round-draw
+        // Delay the results screen by 1.2s so the round-win / round-lose / round-draw
         // sting has time to play. The stings are 0.6-1.15s long; without
         // this delay Yandex's ad overlay cuts them off mid-play and the
         // player hears nothing. The delay is invisible to the player —
         // the round-end banner already shows during this window.
         const STING_DELAY_MS = 1200;
         setTimeout(() => {
-          YandexSDK.showFullscreenAd(() => {
-            this.scene.start("ResultsScene");
-          });
+          this.scene.start("ResultsScene");
         }, STING_DELAY_MS);
       }
 

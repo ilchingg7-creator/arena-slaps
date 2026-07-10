@@ -220,16 +220,31 @@ export class ResultsScene extends Phaser.Scene {
               },
               () => {
                 // onClose — ad closed without reward
+                if (!settings.musicMuted) audio.playMenuTheme();
               },
+              () => audio.stopAll(),
             );
           },
         },
       );
     }
 
-    // --- Back to menu ---
-    const goMenu = () => {
-      this.scene.start("MainMenuScene");
+    let navigationPending = false;
+    const navigateAfterAd = (navigate: () => void) => {
+      if (navigationPending) return;
+      navigationPending = true;
+      audio.playMenuClick();
+      YandexSDK.showFullscreenAd(navigate, () => audio.stopAll());
+    };
+    const goMenu = () => navigateAfterAd(() => this.scene.start("MainMenuScene"));
+    const replay = () => {
+      const replaySettings = this.registry.get("settings");
+      const nicknames = this.registry.get("nicknames") as { player?: string; opponent?: string } | undefined;
+      navigateAfterAd(() => this.scene.start("BattleScene", {
+        settings: replaySettings,
+        playerNickname: nicknames?.player,
+        botNickname: nicknames?.opponent,
+      }));
     };
 
     const backButtonY = showRewardedButton
@@ -240,6 +255,16 @@ export class ResultsScene extends Phaser.Scene {
       {
         x: width / 2,
         y: backButtonY,
+        text: i18n.t("results.replay"),
+        variant: "success",
+        onClick: replay,
+      },
+    );
+    createStyledButton(
+      this as unknown as Parameters<typeof createStyledButton>[0],
+      {
+        x: width / 2,
+        y: backButtonY + 62,
         text: i18n.t("results.back"),
         variant: "primary",
         onClick: goMenu,
