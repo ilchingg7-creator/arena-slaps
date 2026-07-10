@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
+const { gameConfigs } = vi.hoisted(() => ({ gameConfigs: [] as unknown[] }));
+
 // Phaser pulls in `window` at import time, which doesn't exist under the
 // node test environment. gameConfig.ts imports Phaser to access the
 // `Phaser.Scale` enum, so we stub the module with just those constants.
@@ -8,6 +10,12 @@ import { describe, expect, it, vi } from "vitest";
 // We also stub a minimal `Scene` class because the scene files now use
 // `class FooScene extends Phaser.Scene` (converted from plain objects).
 vi.mock("phaser", () => {
+  class Game {
+    constructor(config: unknown) {
+      gameConfigs.push(config);
+    }
+  }
+
   class Scene {
     name: string;
     constructor(key: string) {
@@ -27,10 +35,11 @@ vi.mock("phaser", () => {
     CENTER_VERTICALLY: 4,
     CENTER_BOTH: 1,
   };
-  return { default: { Scale, Scene }, Scale, Scene };
+  return { default: { CANVAS: 1, Game, Scale, Scene }, CANVAS: 1, Game, Scale, Scene };
 });
 
 import Phaser from "phaser";
+import { createGame } from "./createGame";
 import { gameConfig } from "./gameConfig";
 
 describe("gameConfig", () => {
@@ -46,5 +55,12 @@ describe("gameConfig", () => {
     // the actual semantic and survives Phaser renumbering the enum.
     expect(gameConfig.scale.mode).toBe(Phaser.Scale.RESIZE);
     expect(gameConfig.scale.autoCenter).toBe(Phaser.Scale.CENTER_BOTH);
+  });
+
+  it("uses Canvas to avoid unstable WebGL framebuffers in Yandex Browser", () => {
+    createGame({} as HTMLElement);
+
+    expect(gameConfigs).toHaveLength(1);
+    expect(gameConfigs[0]).toMatchObject({ type: Phaser.CANVAS });
   });
 });
