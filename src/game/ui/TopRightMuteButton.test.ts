@@ -181,6 +181,19 @@ describe("TopRightMuteButton", () => {
     expect(scene.texts[0].origin).toEqual({ x: 1, y: 0 });
   });
 
+  it("applies an optional vertical offset only to the text label", () => {
+    const scene = makeScene(1280);
+    createTopRightMuteButton(
+      scene,
+      { sfxMuted: true, musicMuted: true },
+      () => {},
+      { textOffsetY: -4 },
+    );
+
+    expect(scene.texts[0].y).toBe(16);
+    expect(drawNeonPanelMock).toHaveBeenCalledWith(scene, 1106, 12, 148, 42);
+  });
+
   it("shows '🔊 Sound' when not muted", () => {
     const scene = makeScene();
     createTopRightMuteButton(scene, { sfxMuted: false, musicMuted: false }, () => {});

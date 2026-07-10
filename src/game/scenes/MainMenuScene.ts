@@ -64,6 +64,7 @@ export class MainMenuScene extends Phaser.Scene {
     }, {
       soundLabel: i18n.t("mute.sound"),
       mutedLabel: i18n.t("mute.muted"),
+      textOffsetY: -4,
     });
 
     // --- Top-left language toggle (RU <-> EN) ---

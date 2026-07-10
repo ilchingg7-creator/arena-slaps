@@ -71,6 +71,7 @@ export type MuteButtonState = {
 export type MuteButtonOptions = {
   soundLabel?: string;
   mutedLabel?: string;
+  textOffsetY?: number;
 };
 
 export type TopRightMuteButton = {
@@ -105,6 +106,7 @@ export function createTopRightMuteButton(
   const margin = 20;
   const soundLabel = options?.soundLabel ?? DEFAULT_SOUND_LABEL;
   const mutedLabel = options?.mutedLabel ?? DEFAULT_MUTED_LABEL;
+  const textOffsetY = options?.textOffsetY ?? 0;
 
   let state: MuteButtonState = { ...initialState };
   drawNeonPanel(
@@ -162,7 +164,7 @@ export function createTopRightMuteButton(
 
   // --- Text fallback (tests / missing sprites) ---
   const button = scene.add
-    .text(width - margin, margin, isMasterMuted(state) ? mutedLabel : soundLabel, {
+    .text(width - margin, margin + textOffsetY, isMasterMuted(state) ? mutedLabel : soundLabel, {
       ...textStyle,
       align: "center",
       color: colorToHex(NEON_COLORS.text),
