@@ -115,9 +115,9 @@ export function createTopRightMuteButton(
     BUTTON_HEIGHT,
   );
 
-  const spritesAvailable =
-    scene.textures?.exists?.(SPRITE_SOUND) === true &&
-    scene.textures?.exists?.(SPRITE_MUTED) === true;
+  // Bitmap labels cannot be localized. Keep the existing neon panel but
+  // always render the translated text variant below.
+  const spritesAvailable = false;
 
   // --- Sprite-based button (preferred) ---
   if (spritesAvailable) {

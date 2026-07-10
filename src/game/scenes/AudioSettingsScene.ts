@@ -151,8 +151,8 @@ export class AudioSettingsScene extends Phaser.Scene {
       .text(labelX, rowStartY + 30, i18n.t("audio.sfxMute"), rowStyle())
       .setOrigin(0, 0.5);
     // SFX mute toggle as sprite-based button (like global mute)
-    const sfxOnImg = this.add.image(sliderX + 130, rowStartY + 30, "sfx-on").setOrigin(0.5).setInteractive({ useHandCursor: true });
-    const sfxMutedImg = this.add.image(sliderX + 130, rowStartY + 30, "sfx-muted").setOrigin(0.5).setInteractive({ useHandCursor: true });
+    const sfxOnImg = this.add.text(sliderX + 130, rowStartY + 30, i18n.t("mute.sound"), rowStyle()).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    const sfxMutedImg = this.add.text(sliderX + 130, rowStartY + 30, i18n.t("mute.muted"), rowStyle()).setOrigin(0.5).setInteractive({ useHandCursor: true });
     updateSfxMuteVisual = () => {
       sfxOnImg.setVisible(!settings.sfxMuted);
       sfxMutedImg.setVisible(settings.sfxMuted);
@@ -204,8 +204,8 @@ export class AudioSettingsScene extends Phaser.Scene {
       .text(labelX, rowStartY + rowStep + 30, i18n.t("audio.musicMute"), rowStyle())
       .setOrigin(0, 0.5);
     // Music mute toggle as sprite-based button
-    const musicOnImg = this.add.image(sliderX + 130, rowStartY + rowStep + 30, "music-on").setOrigin(0.5).setInteractive({ useHandCursor: true });
-    const musicMutedImg = this.add.image(sliderX + 130, rowStartY + rowStep + 30, "music-muted").setOrigin(0.5).setInteractive({ useHandCursor: true });
+    const musicOnImg = this.add.text(sliderX + 130, rowStartY + rowStep + 30, i18n.t("mute.sound"), rowStyle()).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    const musicMutedImg = this.add.text(sliderX + 130, rowStartY + rowStep + 30, i18n.t("mute.muted"), rowStyle()).setOrigin(0.5).setInteractive({ useHandCursor: true });
     updateMusicMuteVisual = () => {
       musicOnImg.setVisible(!settings.musicMuted);
       musicMutedImg.setVisible(settings.musicMuted);
