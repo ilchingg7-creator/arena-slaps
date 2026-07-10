@@ -40,6 +40,13 @@ describe("translations config", () => {
     }
   });
 
+  it("does not expose Telegram links in translated game text", () => {
+    for (const entry of Object.values(TRANSLATIONS)) {
+      expect(entry.ru).not.toContain("t.me/");
+      expect(entry.en).not.toContain("t.me/");
+    }
+  });
+
   it("every TranslationKey maps to a { ru, en } object", () => {
     const keys = Object.keys(TRANSLATIONS) as TranslationKey[];
     expect(keys.length).toBeGreaterThan(0);
