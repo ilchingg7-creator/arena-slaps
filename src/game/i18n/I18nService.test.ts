@@ -105,22 +105,56 @@ describe("I18nService.load", () => {
     const svc = I18nService.load(storage);
     expect(svc.getLanguage()).toBe("en");
   });
+
+  it("keeps a manual language choice across scene reloads in the same page", () => {
+    vi.stubGlobal("window", {});
+    vi.stubGlobal("navigator", { language: "ru-RU" });
+    const { storage } = makeStorage({});
+    const service = I18nService.load(storage);
+
+    service.toggle();
+    service.save(storage);
+
+    expect(I18nService.load(storage).getLanguage()).toBe("en");
+  });
+
+  it("returns to browser language after the page-scoped choice is cleared", () => {
+    const page = {} as { __arenaSlapsSessionLanguage?: string };
+    vi.stubGlobal("window", page);
+    vi.stubGlobal("navigator", { language: "ru-RU" });
+    const { storage } = makeStorage({ "arena-slaps:language": "en" });
+    const service = new I18nService("en");
+    service.save(storage);
+    delete page.__arenaSlapsSessionLanguage;
+
+    expect(I18nService.load(storage).getLanguage()).toBe("ru");
+  });
 });
 
 describe("I18nService.save", () => {
-  it("persists the current language to localStorage", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("stores the current language only for the current page", () => {
+    const page = {} as { __arenaSlapsSessionLanguage?: string };
+    vi.stubGlobal("window", page);
     const { storage, data } = makeStorage({});
     const svc = new I18nService("en");
     svc.save(storage);
-    expect(data["arena-slaps:language"]).toBe("en");
+    expect(page.__arenaSlapsSessionLanguage).toBe("en");
+    expect(data["arena-slaps:language"]).toBeUndefined();
   });
 
-  it("persists after toggle", () => {
+  it("stores the toggled language only for the current page", () => {
+    const page = {} as { __arenaSlapsSessionLanguage?: string };
+    vi.stubGlobal("window", page);
     const { storage, data } = makeStorage({});
     const svc = new I18nService();
     svc.toggle();
     svc.save(storage);
-    expect(data["arena-slaps:language"]).toBe("en");
+    expect(page.__arenaSlapsSessionLanguage).toBe("en");
+    expect(data["arena-slaps:language"]).toBeUndefined();
   });
 });
 

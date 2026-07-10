@@ -5,11 +5,13 @@ import {
   type TranslationKey,
 } from "../config/translations";
 
-const STORAGE_KEY = "arena-slaps:language";
-
 type StorageLike = {
   getItem?: (key: string) => string | null;
   setItem?: (key: string, value: string) => void;
+};
+
+type LanguageWindow = Window & {
+  __arenaSlapsSessionLanguage?: Language;
 };
 
 /**
@@ -23,9 +25,9 @@ type StorageLike = {
  *   - `I18nService.load(storage)` — read the saved language from
  *     localStorage; falls back to the default when nothing is stored.
  *
- * Persistence:
- *   - `save(storage)` writes the current language to localStorage under
- *     the key `arena-slaps:language`.
+   * Session choice:
+   *   - `save(storage)` keeps the current language in page memory so scene
+   *     restarts preserve it without overriding browser language on reload.
  *
  * Translation:
  *   - `t(key)` returns the string for the current language.
@@ -52,6 +54,12 @@ export class I18nService {
    *   4. DEFAULT_LANGUAGE ("ru")
    */
   static load(storage: StorageLike | null | undefined): I18nService {
+    if (typeof window !== "undefined") {
+      const sessionLanguage = (window as LanguageWindow).__arenaSlapsSessionLanguage;
+      if (sessionLanguage === "ru" || sessionLanguage === "en") {
+        return new I18nService(sessionLanguage);
+      }
+    }
     if (!storage) return new I18nService(I18nService.detectLanguage());
     const raw = null;
     if (raw === "ru" || raw === "en") {
@@ -90,9 +98,12 @@ export class I18nService {
     return DEFAULT_LANGUAGE;
   }
 
-  /** Save the current language to localStorage. */
+  /** Keep the current language until the page is fully reloaded. */
   save(storage: StorageLike): void {
-    storage.setItem?.(STORAGE_KEY, this.language);
+    void storage;
+    if (typeof window !== "undefined") {
+      (window as LanguageWindow).__arenaSlapsSessionLanguage = this.language;
+    }
   }
 
   /** Get the current language. */
