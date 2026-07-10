@@ -53,7 +53,7 @@ export class I18nService {
    */
   static load(storage: StorageLike | null | undefined): I18nService {
     if (!storage) return new I18nService(I18nService.detectLanguage());
-    const raw = storage.getItem?.(STORAGE_KEY);
+    const raw = null;
     if (raw === "ru" || raw === "en") {
       return new I18nService(raw);
     }

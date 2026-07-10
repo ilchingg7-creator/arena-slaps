@@ -67,10 +67,10 @@ describe("I18nService.load", () => {
     expect(svc.getLanguage()).toBe("ru");
   });
 
-  it("returns 'en' when 'en' is stored", () => {
+  it("ignores a stored language when browser language is Russian", () => {
     const { storage } = makeStorage({ "arena-slaps:language": "en" });
     const svc = I18nService.load(storage);
-    expect(svc.getLanguage()).toBe("en");
+    expect(svc.getLanguage()).toBe("ru");
   });
 
   it("ignores invalid stored values and auto-detects", () => {
@@ -99,11 +99,11 @@ describe("I18nService.load", () => {
     expect(svc.getLanguage()).toBe("ru");
   });
 
-  it("saved preference overrides auto-detection", () => {
+  it("browser language overrides saved preference", () => {
     vi.stubGlobal("navigator", { language: "en-US" });
     const { storage } = makeStorage({ "arena-slaps:language": "ru" });
     const svc = I18nService.load(storage);
-    expect(svc.getLanguage()).toBe("ru"); // saved preference wins
+    expect(svc.getLanguage()).toBe("en");
   });
 });
 
