@@ -74,6 +74,23 @@ export class I18nService {
    * Falls back to DEFAULT_LANGUAGE if detection fails.
    */
   private static detectLanguage(): Language {
+    // Yandex passes the selected platform language directly to the game
+    // iframe URL. This is available before the async SDK initialization,
+    // so it prevents the first scene from briefly choosing navigator.language.
+    if (typeof window !== "undefined") {
+      const search = (window as unknown as { location?: { search?: string } })
+        .location?.search;
+      if (search) {
+        const urlLang = new URLSearchParams(search).get("lang")?.toLowerCase();
+        if (urlLang === "ru" || urlLang === "be" || urlLang === "uk" ||
+            urlLang === "kk" || urlLang === "uz") {
+          return "ru";
+        }
+        if (urlLang === "en") {
+          return "en";
+        }
+      }
+    }
     // Try Yandex SDK first (if available)
     if (typeof window !== "undefined") {
       const yaSdk = (window as unknown as { __yaSdkLang?: string }).__yaSdkLang;

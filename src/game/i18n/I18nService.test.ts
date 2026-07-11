@@ -106,6 +106,30 @@ describe("I18nService.load", () => {
     expect(svc.getLanguage()).toBe("en");
   });
 
+  it("uses ?lang=en before Russian browser language", () => {
+    vi.stubGlobal("window", { location: { search: "?debug-mode=16&lang=en" } });
+    vi.stubGlobal("navigator", { language: "ru-RU" });
+
+    expect(I18nService.load(null).getLanguage()).toBe("en");
+  });
+
+  it("uses ?lang=ru before English browser language", () => {
+    vi.stubGlobal("window", { location: { search: "?lang=ru" } });
+    vi.stubGlobal("navigator", { language: "en-US" });
+
+    expect(I18nService.load(null).getLanguage()).toBe("ru");
+  });
+
+  it("keeps a manual page choice above the URL language", () => {
+    vi.stubGlobal("window", {
+      location: { search: "?lang=en" },
+      __arenaSlapsSessionLanguage: "ru",
+    });
+    vi.stubGlobal("navigator", { language: "en-US" });
+
+    expect(I18nService.load(null).getLanguage()).toBe("ru");
+  });
+
   it("keeps a manual language choice across scene reloads in the same page", () => {
     vi.stubGlobal("window", {});
     vi.stubGlobal("navigator", { language: "ru-RU" });
